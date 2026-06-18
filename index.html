@@ -1834,10 +1834,18 @@ function renderVoucherList(type) {
   var typeIcon = {Receipt:'🧾',Payment:'💸',Purchase:'🛒',Contra:'🔁',Journal:'📘'};
   el.innerHTML = vouchers.map(function(v){
     var totalAmt = v.entries.filter(function(e){ return e.type==='debit'; }).reduce(function(s,e){ return s+Number(e.amount); },0);
-    return '<div class="meeting-card" style="cursor:pointer" onclick="viewVoucher(\''+v.id+'\')"><div style="display:flex;justify-content:space-between;align-items:center">' +
+    var adminBtns = '';
+if(currentUser && currentUser.role==='superadmin'){
+  adminBtns =
+    '<div style="margin-top:8px;text-align:right">' +
+    '<button class="btn btn-sm btn-danger" onclick="event.stopPropagation();deleteVoucher(\''+v.id+'\')">🗑️ Delete</button>' +
+    '</div>';
+}
+
+return '<div class="meeting-card" style="cursor:pointer" onclick="viewVoucher(\''+v.id+'\')"><div style="display:flex;justify-content:space-between;align-items:center">' +
       '<div><div style="font-weight:700">'+(typeIcon[v.type]||'📄')+' '+v.voucherNo+' <span class="badge '+(v.auto?'badge-info':'badge-success')+'" style="margin-left:6px">'+(v.auto?'Auto':'Manual')+'</span></div>' +
       '<div class="meeting-meta"><span>📅 '+fmtDate(v.date)+'</span><span>'+v.narration+'</span></div></div>' +
-      '<div style="text-align:right"><div style="font-weight:700;font-size:16px">'+fmtAmt(totalAmt)+'</div><div style="font-size:11px;color:var(--text2)">Ref: '+(v.ref||'—')+'</div></div></div></div>';
+      '<div style="text-align:right"><div style="font-weight:700;font-size:16px">'+fmtAmt(totalAmt)+'</div><div style="font-size:11px;color:var(--text2)">Ref: '+(v.ref||'—')+'</div></div></div>'+adminBtns+'</div>';
   }).join('');
 }
 
@@ -1854,6 +1862,47 @@ function viewVoucher(id) {
     v.entries.map(function(e){ return '<div class="receipt-row"><span>'+(e.type==='debit'?'Dr':'Cr')+' '+e.ledger+'</span><strong>'+fmtAmt(e.amount)+'</strong></div>'; }).join('') +
     '<div style="margin-top:18px;font-size:11px;color:var(--text2)">Posted by: '+v.postedBy+' '+(v.auto?'(Auto)':'(Manual)')+'</div></div>';
   openModal('modal-voucher-view');
+function deleteVoucher(id){
+  if(!currentUser || currentUser.role!=='superadmin'){
+    showToast('Only Super Admin can delete vouchers','error');
+    return;
+  }
+
+  var voucher = DB.get('vouchers').find(function(v){
+    return v.id===id;
+  });
+
+  if(!voucher) return;
+
+  if(!confirm('Delete Voucher '+voucher.voucherNo+' ?')){
+    return;
+  }
+
+  var vouchers = DB.get('vouchers').filter(function(v){
+    return v.id!==id;
+  });
+
+  DB.set('vouchers', vouchers);
+
+  addAudit(
+    'Voucher Deleted',
+    voucher.voucherNo+' | '+voucher.type+' | '+fmtAmt(
+      voucher.entries.filter(function(e){return e.type==='debit';})
+      .reduce(function(s,e){return s+Number(e.amount);},0)
+    )
+  );
+
+  renderVoucherList('All');
+  renderVoucherList('Receipt');
+  renderVoucherList('Payment');
+  renderVoucherList('Purchase');
+  renderVoucherList('Contra');
+  renderVoucherList('Journal');
+
+  loadDashboard();
+
+  showToast('Voucher deleted successfully','success');
+}
 }
 
 // ============================================================
