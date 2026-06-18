@@ -1862,6 +1862,8 @@ function viewVoucher(id) {
     v.entries.map(function(e){ return '<div class="receipt-row"><span>'+(e.type==='debit'?'Dr':'Cr')+' '+e.ledger+'</span><strong>'+fmtAmt(e.amount)+'</strong></div>'; }).join('') +
     '<div style="margin-top:18px;font-size:11px;color:var(--text2)">Posted by: '+v.postedBy+' '+(v.auto?'(Auto)':'(Manual)')+'</div></div>';
   openModal('modal-voucher-view');
+}
+
 function deleteVoucher(id){
   if(!currentUser || currentUser.role!=='superadmin'){
     showToast('Only Super Admin can delete vouchers','error');
