@@ -853,6 +853,27 @@ function fmtDate(d) { if(!d) return '—'; try { return new Date(d).toLocaleDate
 function fmtAmt(n) { return '₹' + Number(n||0).toLocaleString('en-IN'); }
 function getFYList() { var s=2022, e=2032; var r=[]; for(var i=s;i<e;i++) r.push(i+'-'+(i+1).toString().slice(2)); return r; }
 
+function checkDateInFY(dateStr) {
+  if(!dateStr) return true;
+  var parts = currentFY.split('-');
+  var startYear = parseInt(parts[0]);
+  var endYear = startYear + 1;
+  var fyStart = new Date(startYear, 3, 1);
+  var fyEnd   = new Date(endYear, 2, 31, 23, 59, 59);
+  var d = new Date(dateStr);
+  return d >= fyStart && d <= fyEnd;
+}
+
+function fyDateError(dateStr) {
+  var d = new Date(dateStr);
+  var dYear = d.getFullYear();
+  var dMonth = d.getMonth();
+  var belongsToFY = dMonth >= 3
+    ? dYear + '-' + (dYear+1).toString().slice(2)
+    : (dYear-1) + '-' + dYear.toString().slice(2);
+  showToast('⚠️ Date belongs to FY ' + belongsToFY + '. Please change FY from top bar first!', 'error');
+}
+  
 function showToast(msg, type) {
   var t = document.getElementById('toast');
   t.textContent = msg;
@@ -1001,7 +1022,20 @@ function switchTab(btn, contentId) {
   if(el) el.classList.add('active');
 }
 
-function openModal(id) { document.getElementById(id).classList.add('open'); }
+function openModal(id) {
+  var modal = document.getElementById(id);
+  if(!modal) return;
+  modal.classList.add('open');
+  // Show current FY reminder in all modals
+  var existing = modal.querySelector('.fy-modal-banner');
+  if(existing) existing.remove();
+  var banner = document.createElement('div');
+  banner.className = 'fy-modal-banner';
+  banner.style.cssText = 'background:var(--saffron-light);border:1px solid var(--saffron);border-radius:8px;padding:7px 14px;font-size:12px;font-weight:600;color:var(--saffron);margin-bottom:14px;display:flex;align-items:center;gap:6px;';
+  banner.innerHTML = '📅 Active FY: <strong>' + currentFY + '</strong> &nbsp;|&nbsp; All entries will be saved to this FY. <span onclick="closeModal(\''+id+'\');showFYModal()" style="margin-left:auto;cursor:pointer;text-decoration:underline;font-weight:700">Change FY ▾</span>';
+  var body = modal.querySelector('.modal-body');
+  if(body) body.insertBefore(banner, body.firstChild);
+}
 
 function closeModal(id) {
   var modal = document.getElementById(id);
@@ -1209,6 +1243,10 @@ function saveCommitteeMember() {
     return;
   }
 }
+  if(term !== currentFY) {
+    showToast('⚠️ Term ' + term + ' does not match current FY ' + currentFY + '. Change FY from top bar or select correct term.', 'error');
+    return;
+  }
   var member = {id:editingId||uid(),name:name,mobile:mobile,role:finalRole,term:term,
     email:document.getElementById('cm-email').value,dob:document.getElementById('cm-dob').value,
     address:document.getElementById('cm-address').value,sabhashadLink:document.getElementById('cm-sabhashad-link').value,
@@ -1415,6 +1453,7 @@ function saveEvent() {
   var name = document.getElementById('ev-name').value.trim();
   var date = document.getElementById('ev-date').value;
   if(!name||!date) { showToast('Name and date required','error'); return; }
+  if(!checkDateInFY(date)) { fyDateError(date); return; }
   var ev = {id:editingId||uid(),name:name,date:date,venue:document.getElementById('ev-venue').value,
     desc:document.getElementById('ev-desc').value,budget:parseFloat(document.getElementById('ev-budget').value)||0,
     status:document.getElementById('ev-status').value,fy:currentFY,createdAt:now()};
@@ -1543,6 +1582,7 @@ function saveFlatDonation() {
   if(!amt||amt<=0) { showToast('Enter valid amount','error'); return; }
   var existing = DB.get('donations').find(function(d){ return d.flatKey===currentFlatKey.flatKey && d.eventId===currentFlatKey.eventId; });
   if(existing) { showToast('Donation already recorded for this flat!','error'); return; }
+  if(!checkDateInFY(date)) { fyDateError(date); return; }
   var receipt = genReceipt();
   var don = {id:uid(),eventId:currentFlatKey.eventId,flatKey:currentFlatKey.flatKey,type:'area',
     donorName:document.getElementById('fd-name').value,amount:amt,mode:document.getElementById('fd-mode').value,
@@ -1562,6 +1602,7 @@ function addDirectDonor() {
   var mobile = document.getElementById('dd-mobile').value.trim();
   var amt = parseFloat(document.getElementById('dd-amount').value);
   if(!name||!mobile||!amt) { showToast('Name, mobile and amount required','error'); return; }
+  if(!checkDateInFY(date)) { fyDateError(date); return; }
   var receipt = genReceipt();
   var don = {id:uid(),eventId:eventId,type:'direct',donorName:name,mobile:mobile,
     sabhashadId:document.getElementById('dd-sabhashad').value,amount:amt,mode:document.getElementById('dd-mode').value,
@@ -1619,6 +1660,7 @@ function saveMeeting() {
   var date = document.getElementById('mt-date').value;
   var venue = document.getElementById('mt-venue').value.trim();
   if(!date||!venue) { showToast('Date and venue required','error'); return; }
+  if(!checkDateInFY(date)) { fyDateError(date); return; }
   var members = DB.get('committee').filter(function(c){ return c.fy===currentFY; });
   var attendance = {};
   members.forEach(function(m){ var el=document.getElementById('att-'+m.id); attendance[m.id]=el?el.checked:false; });
@@ -1778,6 +1820,7 @@ function savePaymentVoucher() {
   var ref = document.getElementById('pv-ref').value;
   var narration = document.getElementById('pv-narration').value;
   if(!date||!toSel||!amount) { showToast('Date, payee and amount required','error'); return; }
+  if(!checkDateInFY(date)) { fyDateError(date); return; }
   var toLedgerName, vendorId='';
   if(toSel==='__other__') { toLedgerName = narration||'Sundry Expense'; }
   else { var vendor = DB.get('vendors').find(function(v){ return v.id===toSel; }); toLedgerName=vendor.name; vendorId=vendor.id; }
@@ -1843,6 +1886,7 @@ function saveContraVoucher() {
   var amount = parseFloat(document.getElementById('cv-amount').value);
   var narration = document.getElementById('cv-narration').value;
   if(!date||!amount) { showToast('Date and amount required','error'); return; }
+  if(!checkDateInFY(date)) { fyDateError(date); return; }
   var debitLedger = direction==='cash-to-bank' ? 'Bank Account' : 'Cash in Hand';
   var creditLedger = direction==='cash-to-bank' ? 'Cash in Hand' : 'Bank Account';
   postVoucher({type:'Contra',date:date,narration:narration||(direction==='cash-to-bank'?'Cash deposited to bank':'Cash withdrawn from bank'),
@@ -1859,6 +1903,7 @@ function saveJournalVoucher() {
   var narration = document.getElementById('jv-narration').value;
   if(!date||!debit||!credit||!amount) { showToast('All fields required','error'); return; }
   if(debit===credit) { showToast('Debit and Credit cannot be same','error'); return; }
+  if(!checkDateInFY(date)) { fyDateError(date); return; }
   postVoucher({type:'Journal',date:date,narration:narration,
     entries:[{ledger:debit,type:'debit',amount:amount},{ledger:credit,type:'credit',amount:amount}],fy:currentFY});
   closeModal('modal-voucher-journal'); renderVoucherList('Journal'); loadDashboard();
@@ -2070,6 +2115,7 @@ function saveInvestment() {
   var date = document.getElementById('inv-date').value;
   var source = document.getElementById('inv-source').value;
   if(!name||!principal||!date) { showToast('Name, principal and date required','error'); return; }
+  if(!checkDateInFY(date)) { fyDateError(date); return; }
   var inv = {id:editingId||uid(),name:name,group:'Investments',invType:document.getElementById('inv-type').value,
     principal:principal,rate:parseFloat(document.getElementById('inv-rate').value)||0,
     bank:document.getElementById('inv-bank').value,maturity:document.getElementById('inv-maturity').value,
@@ -2410,6 +2456,7 @@ function markFeePaid(memberId, fy, minAmt) {
   var date = dateEl&&dateEl.value||new Date().toISOString().split('T')[0];
   var remarks = remarksEl&&remarksEl.value||'';
   if(paidAmt < minAmt && minAmt > 0) { showToast('Amount cannot be less than minimum '+fmtAmt(minAmt),'error'); return; }
+  if(!checkDateInFY(date)) { fyDateError(date); return; }
   var receipt = 'FEE-'+String(Date.now()).slice(-6);
   var members = DB.get('sabhashad');
   var i = members.findIndex(function(x){ return x.id===memberId; });
