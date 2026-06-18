@@ -674,6 +674,8 @@ tr:hover td{background:var(--saffron-light)}
     <div class="form-row"><div class="form-group"><label>Bill / Invoice No.</label><input type="text" id="pu-bill"></div><div class="form-group"><label>Link to Event</label><select id="pu-event"><option value="">— No event —</option></select></div></div>
     <div class="form-group"><label>Description</label><textarea id="pu-desc" rows="2"></textarea></div>
     <div class="alert alert-info">This raises Vendor outstanding. Pay later via Payment Voucher.</div>
+    <div class="form-group"><label>Upload Invoice</label><input type="file" id="Invoice" accept="image/*" onchange="Invoice(this)"></div>
+
   </div>
   <div class="modal-footer"><button class="btn btn-secondary" onclick="closeModal('modal-voucher-purchase')">Cancel</button><button class="btn btn-primary" onclick="savePurchaseVoucher()">Save Purchase</button></div></div>
 </div>
