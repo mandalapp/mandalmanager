@@ -190,7 +190,7 @@ tr:hover td{background:var(--saffron-light)}
   <div class="login-card">
     <div class="login-logo"><div class="om">🕉️</div><h1>Mandal Manager</h1><p>Complete Mandal Management System</p></div>
     <div class="login-error" id="login-error">Invalid username or password.</div>
-    <div class="form-group"><label>Username</label><input type="text" id="login-user" placeholder="Enter username"></div>
+    <div class="form-group"><label>Username</label><input type="text" id="login-user" placeholder="Enter username" autocapitalize="off" autocorrect="off" spellcheck="false"></div>
     <div class="form-group"><label>Password</label><input type="password" id="login-pass" placeholder="Enter password" autocapitalize="off" autocorrect="off" spellcheck="false"></div>
     <button class="btn btn-primary btn-full" onclick="doLogin()">Sign In →</button>
     <p style="text-align:center;margin-top:14px;font-size:12px;color:var(--text2)">Default: admin / admin123</p>
@@ -1065,8 +1065,8 @@ function populateFYSelects() {
 }
   
 function doLogin() {
-  var u = document.getElementById('login-user').value.trim();
-  var p = document.getElementById('login-pass').value.trim();
+  var u = document.getElementById('login-user').value.trim().toLowerCase();
+  var p = document.getElementById('login-pass').value;
   var errEl = document.getElementById('login-error');
   var user = DB.get('users').find(function(x){ return x.username===u && x.password===p && x.status==='active'; });
   if(!user) { errEl.style.display='block'; errEl.textContent='Invalid username or password.'; return; }
