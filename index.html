@@ -1907,7 +1907,7 @@ function viewVoucher(id) {
       ? '<div style="border:1px solid var(--border);border-radius:8px;padding:12px;text-align:center"><div style="font-size:30px">📄</div><div style="font-size:13px;font-weight:600;margin-top:4px">'+v.invoiceFile.name+'</div><a href="'+v.invoiceFile.dataUrl+'" download="'+v.invoiceFile.name+'" class="btn btn-sm btn-secondary" style="margin-top:8px">⬇️ Download PDF</a></div>'
       : '<img src="'+v.invoiceFile.dataUrl+'" style="max-width:100%;border-radius:8px;border:1px solid var(--border)">'
     ) : '') +
-  '</div>';
+  '</div></div>';
   openModal('modal-voucher-view');
 }
 
