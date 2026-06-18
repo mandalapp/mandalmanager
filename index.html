@@ -853,18 +853,38 @@ function fmtDate(d) { if(!d) return '—'; try { return new Date(d).toLocaleDate
 function fmtAmt(n) { return '₹' + Number(n||0).toLocaleString('en-IN'); }
 function getFYList() { var s=2022, e=2032; var r=[]; for(var i=s;i<e;i++) r.push(i+'-'+(i+1).toString().slice(2)); return r; }
 
+function parseLocalDate(dateStr) {
+  var p = dateStr.split('-');
+  return new Date(parseInt(p[0]), parseInt(p[1]) - 1, parseInt(p[2]), 0, 0, 0);
+}
+
 function checkDateInFY(dateStr) {
   if(!dateStr) return true;
   var fyParts = currentFY.split('-');
   var startYear = parseInt(fyParts[0]);
-  var endYear   = startYear + 1;
-  // FY: 1 April to 31 March (full days)
-  var fyStart = new Date(startYear, 3,  1,  0,  0,  0);  // 1 Apr 00:00:00
-  var fyEnd   = new Date(endYear,   2, 31, 23, 59, 59);  // 31 Mar 23:59:59
-  var d = parseLocalDate(dateStr); // parsed as 00:00:00 local
+  var endYear = startYear + 1;
+  var fyStart = new Date(startYear, 3, 1, 0, 0, 0);   // 1 April 00:00:00
+  var fyEnd   = new Date(endYear,   2, 31, 23, 59, 59); // 31 March 23:59:59
+  var d = parseLocalDate(dateStr);
+  console.log('FY Check:', currentFY, '| fyStart:', fyStart, '| fyEnd:', fyEnd, '| date:', d, '| valid:', d >= fyStart && d <= fyEnd);
   return d >= fyStart && d <= fyEnd;
 }
 
+function fyDateError(dateStr) {
+  var d = parseLocalDate(dateStr);
+  var dYear  = d.getFullYear();
+  var dMonth = d.getMonth();
+  var belongsToFY = dMonth >= 3
+    ? dYear + '-' + (dYear + 1).toString().slice(2)
+    : (dYear - 1) + '-' + dYear.toString().slice(2);
+  showToast(
+    '⚠️ Date ' + dateStr + ' belongs to FY ' + belongsToFY +
+    '. Current FY is ' + currentFY +
+    '. Please change FY from top bar!',
+    'error'
+  );
+}
+  
 function fyDateError(dateStr) {
   var d = new Date(dateStr);
   var dYear = d.getFullYear();
@@ -1858,6 +1878,9 @@ function savePurchaseVoucher() {
   var eventId = document.getElementById('pu-event').value;
   var desc = document.getElementById('pu-desc').value;
   if(!date||!vendorId||!ledgerName||!amount) { showToast('Date, vendor, ledger and amount required','error'); return; }
+  if(!checkDateInFY(date)) {
+    fyDateError(date); return;
+  }
   var vendor = DB.get('vendors').find(function(v){ return v.id===vendorId; });
   var invoiceFile = document.getElementById('pu-invoice').files[0];
   function doSave(invoiceData) {
