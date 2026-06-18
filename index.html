@@ -672,7 +672,16 @@ tr:hover td{background:var(--saffron-light)}
     <div class="form-row"><div class="form-group"><label class="mandatory">Date</label><input type="date" id="pu-date"></div><div class="form-group"><label class="mandatory">Vendor</label><select id="pu-vendor"></select></div></div>
     <div class="form-row"><div class="form-group"><label class="mandatory">Expense Ledger</label><select id="pu-ledger"></select></div><div class="form-group"><label class="mandatory">Amount (₹)</label><input type="number" id="pu-amount" min="0"></div></div>
     <div class="form-row"><div class="form-group"><label>Bill / Invoice No.</label><input type="text" id="pu-bill"></div><div class="form-group"><label>Link to Event</label><select id="pu-event"><option value="">— No event —</option></select></div></div>
-    <div class="form-group"><label>Description</label><textarea id="pu-desc" rows="2"></textarea></div>
+<div class="form-group"><label>Description</label><textarea id="pu-desc" rows="2"></textarea></div>
+    <div class="form-group">
+      <label>📎 Upload Invoice / Bill</label>
+      <input type="file" id="pu-invoice" accept="image/*,.pdf" onchange="previewPurchaseInvoice(this)">
+      <div class="form-hint">Accepted: JPG, PNG, PDF</div>
+    </div>
+    <div id="pu-invoice-preview" style="display:none;margin-top:10px">
+      <div class="section-label">Invoice Preview</div>
+      <div id="pu-invoice-preview-content" style="border:2px dashed var(--border);border-radius:10px;padding:12px;text-align:center"></div>
+    </div>
     <div class="alert alert-info">This raises Vendor outstanding. Pay later via Payment Voucher.</div>
   </div>
   <div class="modal-footer"><button class="btn btn-secondary" onclick="closeModal('modal-voucher-purchase')">Cancel</button><button class="btn btn-primary" onclick="savePurchaseVoucher()">Save Purchase</button></div></div>
@@ -1779,6 +1788,22 @@ function savePaymentVoucher() {
   addAudit('Payment Voucher',fmtAmt(amount)+' to '+toLedgerName); showToast('Payment voucher saved!','success');
 }
 
+function previewPurchaseInvoice(input) {
+  if(!input.files[0]) return;
+  var file = input.files[0];
+  var previewBox = document.getElementById('pu-invoice-preview');
+  var previewContent = document.getElementById('pu-invoice-preview-content');
+  previewBox.style.display = 'block';
+  if(file.type === 'application/pdf') {
+    previewContent.innerHTML = '<div style="font-size:36px">📄</div><div style="font-size:13px;margin-top:6px;font-weight:600">'+file.name+'</div><div style="font-size:11px;color:var(--text2);margin-top:4px">PDF — '+(file.size/1024).toFixed(1)+' KB</div>';
+  } else {
+    var r = new FileReader();
+    r.onload = function(e) {
+      previewContent.innerHTML = '<img src="'+e.target.result+'" style="max-width:100%;max-height:220px;border-radius:8px;object-fit:contain">';
+    };
+    r.readAsDataURL(file);
+  }
+
 function savePurchaseVoucher() {
   var date = document.getElementById('pu-date').value;
   var vendorId = document.getElementById('pu-vendor').value;
@@ -1789,13 +1814,28 @@ function savePurchaseVoucher() {
   var desc = document.getElementById('pu-desc').value;
   if(!date||!vendorId||!ledgerName||!amount) { showToast('Date, vendor, ledger and amount required','error'); return; }
   var vendor = DB.get('vendors').find(function(v){ return v.id===vendorId; });
-  postVoucher({type:'Purchase',date:date,ref:bill,narration:desc||'Purchase from '+vendor.name,
-    entries:[{ledger:ledgerName,type:'debit',amount:amount},{ledger:vendor.name,type:'credit',amount:amount}],
-    linkedVendorId:vendorId,linkedEventId:eventId,fy:currentFY});
-  closeModal('modal-voucher-purchase'); renderVoucherList('Purchase'); loadDashboard();
-  addAudit('Purchase Voucher',fmtAmt(amount)+' from '+vendor.name); showToast('Purchase voucher saved!','success');
+  var invoiceFile = document.getElementById('pu-invoice').files[0];
+  function doSave(invoiceData) {
+    var v = postVoucher({type:'Purchase',date:date,ref:bill,narration:desc||'Purchase from '+vendor.name,
+      entries:[{ledger:ledgerName,type:'debit',amount:amount},{ledger:vendor.name,type:'credit',amount:amount}],
+      linkedVendorId:vendorId,linkedEventId:eventId,fy:currentFY});
+    if(v && invoiceData) {
+      var vouchers = DB.get('vouchers');
+      var idx = vouchers.findIndex(function(x){ return x.id===v.id; });
+      if(idx>-1){ vouchers[idx].invoiceFile = invoiceData; DB.set('vouchers', vouchers); }
+    }
+    document.getElementById('pu-invoice').value = '';
+    document.getElementById('pu-invoice-preview').style.display = 'none';
+    document.getElementById('pu-invoice-preview-content').innerHTML = '';
+    closeModal('modal-voucher-purchase'); renderVoucherList('Purchase'); loadDashboard();
+    addAudit('Purchase Voucher',fmtAmt(amount)+' from '+vendor.name); showToast('Purchase voucher saved!','success');
+  }
+  if(invoiceFile) {
+    var r = new FileReader();
+    r.onload = function(e){ doSave({name:invoiceFile.name, type:invoiceFile.type, dataUrl:e.target.result}); };
+    r.readAsDataURL(invoiceFile);
+  } else { doSave(null); }
 }
-
 function saveContraVoucher() {
   var date = document.getElementById('cv-date').value;
   var direction = document.getElementById('cv-direction').value;
@@ -1860,7 +1900,13 @@ function viewVoucher(id) {
     '<div class="receipt-row"><span>Reference</span><span>'+(v.ref||'—')+'</span></div>' +
     '<div class="receipt-row"><span>Narration</span><span>'+v.narration+'</span></div><hr class="divider">' +
     v.entries.map(function(e){ return '<div class="receipt-row"><span>'+(e.type==='debit'?'Dr':'Cr')+' '+e.ledger+'</span><strong>'+fmtAmt(e.amount)+'</strong></div>'; }).join('') +
-    '<div style="margin-top:18px;font-size:11px;color:var(--text2)">Posted by: '+v.postedBy+' '+(v.auto?'(Auto)':'(Manual)')+'</div></div>';
+'<div style="margin-top:18px;font-size:11px;color:var(--text2)">Posted by: '+v.postedBy+' '+(v.auto?'(Auto)':'(Manual)')+'</div>' +
+  (v.invoiceFile ? '<hr style="margin:14px 0;border:none;border-top:1px solid var(--border)"><div style="font-size:12px;font-weight:700;color:var(--saffron);margin-bottom:8px">📎 Invoice Attached</div>' +
+    (v.invoiceFile.type==='application/pdf'
+      ? '<div style="border:1px solid var(--border);border-radius:8px;padding:12px;text-align:center"><div style="font-size:30px">📄</div><div style="font-size:13px;font-weight:600;margin-top:4px">'+v.invoiceFile.name+'</div><a href="'+v.invoiceFile.dataUrl+'" download="'+v.invoiceFile.name+'" class="btn btn-sm btn-secondary" style="margin-top:8px">⬇️ Download PDF</a></div>'
+      : '<img src="'+v.invoiceFile.dataUrl+'" style="max-width:100%;border-radius:8px;border:1px solid var(--border)">'
+    ) : '') +
+  '</div>';
   openModal('modal-voucher-view');
 }
 
