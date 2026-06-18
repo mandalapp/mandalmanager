@@ -1066,7 +1066,9 @@ function populateFYSelects() {
   
 function doLogin() {
   var u = document.getElementById('login-user').value.trim().toLowerCase();
-  var p = document.getElementById('login-pass').value;
+  var p = document.getElementById('login-pass').value.trim();
+  // Debug - remove after fixing
+  alert('User: [' + u + '] Pass: [' + p + '] Users: ' + JSON.stringify(DB.get('users').map(function(x){return {u:x.username,p:x.password,s:x.status};})));
   var errEl = document.getElementById('login-error');
   var user = DB.get('users').find(function(x){ return x.username===u && x.password===p && x.status==='active'; });
   if(!user) { errEl.style.display='block'; errEl.textContent='Invalid username or password.'; return; }
