@@ -1187,11 +1187,19 @@ function saveCommitteeMember() {
   var term = document.getElementById('cm-term').value;
   if(!name||!mobile) { showToast('Name and mobile required','error'); return; }
   var finalRole = role==='custom' ? customRole : role;
-  var fixedRoles = ['President','Vice President','Secretary','Treasurer'];
-  if(fixedRoles.indexOf(finalRole)>-1) {
-    var ex = DB.get('committee').find(function(c){ return c.role===finalRole&&c.term===term&&c.id!==editingId; });
-    if(ex) { showToast(finalRole+' already exists for '+term,'error'); return; }
+// Only these roles must remain unique
+  var uniqueRoles = ['President','Secretary','Treasurer'];
+  if(uniqueRoles.indexOf(finalRole) > -1) {
+  var ex = DB.get('committee').find(function(c){
+      return c.role === finalRole &&
+           c.term === term &&
+           c.id !== editingId;
+  });
+  if(ex) {
+    showToast(finalRole + ' already exists for ' + term, 'error');
+    return;
   }
+}
   var member = {id:editingId||uid(),name:name,mobile:mobile,role:finalRole,term:term,
     email:document.getElementById('cm-email').value,dob:document.getElementById('cm-dob').value,
     address:document.getElementById('cm-address').value,sabhashadLink:document.getElementById('cm-sabhashad-link').value,
