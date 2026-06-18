@@ -338,8 +338,7 @@ tr:hover td{background:var(--saffron-light)}
       <select class="search-input" style="flex:0;min-width:150px" onchange="filterTableCol('committee-table',1,this.value)"><option value="">All Roles</option><option>President</option><option>Vice President</option><option>Secretary</option><option>Treasurer</option><option>General Member</option></select>
       <select class="search-input" style="flex:0;min-width:130px" id="committee-term-filter" onchange="filterTableCol('committee-table',2,this.value)"><option value="">All Terms</option></select>
     </div>
-    <div class="table-wrap"><table><thead><tr><th>Name</th><th>Role</th><th>Term</th><th>Mobile</th><th>KYC</th><th>Actions</th></tr></thead><tbody id="committee-table"></tbody></table></div>
-  </div>
+    <div class="table-wrap"><table><thead><tr><th>Name</th><th>Role</th><th>Mobile</th><th>KYC</th><th>Actions</th></tr></thead><tbody id="committee-table"></tbody></table></div>  </div>
 </div>
 
 <!-- SABHASHAD -->
@@ -369,7 +368,7 @@ tr:hover td{background:var(--saffron-light)}
       <div style="display:flex;gap:6px">
         <button class="btn btn-primary btn-sm" onclick="openModal('modal-ledger');editingId=null">+ Add Ledger</button>
         <button class="btn btn-secondary btn-sm" onclick="openModal('modal-vendor');editingId=null">+ Add Vendor</button>
-        <button class="btn btn-secondary btn-sm" onclick="openModal('modal-investment');editingId=null">+ Add Investment</button>
+        <button class="btn btn-secondary btn-sm" onclick="openInvestmentModal()">+ Add Investment</button>
       </div>
     </div>
     <div class="alert alert-info">💡 Tally-style ledgers. Vendors = Sundry Creditors. Investments = FD/RD/MF ledgers.</div>
@@ -602,7 +601,7 @@ tr:hover td{background:var(--saffron-light)}
       <div class="form-group"><label class="mandatory">Role</label><select id="cm-role" onchange="toggleCustomRole(this)"><option>President</option><option>Vice President</option><option>Secretary</option><option>Treasurer</option><option>General Member</option><option value="custom">Custom Role</option></select></div>
       <div class="form-group" id="cm-custom-role-group" style="display:none"><label>Custom Role</label><input type="text" id="cm-custom-role"></div>
     </div>
-    <div class="form-row"><div class="form-group"><label class="mandatory">Term (FY)</label><select id="cm-term"></select></div><div class="form-group"><label>Date of Birth</label><input type="date" id="cm-dob"></div></div>
+    <div class="form-group"><label>Date of Birth</label><input type="date" id="cm-dob"></div>
     <div class="form-group"><label>Email</label><input type="email" id="cm-email"></div>
     <div class="form-group"><label>Address</label><textarea id="cm-address" rows="2"></textarea></div>
     <div class="form-group"><label>Link to Sabhashad</label><select id="cm-sabhashad-link"><option value="">— Not a Sabhashad member —</option></select></div>
@@ -652,11 +651,18 @@ tr:hover td{background:var(--saffron-light)}
   <div class="modal-footer"><button class="btn btn-secondary" onclick="closeModal('modal-area')">Cancel</button><button class="btn btn-primary" onclick="saveArea()">Save Area</button></div></div>
 </div>
 
+  <!-- DOCUMENT PREVIEW MODAL -->
+<div class="modal-overlay" id="modal-doc-preview">
+  <div class="modal" style="max-width:700px"><div class="modal-header"><div class="modal-title">📄 <span id="doc-preview-title">Document Preview</span></div><button class="modal-close" onclick="closeModal('modal-doc-preview')">✕</button></div>
+  <div class="modal-body" id="doc-preview-body"></div>
+  <div class="modal-footer"><button class="btn btn-secondary" onclick="closeModal('modal-doc-preview')">Close</button></div></div>
+</div>
+
 <!-- PAYMENT VOUCHER MODAL -->
 <div class="modal-overlay" id="modal-voucher-payment">
   <div class="modal"><div class="modal-header"><div class="modal-title">💸 Payment Voucher</div><button class="modal-close" onclick="closeModal('modal-voucher-payment')">✕</button></div>
   <div class="modal-body">
-    <div class="form-row"><div class="form-group"><label class="mandatory">Date</label><input type="date" id="pv-date"></div><div class="form-group"><label class="mandatory">Paid From</label><select id="pv-from"><option value="Cash in Hand">💵 Cash in Hand</option><option value="Bank Account">🏦 Bank Account</option></select></div></div>
+    <div class="form-row"><div class="form-group"><label class="mandatory">Date</label><input type="date" id="pv-date"></div><div class="form-group"><label class="mandatory">Paid From</label><select id="pv-from"></select></div>
     <div class="form-group"><label class="mandatory">Paid To (Vendor / Ledger)</label><select id="pv-to" onchange="loadVendorOutstandingHint()"></select></div>
     <div id="pv-outstanding-hint" class="form-hint"></div>
     <div class="form-row"><div class="form-group"><label class="mandatory">Amount (₹)</label><input type="number" id="pv-amount" min="0"></div><div class="form-group"><label>Ref / Cheque No.</label><input type="text" id="pv-ref"></div></div>
@@ -692,7 +698,7 @@ tr:hover td{background:var(--saffron-light)}
   <div class="modal" style="max-width:480px"><div class="modal-header"><div class="modal-title">🔁 Contra Voucher</div><button class="modal-close" onclick="closeModal('modal-voucher-contra')">✕</button></div>
   <div class="modal-body">
     <div class="form-group"><label class="mandatory">Date</label><input type="date" id="cv-date"></div>
-    <div class="form-group"><label class="mandatory">Transfer Direction</label><select id="cv-direction"><option value="cash-to-bank">Cash deposited to Bank</option><option value="bank-to-cash">Bank withdrawn to Cash</option></select></div>
+    <div class="form-row"><div class="form-group"><label class="mandatory">Transfer From</label><select id="cv-from"></select></div><div class="form-group"><label class="mandatory">Transfer To</label><select id="cv-to"></select></div></div>
     <div class="form-group"><label class="mandatory">Amount (₹)</label><input type="number" id="cv-amount" min="0"></div>
     <div class="form-group"><label>Narration</label><input type="text" id="cv-narration"></div>
   </div>
@@ -737,7 +743,7 @@ tr:hover td{background:var(--saffron-light)}
     <div class="form-row"><div class="form-group"><label class="mandatory">Investment Name</label><input type="text" id="inv-name" placeholder="e.g. SBI FD 2026"></div><div class="form-group"><label class="mandatory">Type</label><select id="inv-type"><option>Fixed Deposit (FD)</option><option>Recurring Deposit (RD)</option><option>Mutual Fund</option><option>Other</option></select></div></div>
     <div class="form-row"><div class="form-group"><label class="mandatory">Principal Amount (₹)</label><input type="number" id="inv-principal" min="0"></div><div class="form-group"><label>Interest Rate (%)</label><input type="number" id="inv-rate" min="0" step="0.01"></div></div>
     <div class="form-row"><div class="form-group"><label>Bank / Institution</label><input type="text" id="inv-bank"></div><div class="form-group"><label>Maturity Date</label><input type="date" id="inv-maturity"></div></div>
-    <div class="form-row"><div class="form-group"><label class="mandatory">Date of Investment</label><input type="date" id="inv-date"></div><div class="form-group"><label class="mandatory">Funded From</label><select id="inv-source"><option value="Cash in Hand">💵 Cash in Hand</option><option value="Bank Account">🏦 Bank Account</option></select></div></div>
+    <div class="form-row"><div class="form-group"><label class="mandatory">Date of Investment</label><input type="date" id="inv-date"></div><div class="form-group"><label class="mandatory">Funded From</label><select id="inv-source"></select></div></div>
   </div>
   <div class="modal-footer"><button class="btn btn-secondary" onclick="closeModal('modal-investment')">Cancel</button><button class="btn btn-primary" onclick="saveInvestment()">Save Investment</button></div></div>
 </div>
@@ -784,6 +790,17 @@ tr:hover td{background:var(--saffron-light)}
     <div id="meeting-attendance-list"></div>
   </div>
   <div class="modal-footer"><button class="btn btn-secondary" onclick="closeModal('modal-meeting')">Cancel</button><button class="btn btn-primary" onclick="saveMeeting()">Save Meeting</button></div></div>
+</div>
+
+<!-- BANK ACCOUNT MODAL -->
+<div class="modal-overlay" id="modal-bankaccount">
+  <div class="modal" style="max-width:480px"><div class="modal-header"><div class="modal-title" id="modal-bankaccount-title">Add Bank Account</div><button class="modal-close" onclick="closeModal('modal-bankaccount')">✕</button></div>
+  <div class="modal-body">
+    <div class="form-group"><label class="mandatory">Account / Ledger Name</label><input type="text" id="bk-name" placeholder="e.g. SBI Savings, HDFC Current"></div>
+    <div class="form-row"><div class="form-group"><label>Bank Name</label><input type="text" id="bk-bank"></div><div class="form-group"><label>Account Number</label><input type="text" id="bk-accno"></div></div>
+    <div class="form-group"><label>Opening Balance (₹) — FY <span id="bk-fy-label">2025-26</span></label><input type="number" id="bk-opening" value="0"></div>
+  </div>
+  <div class="modal-footer"><button class="btn btn-secondary" onclick="closeModal('modal-bankaccount')">Cancel</button><button class="btn btn-primary" onclick="saveBankAccount()">Save Bank Account</button></div></div>
 </div>
 
 <!-- LEDGER MODAL -->
@@ -943,6 +960,7 @@ function initApp() {
   currentFY = settings.currentFY || '2025-26';
   populateFYSelects();
   seedDefaultLedgers();
+  seedDefaultBankAccount();
   updateSyncBadge();
   updateFYDisplay();
 }
@@ -964,11 +982,9 @@ function seedDefaultLedgers() {
 }
 
 function populateFYSelects() {
-  var fys = getFYList();
-  var el = document.getElementById('cm-term');
-  if(el) el.innerHTML = fys.map(function(f){ return '<option'+(f===currentFY?' selected':'')+'>'+f+'</option>'; }).join('');
+  // Term/FY selection removed — committee members now persist across all years
 }
-
+  
 function doLogin() {
   var u = document.getElementById('login-user').value.trim();
   var p = document.getElementById('login-pass').value.trim();
@@ -1073,7 +1089,7 @@ function closeModal(id) {
     'modal-committee':'Add Committee Member','modal-sabhashad':'Add Sabhashad Member',
     'modal-area':'Add Collection Area','modal-vendor':'Add Vendor Ledger',
     'modal-investment':'Add Investment / FD','modal-event':'Create Event',
-    'modal-ledger':'Add Ledger','modal-user':'Add User'
+    'modal-ledger':'Add Ledger','modal-user':'Add User','modal-bankaccount':'Add Bank Account'
   };
   var titleEl = modal.querySelector('.modal-title');
   if(titleEl && titleMap[id]) titleEl.textContent = titleMap[id];
@@ -1217,9 +1233,10 @@ function renderMandalDocuments() {
       '<div style="font-weight:700;font-size:14px">'+c.label+' <span class="badge badge-gray">'+files.length+' file'+(files.length!==1?'s':'')+'</span></div>' +
       '<div style="display:flex;gap:6px;align-items:center"><input type="file" id="doc-upload-'+c.key+'" accept=".pdf,image/*" multiple style="font-size:12px"><button class="btn btn-sm btn-primary" onclick="addMandalDocuments(\''+c.key+'\')">+ Add</button></div>' +
       '</div>' +
-      (files.length ? '<div style="display:flex;flex-wrap:wrap;gap:8px">'+files.map(function(f,idx){
+(files.length ? '<div style="display:flex;flex-wrap:wrap;gap:8px">'+files.map(function(f,idx){
         return '<div style="border:1px solid var(--border);border-radius:8px;padding:6px 10px;font-size:12px;display:flex;align-items:center;gap:6px">📄 '+f.name+' '+
           (f.driveLink?'<span class="badge badge-success" style="font-size:9px">☁️ Drive</span>':'<span class="badge badge-warning" style="font-size:9px">⏳ Local</span>')+
+          '<button onclick="previewMandalDocument(\''+c.key+'\','+idx+')" style="border:none;background:none;color:var(--info);cursor:pointer;font-weight:700" title="Preview">👁️</button>'+
           '<button onclick="removeMandalDocument(\''+c.key+'\','+idx+')" style="border:none;background:none;color:var(--danger);cursor:pointer;font-weight:700">✕</button></div>';
       }).join('')+'</div>' : '<div style="color:var(--text2);font-size:12px">No files uploaded yet</div>') + '</div>';
   }).join('');
@@ -1231,6 +1248,22 @@ function removeMandalDocument(category, idx) {
   DB.set('mandal', m); queueSync('mandal', m); renderMandalDocuments();
 }
 
+function previewMandalDocument(category, idx) {
+  var m = DB.getObj('mandal');
+  var f = m.documents && m.documents[category] && m.documents[category][idx];
+  if(!f || !f.dataUrl) { showToast('Preview not available for this file','error'); return; }
+  document.getElementById('doc-preview-title').textContent = f.name;
+  var body = document.getElementById('doc-preview-body');
+  if(f.type && f.type.indexOf('pdf') > -1) {
+    body.innerHTML = '<iframe src="'+f.dataUrl+'" style="width:100%;height:70vh;border:1px solid var(--border);border-radius:8px"></iframe>';
+  } else if(f.type && f.type.indexOf('image') > -1) {
+    body.innerHTML = '<img src="'+f.dataUrl+'" style="max-width:100%;border-radius:8px">';
+  } else {
+    body.innerHTML = '<div style="text-align:center;padding:30px;color:var(--text2)">Preview not supported for this file type.<br><a href="'+f.dataUrl+'" download="'+f.name+'" class="btn btn-sm btn-secondary" style="margin-top:10px">⬇️ Download</a></div>';
+  }
+  openModal('modal-doc-preview');
+}
+  
 // ============================================================
 // COMMITTEE
 // ============================================================
@@ -1248,50 +1281,41 @@ function saveCommitteeMember() {
   var mobile = document.getElementById('cm-mobile').value.trim();
   var role = document.getElementById('cm-role').value;
   var customRole = document.getElementById('cm-custom-role').value.trim();
-  var term = document.getElementById('cm-term').value;
   if(!name||!mobile) { showToast('Name and mobile required','error'); return; }
   var finalRole = role==='custom' ? customRole : role;
-// Only these roles must remain unique
+// Only these roles must remain unique across the whole committee
   var uniqueRoles = ['President','Secretary','Treasurer'];
   if(uniqueRoles.indexOf(finalRole) > -1) {
-  var ex = DB.get('committee').find(function(c){
-      return c.role === finalRole &&
-           c.term === term &&
-           c.id !== editingId;
-  });
-  if(ex) {
-    showToast(finalRole + ' already exists for ' + term, 'error');
-    return;
+    var ex = DB.get('committee').find(function(c){
+      return c.role === finalRole && c.id !== editingId;
+    });
+    if(ex) {
+      showToast(finalRole + ' is already assigned to ' + ex.name, 'error');
+      return;
+    }
   }
-}
-  if(term !== currentFY) {
-    showToast('⚠️ Term ' + term + ' does not match current FY ' + currentFY + '. Change FY from top bar or select correct term.', 'error');
-    return;
-  }
-  var member = {id:editingId||uid(),name:name,mobile:mobile,role:finalRole,term:term,
+  var member = {id:editingId||uid(),name:name,mobile:mobile,role:finalRole,
     email:document.getElementById('cm-email').value,dob:document.getElementById('cm-dob').value,
     address:document.getElementById('cm-address').value,sabhashadLink:document.getElementById('cm-sabhashad-link').value,
-    fy:currentFY,createdAt:now()};
+    createdAt:now()};
   if(editingId) DB.update('committee',editingId,member); else DB.push('committee',member);
   queueSync('committee', member);
   closeModal('modal-committee'); renderCommittee();
   addAudit('Committee',(editingId?'Updated':'Added')+' '+name); showToast('Member saved!','success');
 }
-
+  
 function renderCommittee() {
   populateCommitteeModal();
-  var members = DB.get('committee').filter(function(c){ return c.fy===currentFY; });
+  var members = DB.get('committee');
   var tbody = document.getElementById('committee-table');
-  if(!members.length) { tbody.innerHTML='<tr><td colspan="6"><div class="empty-state"><div class="icon">👥</div><h3>No Committee Members</h3><p>Add for FY '+currentFY+'</p></div></td></tr>'; return; }
+  if(!members.length) { tbody.innerHTML='<tr><td colspan="5"><div class="empty-state"><div class="icon">👥</div><h3>No Committee Members</h3><p>Add committee members — they will show every year</p></div></td></tr>'; return; }
   tbody.innerHTML = members.map(function(m){
-    return '<tr><td><strong>'+m.name+'</strong></td><td><span class="badge badge-info">'+m.role+'</span></td><td>'+m.term+'</td><td>'+m.mobile+'</td><td><span class="badge badge-success">✓</span></td><td>' +
+    return '<tr><td><strong>'+m.name+'</strong></td><td><span class="badge badge-info">'+m.role+'</span></td><td>'+m.mobile+'</td><td><span class="badge badge-success">✓</span></td><td>' +
       '<button class="btn btn-sm btn-secondary" onclick="editCommitteeMember(\''+m.id+'\')">✏️</button> ' +
       '<button class="btn btn-sm btn-danger" onclick="deleteItem(\'committee\',\''+m.id+'\',renderCommittee)">🗑️</button></td></tr>';
   }).join('');
-  var terms = [...new Set(DB.get('committee').map(function(c){ return c.term; }))];
-  document.getElementById('committee-term-filter').innerHTML = '<option value="">All Terms</option>' + terms.map(function(t){ return '<option>'+t+'</option>'; }).join('');
 }
-
+  
 function editCommitteeMember(id) {
   var m = DB.get('committee').find(function(x){ return x.id===id; });
   editingId = id;
@@ -1304,7 +1328,6 @@ function editCommitteeMember(id) {
     document.getElementById('cm-email').value = m.email||'';
     document.getElementById('cm-dob').value = m.dob||'';
     document.getElementById('cm-address').value = m.address||'';
-    document.getElementById('cm-term').value = m.term;
     document.getElementById('cm-sabhashad-link').value = m.sabhashadLink||'';
   }, 50);
 }
@@ -1671,7 +1694,7 @@ function showReceiptById(id) { var don = DB.get('donations').find(function(d){ r
 // MEETINGS
 // ============================================================
 function populateMeetingAttendance() {
-  var members = DB.get('committee').filter(function(c){ return c.fy===currentFY; });
+  var members = DB.get('committee');
   document.getElementById('meeting-attendance-list').innerHTML = members.length ? members.map(function(m){
     return '<div style="display:flex;align-items:center;justify-content:space-between;padding:7px 0;border-bottom:1px solid var(--border)"><span>'+m.name+' <small style="color:var(--text2)">('+m.role+')</small></span><label class="toggle"><input type="checkbox" id="att-'+m.id+'" checked><span class="toggle-slider"></span></label></div>';
   }).join('') : '<div style="color:var(--text2);font-size:13px">No committee members.</div>';
@@ -1712,8 +1735,12 @@ function renderMeetings() {
 // ============================================================
 // TALLY-STYLE VOUCHER ENGINE
 // ============================================================
-var STD_LEDGERS = ['Cash in Hand','Bank Account'];
-
+function getStdLedgers() { return ['Cash in Hand'].concat(DB.get('bankaccounts').map(function(b){ return b.name; })); }
+function seedDefaultBankAccount() {
+  var accounts = DB.get('bankaccounts');
+  if(!accounts.length) DB.push('bankaccounts', {id:uid(), name:'Bank Account', bankName:'', accountNo:'', openingBalances:{}, createdAt:now(), system:true});
+}
+  
 function postVoucher(v) {
   var totalDr = v.entries.filter(function(e){ return e.type==='debit'; }).reduce(function(s,e){ return s+Number(e.amount); },0);
   var totalCr = v.entries.filter(function(e){ return e.type==='credit'; }).reduce(function(s,e){ return s+Number(e.amount); },0);
@@ -1740,7 +1767,7 @@ function getAllLedgerNames() {
     expense: ledgers.filter(function(l){ return l.type==='expense'; }).map(function(l){ return l.name; }),
     creditors: vendors.map(function(v){ return v.name; }),
     investments: investments.map(function(i){ return i.name; }),
-    bankcash: STD_LEDGERS
+    bankcash: getStdLedgers()
   };
 }
 
@@ -1758,20 +1785,35 @@ function getVendorOutstanding(vendorName) {
   var b = getLedgerBalance(vendorName); return Math.max(0, b.cr-b.dr);
 }
 
-function getCashBankBalance(ledgerName, fy) {
+function getOpeningBalanceForLedger(ledgerName, fy) {
   var targetFY = fy||currentFY;
   var s = DB.getObj('settings');
-  var obKey = ledgerName==='Cash in Hand' ? 'cash' : 'bank';
-  var ob = (s.openingBalance && s.openingBalance[targetFY]) ? Number(s.openingBalance[targetFY][obKey]||0) : 0;
+  if(ledgerName === 'Cash in Hand') {
+    return (s.openingBalance && s.openingBalance[targetFY]) ? Number(s.openingBalance[targetFY].cash||0) : 0;
+  }
+  var acct = DB.get('bankaccounts').find(function(b){ return b.name===ledgerName; });
+  if(acct && acct.openingBalances && acct.openingBalances[targetFY]!==undefined) {
+    return Number(acct.openingBalances[targetFY]||0);
+  }
+  if(ledgerName === 'Bank Account') {
+    return (s.openingBalance && s.openingBalance[targetFY]) ? Number(s.openingBalance[targetFY].bank||0) : 0;
+  }
+  return 0;
+}
+
+function getCashBankBalance(ledgerName, fy) {
+  var targetFY = fy||currentFY;
+  var ob = getOpeningBalanceForLedger(ledgerName, targetFY);
   var net = 0;
   DB.get('vouchers').filter(function(v){ return v.fy===targetFY; }).forEach(function(v){
     v.entries.forEach(function(e){ if(e.ledger===ledgerName){ net += (e.type==='debit'?1:-1)*Number(e.amount); } });
   });
   return ob + net;
 }
-
+  
 function autoPostDonationReceipt(don, event) {
   var debitLedger = (don.mode==='Cash') ? 'Cash in Hand' : 'Bank Account';
+  var debitLedger = (don.mode==='Cash') ? 'Cash in Hand' : (bankLedgers[0]||'Bank Account');
   postVoucher({type:'Receipt',date:don.date,narration:'Donation — '+(don.donorName||'Unknown')+(event?' ('+event.name+')':''),
     ref:don.receipt,entries:[{ledger:debitLedger,type:'debit',amount:don.amount},{ledger:'Donation Income',type:'credit',amount:don.amount}],
     linkedEventId:don.eventId,linkedDonationId:don.id,fy:don.fy,auto:true});
@@ -1779,6 +1821,7 @@ function autoPostDonationReceipt(don, event) {
 
 function autoPostFeeReceipt(member, fy, fee) {
   var debitLedger = (fee.mode==='Cash'||fee.mode==='Cash in Hand') ? 'Cash in Hand' : 'Bank Account';
+  var debitLedger = (fee.mode==='Cash'||fee.mode==='Cash in Hand') ? 'Cash in Hand' : (bankLedgers[0]||'Bank Account');
   postVoucher({type:'Receipt',date:fee.date,narration:'Membership fee — '+member.name+' FY '+fy,
     ref:fee.receipt,entries:[{ledger:debitLedger,type:'debit',amount:fee.amount},{ledger:'Membership Fee Income',type:'credit',amount:fee.amount}],
     linkedSabhashadId:member.id,fy:currentFY,auto:true});
@@ -1786,6 +1829,7 @@ function autoPostFeeReceipt(member, fy, fee) {
 
 function reverseFeeReceipt(member, fy, fee) {
   var creditLedger = (fee.mode==='Cash'||fee.mode==='Cash in Hand') ? 'Cash in Hand' : 'Bank Account';
+  var creditLedger = (fee.mode==='Cash'||fee.mode==='Cash in Hand') ? 'Cash in Hand' : (bankLedgers[0]||'Bank Account');
   postVoucher({type:'Journal',date:new Date().toISOString().split('T')[0],narration:'Reversal — Membership fee '+member.name+' FY '+fy,
     ref:fee.receipt,entries:[{ledger:'Membership Fee Income',type:'debit',amount:fee.amount},{ledger:creditLedger,type:'credit',amount:fee.amount}],
     linkedSabhashadId:member.id,fy:currentFY,auto:true});
@@ -1793,8 +1837,10 @@ function reverseFeeReceipt(member, fy, fee) {
 
 function openVoucherModal(type) {
   var today = new Date().toISOString().split('T')[0];
+  
   if(type==='Payment') {
     document.getElementById('pv-date').value = today;
+    document.getElementById('pv-from').innerHTML = getStdLedgers().map(function(n){ return '<option value="'+n+'">'+(n==='Cash in Hand'?'💵 ':'🏦 ')+n+'</option>'; }).join('');
     var vendors = DB.get('vendors');
     document.getElementById('pv-to').innerHTML = vendors.map(function(v){ return '<option value="'+v.id+'">'+v.name+' (Outstanding: '+fmtAmt(getVendorOutstanding(v.name))+')</option>'; }).join('') + '<option value="__other__">Other / Direct Expense</option>';
     document.getElementById('pv-amount').value=''; document.getElementById('pv-ref').value=''; document.getElementById('pv-narration').value='';
@@ -1810,11 +1856,14 @@ function openVoucherModal(type) {
     openModal('modal-voucher-purchase');
   } else if(type==='Contra') {
     document.getElementById('cv-date').value = today; document.getElementById('cv-amount').value=''; document.getElementById('cv-narration').value='';
+    document.getElementById('cv-from').innerHTML = stdOpts;
+    document.getElementById('cv-to').innerHTML = stdOpts;
+    document.getElementById('cv-to').selectedIndex = getStdLedgers().length>1?1:0;
     openModal('modal-voucher-contra');
   } else if(type==='Journal') {
     document.getElementById('jv-date').value = today;
     var all = getAllLedgerNames();
-    var allNames = STD_LEDGERS.concat(all.income).concat(all.expense).concat(all.creditors).concat(all.investments);
+    var allNames = getStdLedgers().concat(all.income).concat(all.expense).concat(all.creditors).concat(all.investments);
     var optsHtml = allNames.map(function(n){ return '<option value="'+n+'">'+n+'</option>'; }).join('');
     document.getElementById('jv-debit').innerHTML = '<option value="">— Select —</option>'+optsHtml;
     document.getElementById('jv-credit').innerHTML = '<option value="">— Select —</option>'+optsHtml;
@@ -1904,21 +1953,22 @@ function savePurchaseVoucher() {
     r.readAsDataURL(invoiceFile);
   } else { doSave(null); }
 }
+  
 function saveContraVoucher() {
   var date = document.getElementById('cv-date').value;
-  var direction = document.getElementById('cv-direction').value;
+  var fromLedger = document.getElementById('cv-from').value;
+  var toLedger = document.getElementById('cv-to').value;
   var amount = parseFloat(document.getElementById('cv-amount').value);
   var narration = document.getElementById('cv-narration').value;
   if(!date||!amount) { showToast('Date and amount required','error'); return; }
+  if(!fromLedger||!toLedger||fromLedger===toLedger) { showToast('Select two different accounts','error'); return; }
   if(!checkDateInFY(date)) { fyDateError(date); return; }
-  var debitLedger = direction==='cash-to-bank' ? 'Bank Account' : 'Cash in Hand';
-  var creditLedger = direction==='cash-to-bank' ? 'Cash in Hand' : 'Bank Account';
-  postVoucher({type:'Contra',date:date,narration:narration||(direction==='cash-to-bank'?'Cash deposited to bank':'Cash withdrawn from bank'),
-    entries:[{ledger:debitLedger,type:'debit',amount:amount},{ledger:creditLedger,type:'credit',amount:amount}],fy:currentFY});
+  postVoucher({type:'Contra',date:date,narration:narration||('Transfer from '+fromLedger+' to '+toLedger),
+    entries:[{ledger:toLedger,type:'debit',amount:amount},{ledger:fromLedger,type:'credit',amount:amount}],fy:currentFY});
   closeModal('modal-voucher-contra'); renderVoucherList('Contra'); loadDashboard();
-  addAudit('Contra Voucher',fmtAmt(amount)+' '+direction); showToast('Contra voucher saved!','success');
+  addAudit('Contra Voucher',fmtAmt(amount)+' from '+fromLedger+' to '+toLedger); showToast('Contra voucher saved!','success');
 }
-
+  
 function saveJournalVoucher() {
   var date = document.getElementById('jv-date').value;
   var debit = document.getElementById('jv-debit').value;
@@ -2030,7 +2080,7 @@ function populateLedgerViewSelect() {
   if(!sel) return;
   var all = getAllLedgerNames();
   var groups = [
-    {label:'Bank & Cash', items:STD_LEDGERS},
+    {label:'Bank & Cash', items:getStdLedgers()},
     {label:'Income', items:all.income},
     {label:'Expense', items:all.expense},
     {label:'Sundry Creditors (Vendors)', items:all.creditors},
@@ -2054,10 +2104,9 @@ function renderLedgerView() {
       if(e.ledger===ledgerName) entries.push(Object.assign({},e,{date:v.date,narration:v.narration,ref:v.ref,voucherNo:v.voucherNo,voucherType:v.type,vId:v.id}));
     });
   });
-  var isBankCash = STD_LEDGERS.indexOf(ledgerName)>-1;
-  var s = DB.getObj('settings');
+  var isBankCash = getStdLedgers().indexOf(ledgerName)>-1;
   var openingBal = 0;
-  if(isBankCash) { var obKey = ledgerName==='Cash in Hand'?'cash':'bank'; openingBal = Number(s.openingBalance&&s.openingBalance[currentFY]?s.openingBalance[currentFY][obKey]||0:0); }
+  if(isBankCash) { openingBal = getOpeningBalanceForLedger(ledgerName, currentFY); }
   else { var vendor = DB.get('vendors').find(function(v){ return v.name===ledgerName; }); if(vendor) openingBal = -Number(vendor.opening||0); }
   var totalDr = entries.filter(function(e){ return e.type==='debit'; }).reduce(function(s,e){ return s+Number(e.amount); },0);
   var totalCr = entries.filter(function(e){ return e.type==='credit'; }).reduce(function(s,e){ return s+Number(e.amount); },0);
@@ -2132,6 +2181,12 @@ function editVendor(id) {
     document.getElementById('vnd-opening').value = v.opening||0;
   }, 50);
 }
+  
+function openInvestmentModal() {
+  editingId = null;
+  document.getElementById('inv-source').innerHTML = getStdLedgers().map(function(n){ return '<option value="'+n+'">'+(n==='Cash in Hand'?'💵 ':'🏦 ')+n+'</option>'; }).join('');
+  openModal('modal-investment');
+}
 
 function saveInvestment() {
   var name = document.getElementById('inv-name').value.trim();
@@ -2170,16 +2225,59 @@ function renderAssetBankCash() {
   var el = document.getElementById('asset-bank-list');
   if(!el) return;
   var cash = getCashBankBalance('Cash in Hand');
-  var bank = getCashBankBalance('Bank Account');
+  var accounts = DB.get('bankaccounts');
+  var totalBank = accounts.reduce(function(s,a){ return s+getCashBankBalance(a.name); },0);
   el.innerHTML = '<div class="stat-grid" style="margin-bottom:16px">' +
     '<div class="stat-card green"><div class="stat-label">Cash in Hand</div><div class="stat-value">'+fmtAmt(cash)+'</div></div>' +
-    '<div class="stat-card blue"><div class="stat-label">Bank Account</div><div class="stat-value">'+fmtAmt(bank)+'</div></div>' +
-    '<div class="stat-card"><div class="stat-label">Total Liquid</div><div class="stat-value">'+fmtAmt(cash+bank)+'</div></div></div>' +
-    '<div style="display:flex;gap:10px">' +
+    '<div class="stat-card blue"><div class="stat-label">Total Bank Balance</div><div class="stat-value">'+fmtAmt(totalBank)+'</div></div>' +
+    '<div class="stat-card"><div class="stat-label">Total Liquid</div><div class="stat-value">'+fmtAmt(cash+totalBank)+'</div></div></div>' +
+    '<div style="display:flex;gap:10px;margin-bottom:16px;flex-wrap:wrap">' +
     '<button class="btn btn-secondary btn-sm" onclick="switchToLedgerView(\'Cash in Hand\')">📒 View Cash Book</button>' +
-    '<button class="btn btn-secondary btn-sm" onclick="switchToLedgerView(\'Bank Account\')">📒 View Bank Book</button></div>';
+    '<button class="btn btn-primary btn-sm" onclick="openModal(\'modal-bankaccount\');editingId=null;resetForm(\'modal-bankaccount\')">+ Add Bank Account</button></div>' +
+    '<div class="section-label">Bank Accounts</div>' +
+    (accounts.length ? accounts.map(function(a){
+      var bal = getCashBankBalance(a.name);
+      return '<div class="ledger-row"><div><span style="font-weight:600">'+a.name+'</span>'+(a.bankName?' <span style="color:var(--text2);font-size:11px">— '+a.bankName+(a.accountNo?' • '+a.accountNo:'')+'</span>':'')+'<div style="font-size:11px;color:var(--text2)">Balance: '+fmtAmt(bal)+'</div></div>' +
+        '<div style="display:flex;gap:6px;align-items:center">' +
+        '<button class="btn btn-sm btn-secondary" onclick="switchToLedgerView(\''+a.name+'\')">📒</button>' +
+        '<button class="btn btn-sm btn-secondary" onclick="editBankAccount(\''+a.id+'\')">✏️</button>' +
+        (a.system?'':'<button class="btn btn-sm btn-danger" onclick="deleteItem(\'bankaccounts\',\''+a.id+'\',renderAssetBankCash)">🗑️</button>') +
+        '</div></div>';
+    }).join('') : '<div style="color:var(--text2);font-size:13px;padding:8px 0">No bank accounts yet. Click "+ Add Bank Account".</div>');
 }
 
+function saveBankAccount() {
+  var name = document.getElementById('bk-name').value.trim();
+  if(!name) { showToast('Account name required','error'); return; }
+  var dup = DB.get('bankaccounts').find(function(b){ return b.name===name && b.id!==editingId; });
+  if(dup) { showToast('A bank account with this name already exists','error'); return; }
+  var opening = parseFloat(document.getElementById('bk-opening').value)||0;
+  var accounts = DB.get('bankaccounts');
+  var existing = editingId ? accounts.find(function(b){ return b.id===editingId; }) : null;
+  var acct = {id:editingId||uid(),name:name,bankName:document.getElementById('bk-bank').value,
+    accountNo:document.getElementById('bk-accno').value,openingBalances:(existing&&existing.openingBalances)||{},createdAt:(existing&&existing.createdAt)||now()};
+  acct.openingBalances[currentFY] = opening;
+  if(editingId) DB.update('bankaccounts',editingId,acct); else DB.push('bankaccounts',acct);
+  queueSync('bankaccounts', acct);
+  closeModal('modal-bankaccount'); renderAssetBankCash();
+  addAudit('Bank Account',(editingId?'Updated':'Added')+' '+name); showToast('Bank account saved!','success');
+}
+
+function editBankAccount(id) {
+  var a = DB.get('bankaccounts').find(function(x){ return x.id===id; });
+  if(!a) return;
+  editingId = id;
+  document.getElementById('modal-bankaccount-title').textContent = 'Edit Bank Account';
+  openModal('modal-bankaccount');
+  setTimeout(function(){
+    document.getElementById('bk-name').value = a.name;
+    document.getElementById('bk-bank').value = a.bankName||'';
+    document.getElementById('bk-accno').value = a.accountNo||'';
+    document.getElementById('bk-fy-label').textContent = currentFY;
+    document.getElementById('bk-opening').value = (a.openingBalances&&a.openingBalances[currentFY])||0;
+  }, 50);
+}
+  
 // ============================================================
 // LEDGER MASTER
 // ============================================================
@@ -2251,7 +2349,7 @@ function renderFinancials() {
   var s = DB.getObj('settings');
   var ob = (s.openingBalance&&s.openingBalance[currentFY])||{cash:0,bank:0,total:0};
   var cashBal = getCashBankBalance('Cash in Hand');
-  var bankBal = getCashBankBalance('Bank Account');
+  var bankBal = DB.get('bankaccounts').reduce(function(s,a){ return s+getCashBankBalance(a.name); },0);
   var vendors = DB.get('vendors');
   var totalPayable = vendors.reduce(function(s,v){ return s+getVendorOutstanding(v.name); },0);
   var investments = DB.get('investments');
@@ -2305,7 +2403,7 @@ function calculateClosingBalance(fy) {
   var s = DB.getObj('settings');
   var ob = (s.openingBalance&&s.openingBalance[fy])||{cash:0,bank:0,total:0};
   var cash = getCashBankBalance('Cash in Hand',fy);
-  var bank = getCashBankBalance('Bank Account',fy);
+  var bank = DB.get('bankaccounts').reduce(function(s2,a){ return s2+getCashBankBalance(a.name,fy); },0);
   var totalIncome=0,totalExp=0;
   var vouchers = DB.get('vouchers').filter(function(v){ return v.fy===fy; });
   var ledgers = DB.get('ledgers').filter(function(l){ return l.fy===fy; });
@@ -2604,7 +2702,7 @@ function renderAudit() {
 function loadDashboard() {
   var vouchers = DB.get('vouchers').filter(function(v){ return v.fy===currentFY; });
   var sabhashad = DB.get('sabhashad');
-  var committee = DB.get('committee').filter(function(c){ return c.fy===currentFY; });
+  var committee = DB.get('committee');
   var events = DB.get('events').filter(function(e){ return e.fy===currentFY&&e.status==='Active'; });
   var areas = DB.get('areas');
   var vendors = DB.get('vendors');
@@ -2729,7 +2827,7 @@ function testGasConnection() {
 
 function forceSyncNow() {
   showToast('Starting full sync...');
-  var colls=['mandal','users','committee','sabhashad','areas','events','donations','vouchers','vendors','investments','ledgers','meetings','audit'];
+  var colls=['mandal','users','committee','sabhashad','areas','events','donations','vouchers','vendors','investments','ledgers','meetings','audit','bankaccounts'];
   colls.forEach(function(coll){
     var items=coll==='mandal'?[DB.getObj('mandal')]:DB.get(coll);
     items.forEach(function(rec){if(rec&&(rec.id||coll==='mandal'))queueSync(coll,rec);});
@@ -2751,7 +2849,7 @@ function renderSyncQueueList() {
 // BACKUP & RESTORE
 // ============================================================
 function exportBackup() {
-  var keys=['mandal','users','committee','sabhashad','areas','events','donations','vouchers','vendors','investments','meetings','ledgers','audit','settings'];
+  var keys=['mandal','users','committee','sabhashad','areas','events','donations','vouchers','vendors','investments','meetings','ledgers','audit','settings','bankaccounts'];
   var data={_exportedAt:now(),_version:'3.0'};
   keys.forEach(function(k){try{data[k]=JSON.parse(localStorage.getItem('mm_'+k));}catch(e){}});
   var blob=new Blob([JSON.stringify(data,null,2)],{type:'application/json'});
