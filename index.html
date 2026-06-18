@@ -314,10 +314,12 @@ tr:hover td{background:var(--saffron-light)}
       </div>
       <hr class="divider">
       <div class="section-label">Opening Balance — FY <span id="ob-fy-label">2025-26</span></div>
-      <div class="form-row">
-        <div class="form-group"><label>Opening Cash Balance (₹)</label><input type="number" id="ob-cash" min="0" value="0"></div>
-        <div class="form-group"><label>Opening Bank Balance (₹)</label><input type="number" id="ob-bank" min="0" value="0"></div>
+      <div class="alert alert-info">💡 Set opening balance for Cash and each Bank Account separately for FY <span id="ob-fy-label-sub"></span></div>
+      <div class="form-group">
+        <label>Opening Cash Balance (₹)</label>
+        <input type="number" id="ob-cash" min="0" value="0">
       </div>
+      <div id="ob-bank-accounts-list" style="margin-bottom:14px"></div>
       <button class="btn btn-primary btn-sm" onclick="saveOpeningBalance()">💾 Save Opening Balance</button>
     </div>
     <div class="tab-content" id="tab-mandal-qr">
@@ -410,7 +412,13 @@ tr:hover td{background:var(--saffron-light)}
       <button class="tab" onclick="switchTab(this,'v-journal');renderVoucherList('Journal')">📘 Journal</button>
       <button class="tab" onclick="switchTab(this,'v-all');renderVoucherList('All')">📋 All</button>
     </div>
-    <div class="tab-content active" id="tab-v-receipt"><div class="form-hint" style="margin-bottom:10px">Auto-created from Donation &amp; Fee payments.</div><div id="voucher-list-Receipt"></div></div>
+    <div class="tab-content active" id="tab-v-receipt">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;flex-wrap:wrap;gap:8px">
+        <div class="form-hint">Auto-created from Donation &amp; Fee payments.</div>
+        <button class="btn btn-primary btn-sm" onclick="openManualReceiptModal()">+ New Manual Receipt</button>
+      </div>
+      <div id="voucher-list-Receipt"></div>
+    </div>
     <div class="tab-content" id="tab-v-payment"><button class="btn btn-primary btn-sm" style="margin-bottom:12px" onclick="openVoucherModal('Payment')">+ New Payment Voucher</button><div id="voucher-list-Payment"></div></div>
     <div class="tab-content" id="tab-v-purchase"><button class="btn btn-primary btn-sm" style="margin-bottom:12px" onclick="openVoucherModal('Purchase')">+ New Purchase Voucher</button><div id="voucher-list-Purchase"></div></div>
     <div class="tab-content" id="tab-v-contra"><button class="btn btn-primary btn-sm" style="margin-bottom:12px" onclick="openVoucherModal('Contra')">+ New Contra Voucher</button><div id="voucher-list-Contra"></div></div>
@@ -442,8 +450,22 @@ tr:hover td{background:var(--saffron-light)}
         <div class="section-label">Add Direct Donor</div>
         <div class="form-row"><div class="form-group"><label class="mandatory">Donor Name</label><input type="text" id="dd-name"></div><div class="form-group"><label class="mandatory">Mobile</label><input type="tel" id="dd-mobile"></div></div>
         <div class="form-row"><div class="form-group"><label>Link to Sabhashad</label><select id="dd-sabhashad"><option value="">— Not a member —</option></select></div><div class="form-group"><label class="mandatory">Amount (₹)</label><input type="number" id="dd-amount" min="1"></div></div>
-        <div class="form-row"><div class="form-group"><label>Payment Mode</label><select id="dd-mode"><option>Cash</option><option>Online/UPI</option><option>Cheque</option><option>Bank Transfer</option></select></div><div class="form-group"><label>Date</label><input type="date" id="dd-date"></div></div>
-        <div class="form-group" id="dd-bank-group" style="display:none"><label>Received In Bank Account</label><select id="dd-bank-account"></select></div>
+        <div class="form-row">
+          <div class="form-group"><label>Payment Mode</label>
+            <select id="dd-mode" onchange="toggleDirectBankSelect(this.value)">
+              <option value="Cash">Cash</option>
+              <option value="Online/UPI">Online/UPI</option>
+              <option value="Cheque">Cheque</option>
+              <option value="Bank Transfer">Bank Transfer</option>
+            </select>
+          </div>
+          <div class="form-group"><label>Date</label><input type="date" id="dd-date"></div>
+        </div>
+        <div class="form-group" id="dd-bank-group" style="display:none">
+          <label>💳 Received In Bank Account</label>
+          <select id="dd-bank-account" style="border:2px solid var(--info)"></select>
+          <div class="form-hint">Select the bank account where this payment was received</div>
+        </div>
         <div id="dd-qr-section" style="display:none;margin-bottom:14px"><div class="section-label">Scan QR to Pay</div><div class="qr-display" id="donation-qr-show"></div></div>
         <button class="btn btn-primary" onclick="addDirectDonor()">💰 Record Donation</button>
       </div>
@@ -524,10 +546,11 @@ tr:hover td{background:var(--saffron-light)}
     <div class="tab-content" id="tab-fy-opening">
       <div class="section-label">Opening Balance — FY <span id="ob-fy-label2">2025-26</span></div>
       <div id="prev-fy-closing-info"></div>
-      <div class="form-row">
-        <div class="form-group"><label>Opening Cash Balance (₹)</label><input type="number" id="ob-cash2" min="0" value="0"></div>
-        <div class="form-group"><label>Opening Bank Balance (₹)</label><input type="number" id="ob-bank2" min="0" value="0"></div>
+      <div class="form-group">
+        <label>Opening Cash Balance (₹)</label>
+        <input type="number" id="ob-cash2" min="0" value="0">
       </div>
+      <div id="ob-bank-accounts-list2" style="margin-bottom:14px"></div>
       <button class="btn btn-primary" onclick="saveOpeningBalance2()">💾 Save Opening Balance</button>
     </div>
     <div class="tab-content" id="tab-fy-history"><div id="fy-history-list"></div></div>
@@ -767,8 +790,22 @@ tr:hover td{background:var(--saffron-light)}
   <div class="modal-body">
     <div id="flat-qr-section" style="display:none;margin-bottom:14px"><div class="section-label">Scan QR to Pay</div><div class="qr-display" id="flat-qr-display"></div></div>
     <div class="form-row"><div class="form-group"><label>Donor Name</label><input type="text" id="fd-name"></div><div class="form-group"><label class="mandatory">Amount (₹)</label><input type="number" id="fd-amount" min="1"></div></div>
-    <div class="form-row"><div class="form-group"><label>Payment Mode</label><select id="fd-mode"><option>Cash</option><option>Online/UPI</option><option>Cheque</option></select></div><div class="form-group"><label>Date</label><input type="date" id="fd-date"></div></div>
-    <div class="form-group" id="fd-bank-group" style="display:none"><label>Received In Bank Account</label><select id="fd-bank-account"></select></div>
+    <div class="form-row">
+      <div class="form-group"><label>Payment Mode</label>
+        <select id="fd-mode" onchange="toggleFlatBankSelect(this.value)">
+          <option value="Cash">Cash</option>
+          <option value="Online/UPI">Online/UPI</option>
+          <option value="Cheque">Cheque</option>
+          <option value="Bank Transfer">Bank Transfer</option>
+        </select>
+      </div>
+      <div class="form-group"><label>Date</label><input type="date" id="fd-date"></div>
+    </div>
+    <div class="form-group" id="fd-bank-group" style="display:none">
+      <label>💳 Received In Bank Account</label>
+      <select id="fd-bank-account" style="border:2px solid var(--info)"></select>
+      <div class="form-hint">Select the bank account where this payment was received</div>
+    </div>
   </div>
   <div class="modal-footer"><button class="btn btn-secondary" onclick="closeModal('modal-flat-donation')">Cancel</button><button class="btn btn-primary" onclick="saveFlatDonation()">💰 Record &amp; Receipt</button></div></div>
 </div>
@@ -792,6 +829,46 @@ tr:hover td{background:var(--saffron-light)}
     <div id="meeting-attendance-list"></div>
   </div>
   <div class="modal-footer"><button class="btn btn-secondary" onclick="closeModal('modal-meeting')">Cancel</button><button class="btn btn-primary" onclick="saveMeeting()">Save Meeting</button></div></div>
+</div>
+
+<!-- MANUAL RECEIPT MODAL -->
+<div class="modal-overlay" id="modal-manual-receipt">
+  <div class="modal"><div class="modal-header"><div class="modal-title">🧾 New Manual Receipt</div><button class="modal-close" onclick="closeModal('modal-manual-receipt')">✕</button></div>
+  <div class="modal-body">
+    <div class="alert alert-info">Use this for cash/cheque/bank receipts not linked to donations or fees.</div>
+    <div class="form-row">
+      <div class="form-group"><label class="mandatory">Receipt Date</label><input type="date" id="mr-date"></div>
+      <div class="form-group"><label class="mandatory">Amount (₹)</label><input type="number" id="mr-amount" min="1"></div>
+    </div>
+    <div class="form-row">
+      <div class="form-group"><label class="mandatory">Received From (Name)</label><input type="text" id="mr-from-name" placeholder="Donor / Party name"></div>
+      <div class="form-group"><label>Mobile</label><input type="tel" id="mr-mobile"></div>
+    </div>
+    <div class="form-row">
+      <div class="form-group"><label class="mandatory">Payment Mode</label>
+        <select id="mr-mode" onchange="toggleManualReceiptBank(this.value)">
+          <option value="Cash">Cash</option>
+          <option value="Online/UPI">Online/UPI</option>
+          <option value="Cheque">Cheque</option>
+          <option value="Bank Transfer">Bank Transfer</option>
+          <option value="DD">Demand Draft</option>
+        </select>
+      </div>
+      <div class="form-group"><label>Cheque / Ref No.</label><input type="text" id="mr-ref"></div>
+    </div>
+    <div class="form-group" id="mr-bank-group" style="display:none">
+      <label>💳 Received In Bank Account</label>
+      <select id="mr-bank-account" style="border:2px solid var(--info)"></select>
+      <div class="form-hint">Select which bank account received this payment</div>
+    </div>
+    <div class="form-row">
+      <div class="form-group"><label class="mandatory">Credit Ledger (Income)</label><select id="mr-credit-ledger"></select></div>
+      <div class="form-group"><label>Link to Event</label><select id="mr-event"><option value="">— No Event —</option></select></div>
+    </div>
+    <div class="form-group"><label>Narration / Remarks</label><textarea id="mr-narration" rows="2" placeholder="Purpose of receipt..."></textarea></div>
+    <div class="form-group"><label>Receipt No. (leave blank for auto)</label><input type="text" id="mr-receipt-no" placeholder="e.g. RCP-2025-001"></div>
+  </div>
+  <div class="modal-footer"><button class="btn btn-secondary" onclick="closeModal('modal-manual-receipt')">Cancel</button><button class="btn btn-primary" onclick="saveManualReceipt()">💾 Save &amp; Print Receipt</button></div></div>
 </div>
 
 <!-- BANK ACCOUNT MODAL -->
@@ -1131,6 +1208,12 @@ function loadMandal() {
   if(m.qrCode) document.getElementById('qr-preview').innerHTML = '<img src="'+m.qrCode+'" alt="QR">';
   if(m.name) { document.getElementById('mandal-sidebar-name').textContent = m.name; document.getElementById('mandal-sidebar-loc').textContent = m.city||''; }
   renderFeeTypes();
+  // render per-bank opening balance fields
+  var s = DB.getObj('settings');
+  var ob = (s.openingBalance && s.openingBalance[currentFY]) || {};
+  var cashEl = document.getElementById('ob-cash'); if(cashEl) cashEl.value = ob.cash||0;
+  var lbl = document.getElementById('ob-fy-label-sub'); if(lbl) lbl.textContent = currentFY;
+  renderOpeningBankFields('ob-bank-accounts-list', currentFY);
 }
 
 function saveMandal() {
@@ -1846,7 +1929,9 @@ function openVoucherModal(type) {
   
   if(type==='Payment') {
     document.getElementById('pv-date').value = today;
-    document.getElementById('pv-from').innerHTML = getStdLedgers().map(function(n){ return '<option value="'+n+'">'+(n==='Cash in Hand'?'💵 ':'🏦 ')+n+'</option>'; }).join('');
+    var cashBankOpts = '<option value="Cash in Hand">💵 Cash in Hand (Bal: '+fmtAmt(getCashBankBalance('Cash in Hand'))+')</option>' +
+      DB.get('bankaccounts').map(function(b){ return '<option value="'+b.name+'">🏦 '+b.name+(b.bankName?' — '+b.bankName:'')+(b.accountNo?' ['+b.accountNo+']':'')+'  (Bal: '+fmtAmt(getCashBankBalance(b.name))+')</option>'; }).join('');
+    document.getElementById('pv-from').innerHTML = cashBankOpts;
     var vendors = DB.get('vendors');
     document.getElementById('pv-to').innerHTML = vendors.map(function(v){ return '<option value="'+v.id+'">'+v.name+' (Outstanding: '+fmtAmt(getVendorOutstanding(v.name))+')</option>'; }).join('') + '<option value="__other__">Other / Direct Expense</option>';
     document.getElementById('pv-amount').value=''; document.getElementById('pv-ref').value=''; document.getElementById('pv-narration').value='';
@@ -1862,7 +1947,8 @@ function openVoucherModal(type) {
     openModal('modal-voucher-purchase');
   } else if(type==='Contra') {
     document.getElementById('cv-date').value = today; document.getElementById('cv-amount').value=''; document.getElementById('cv-narration').value='';
-    var stdOpts = getStdLedgers().map(function(n){ return '<option value="'+n+'">'+(n==='Cash in Hand'?'💵 ':'🏦 ')+n+'</option>'; }).join('');
+    var stdOpts = '<option value="Cash in Hand">💵 Cash in Hand (Bal: '+fmtAmt(getCashBankBalance('Cash in Hand'))+')</option>' +
+      DB.get('bankaccounts').map(function(b){ return '<option value="'+b.name+'">🏦 '+b.name+(b.bankName?' — '+b.bankName:'')+(b.accountNo?' ['+b.accountNo+']':'')+'  (Bal: '+fmtAmt(getCashBankBalance(b.name))+')</option>'; }).join('');
     document.getElementById('cv-from').innerHTML = stdOpts;
     document.getElementById('cv-to').innerHTML = stdOpts;
     document.getElementById('cv-to').selectedIndex = getStdLedgers().length>1?1:0;
@@ -2440,44 +2526,92 @@ function renderFYOverview() {
   document.getElementById('fee-reset-status').innerHTML = '<div class="alert alert-info">FY '+currentFY+' Fee Status: <strong>'+paid+' Paid</strong> | <strong>'+(sabhashad.length-paid)+' Unpaid</strong> | Total: '+sabhashad.length+'</div>';
 }
 
-function saveOpeningBalance() {
-  var cash = parseFloat(document.getElementById('ob-cash').value)||0;
-  var bank = parseFloat(document.getElementById('ob-bank').value)||0;
+function renderOpeningBankFields(listElId, fy) {
+  var accounts = DB.get('bankaccounts');
   var s = DB.getObj('settings');
-  if(!s.openingBalance) s.openingBalance = {};
-  s.openingBalance[currentFY] = {cash:cash,bank:bank,total:cash+bank,setAt:now(),setBy:(currentUser&&currentUser.name)||'Admin'};
-  DB.set('settings',s); queueSync('settings',s);
-  showToast('Opening balance saved!','success');
-  addAudit('Opening Balance','FY '+currentFY+': Cash '+fmtAmt(cash)+', Bank '+fmtAmt(bank));
+  var ob = (s.openingBalance && s.openingBalance[fy]) || {};
+  var el = document.getElementById(listElId);
+  if(!el) return;
+  if(!accounts.length) {
+    el.innerHTML = '<div class="alert alert-warning">No bank accounts added yet. Add from Account Master → Bank &amp; Cash.</div>';
+    return;
+  }
+  el.innerHTML = accounts.map(function(b){
+    var savedVal = ob['bank_'+b.id] !== undefined ? ob['bank_'+b.id] : (ob.bank||0);
+    return '<div class="form-group"><label>Opening Balance — 🏦 '+b.name+(b.bankName?' ('+b.bankName+')':(b.accountNo?' ['+b.accountNo+']':''))+'  (₹)</label>' +
+      '<input type="number" id="ob-bank-'+b.id+'" min="0" value="'+savedVal+'"></div>';
+  }).join('');
 }
 
-function saveOpeningBalance2() {
-  var cash = parseFloat(document.getElementById('ob-cash2').value)||0;
-  var bank = parseFloat(document.getElementById('ob-bank2').value)||0;
+function saveOpeningBalance() {
+  var cash = parseFloat(document.getElementById('ob-cash').value)||0;
   var s = DB.getObj('settings');
   if(!s.openingBalance) s.openingBalance = {};
-  s.openingBalance[currentFY] = {cash:cash,bank:bank,total:cash+bank,setAt:now(),setBy:(currentUser&&currentUser.name)||'Admin'};
+  var accounts = DB.get('bankaccounts');
+  var bankTotal = 0;
+  var ob = {cash:cash, setAt:now(), setBy:(currentUser&&currentUser.name)||'Admin'};
+  accounts.forEach(function(b){
+    var el = document.getElementById('ob-bank-'+b.id);
+    var val = el ? parseFloat(el.value)||0 : 0;
+    ob['bank_'+b.id] = val;
+    bankTotal += val;
+    // also update per-account openingBalances
+    var accts = DB.get('bankaccounts');
+    var idx = accts.findIndex(function(x){ return x.id===b.id; });
+    if(idx>-1){ if(!accts[idx].openingBalances)accts[idx].openingBalances={}; accts[idx].openingBalances[currentFY]=val; DB.set('bankaccounts',accts); }
+  });
+  ob.bank = bankTotal;
+  ob.total = cash + bankTotal;
+  s.openingBalance[currentFY] = ob;
   DB.set('settings',s); queueSync('settings',s);
-  showToast('Opening balance saved!','success');
-  addAudit('Opening Balance','FY '+currentFY+': Cash '+fmtAmt(cash)+', Bank '+fmtAmt(bank));
+  showToast('Opening balances saved!','success');
+  addAudit('Opening Balance','FY '+currentFY+': Cash '+fmtAmt(cash)+', Bank Total '+fmtAmt(bankTotal));
+}
+  
+function saveOpeningBalance2() {
+  var cash = parseFloat(document.getElementById('ob-cash2').value)||0;
+  var s = DB.getObj('settings');
+  if(!s.openingBalance) s.openingBalance = {};
+  var accounts = DB.get('bankaccounts');
+  var bankTotal = 0;
+  var ob = {cash:cash, setAt:now(), setBy:(currentUser&&currentUser.name)||'Admin'};
+  accounts.forEach(function(b){
+    var el = document.getElementById('ob-bank2-'+b.id);
+    var val = el ? parseFloat(el.value)||0 : 0;
+    ob['bank_'+b.id] = val;
+    bankTotal += val;
+    var accts = DB.get('bankaccounts');
+    var idx = accts.findIndex(function(x){ return x.id===b.id; });
+    if(idx>-1){ if(!accts[idx].openingBalances)accts[idx].openingBalances={}; accts[idx].openingBalances[currentFY]=val; DB.set('bankaccounts',accts); }
+  });
+  ob.bank = bankTotal;
+  ob.total = cash + bankTotal;
+  s.openingBalance[currentFY] = ob;
+  DB.set('settings',s); queueSync('settings',s);
+  showToast('Opening balances saved!','success');
+  addAudit('Opening Balance','FY '+currentFY+': Cash '+fmtAmt(cash)+', Bank Total '+fmtAmt(bankTotal));
 }
 
 function loadOpeningBalance() {
   var s = DB.getObj('settings');
   var ob = s.openingBalance&&s.openingBalance[currentFY];
   var cashEl = document.getElementById('ob-cash2');
-  var bankEl = document.getElementById('ob-bank2');
   if(cashEl) cashEl.value = ob&&ob.cash||0;
-  if(bankEl) bankEl.value = ob&&ob.bank||0;
   var lbl = document.getElementById('ob-fy-label2'); if(lbl) lbl.textContent = currentFY;
-  var fys = getFYList(); var idx = fys.indexOf(currentFY);
-  var el = document.getElementById('prev-fy-closing-info');
-  if(el && idx > 0) {
-    var prevFY = fys[idx-1]; var closing = calculateClosingBalance(prevFY);
-    el.innerHTML = '<div class="alert alert-info">📊 Previous FY ('+prevFY+') — Cash: <strong>'+fmtAmt(closing.cash)+'</strong> | Bank: <strong>'+fmtAmt(closing.bank)+'</strong>' +
-      '<br><button class="btn btn-sm btn-primary" style="margin-top:8px" onclick="applyPrevClosing(\''+prevFY+'\')">⬇️ Use as Opening for '+currentFY+'</button></div>';
-  } else if(el) { el.innerHTML=''; }
-}
+  // render per-bank fields for FY management tab
+  var accounts = DB.get('bankaccounts');
+  var list2 = document.getElementById('ob-bank-accounts-list2');
+  if(list2) {
+    if(!accounts.length) {
+      list2.innerHTML = '<div class="alert alert-warning">No bank accounts. Add from Account Master → Bank &amp; Cash.</div>';
+    } else {
+      list2.innerHTML = accounts.map(function(b){
+        var savedVal = ob && ob['bank_'+b.id] !== undefined ? ob['bank_'+b.id] : (ob&&ob.bank||0);
+        return '<div class="form-group"><label>Opening Balance — 🏦 '+b.name+(b.bankName?' ('+b.bankName+')':(b.accountNo?' ['+b.accountNo+']':''))+'  (₹)</label>' +
+          '<input type="number" id="ob-bank2-'+b.id+'" min="0" value="'+savedVal+'"></div>';
+      }).join('');
+    }
+  }
 
 function applyPrevClosing(prevFY) {
   var closing = calculateClosingBalance(prevFY);
@@ -2523,7 +2657,17 @@ function startNewFY() {
     if(!s.closingBalance) s.closingBalance = {};
     s.closingBalance[currentFY] = Object.assign({},closing,{closedAt:now(),closedBy:currentUser.name});
     if(!s.openingBalance) s.openingBalance = {};
-    s.openingBalance[nextFY] = {cash:Math.max(0,closing.cash),bank:Math.max(0,closing.bank),total:Math.max(0,closing.total),carriedFrom:currentFY,setAt:now(),setBy:'Auto'};
+    var newOB = {cash:Math.max(0,closing.cash),bank:Math.max(0,closing.bank),total:Math.max(0,closing.total),carriedFrom:currentFY,setAt:now(),setBy:'Auto'};
+    // carry forward each bank account balance individually
+    var bankAccts = DB.get('bankaccounts');
+    bankAccts.forEach(function(b){
+      var bal = Math.max(0, getCashBankBalance(b.name, currentFY));
+      newOB['bank_'+b.id] = bal;
+      if(!b.openingBalances) b.openingBalances = {};
+      b.openingBalances[nextFY] = bal;
+    });
+    if(bankAccts.length) DB.set('bankaccounts', bankAccts);
+    s.openingBalance[nextFY] = newOB;
     DB.set('settings',s); queueSync('settings',s);
     addAudit('New FY','Started '+nextFY+'. Closing FY '+currentFY+': Total '+fmtAmt(closing.total));
     selectFY(nextFY); showToast('✅ FY '+nextFY+' started!','success');
@@ -2902,6 +3046,109 @@ function filterTableCol(tableId, colIdx, val) {
   document.querySelectorAll('#'+tableId+' tr').forEach(function(r){
     r.style.display=(!val||r.cells[colIdx]&&r.cells[colIdx].textContent.indexOf(val)>-1)?'':'none';
   });
+}
+
+// ============================================================
+// MANUAL RECEIPT
+// ============================================================
+function openManualReceiptModal() {
+  var today = new Date().toISOString().split('T')[0];
+  document.getElementById('mr-date').value = today;
+  document.getElementById('mr-amount').value = '';
+  document.getElementById('mr-from-name').value = '';
+  document.getElementById('mr-mobile').value = '';
+  document.getElementById('mr-ref').value = '';
+  document.getElementById('mr-narration').value = '';
+  document.getElementById('mr-receipt-no').value = '';
+  document.getElementById('mr-mode').value = 'Cash';
+  document.getElementById('mr-bank-group').style.display = 'none';
+  // populate bank accounts
+  var accounts = DB.get('bankaccounts');
+  document.getElementById('mr-bank-account').innerHTML = accounts.map(function(b){
+    return '<option value="'+b.name+'">🏦 '+b.name+(b.bankName?' — '+b.bankName:'')+(b.accountNo?' ['+b.accountNo+']':'')+'</option>';
+  }).join('') || '<option value="Bank Account">Bank Account</option>';
+  // populate income ledgers
+  var ledgers = DB.get('ledgers').filter(function(l){ return l.type==='income' && l.fy===currentFY; });
+  document.getElementById('mr-credit-ledger').innerHTML =
+    '<option value="Donation Income">Donation Income</option>' +
+    '<option value="Membership Fee Income">Membership Fee Income</option>' +
+    ledgers.filter(function(l){ return l.name!=='Donation Income'&&l.name!=='Membership Fee Income'; })
+      .map(function(l){ return '<option value="'+l.name+'">'+l.group+' › '+l.name+'</option>'; }).join('');
+  // populate events
+  var events = DB.get('events').filter(function(e){ return e.fy===currentFY; });
+  document.getElementById('mr-event').innerHTML = '<option value="">— No Event —</option>' +
+    events.map(function(e){ return '<option value="'+e.id+'">'+e.name+'</option>'; }).join('');
+  openModal('modal-manual-receipt');
+}
+
+function toggleManualReceiptBank(mode) {
+  var grp = document.getElementById('mr-bank-group');
+  if(grp) grp.style.display = (mode==='Cash') ? 'none' : 'block';
+}
+
+function saveManualReceipt() {
+  var date = document.getElementById('mr-date').value;
+  var amount = parseFloat(document.getElementById('mr-amount').value);
+  var fromName = document.getElementById('mr-from-name').value.trim();
+  var mode = document.getElementById('mr-mode').value;
+  var creditLedger = document.getElementById('mr-credit-ledger').value;
+  var ref = document.getElementById('mr-ref').value.trim();
+  var narration = document.getElementById('mr-narration').value.trim();
+  var eventId = document.getElementById('mr-event').value;
+  var mobile = document.getElementById('mr-mobile').value.trim();
+  var customReceiptNo = document.getElementById('mr-receipt-no').value.trim();
+  if(!date||!amount||!fromName||!creditLedger) { showToast('Date, amount, name and income ledger required','error'); return; }
+  if(!checkDateInFY(date)) { fyDateError(date); return; }
+  // determine debit ledger (cash or specific bank)
+  var debitLedger;
+  if(mode==='Cash') {
+    debitLedger = 'Cash in Hand';
+  } else {
+    var bankEl = document.getElementById('mr-bank-account');
+    debitLedger = bankEl && bankEl.value ? bankEl.value : (DB.get('bankaccounts')[0]&&DB.get('bankaccounts')[0].name||'Bank Account');
+  }
+  var receiptNo = customReceiptNo || ('RCP-'+currentFY+'-'+String(DB.get('vouchers').filter(function(v){ return v.type==='Receipt'&&v.fy===currentFY; }).length+1).padStart(4,'0'));
+  var v = postVoucher({
+    type:'Receipt', date:date, ref:receiptNo,
+    narration:narration||(fromName+' — '+creditLedger),
+    entries:[
+      {ledger:debitLedger, type:'debit', amount:amount},
+      {ledger:creditLedger, type:'credit', amount:amount}
+    ],
+    linkedEventId:eventId, fy:currentFY, auto:false
+  });
+  if(!v) return;
+  // store as donation record too for dashboard
+  var don = {id:uid(),eventId:eventId,type:'manual',donorName:fromName,mobile:mobile,amount:amount,
+    mode:mode,bankAccount:debitLedger,date:date,receipt:receiptNo,
+    collectedBy:(currentUser&&currentUser.name)||'Admin',fy:currentFY,createdAt:now()};
+  DB.push('donations',don); queueSync('donations',don);
+  closeModal('modal-manual-receipt');
+  renderVoucherList('Receipt');
+  loadDashboard();
+  // show print receipt
+  var mandal = DB.getObj('mandal');
+  var event = eventId ? DB.get('events').find(function(e){ return e.id===eventId; }) : null;
+  document.getElementById('receipt-content').innerHTML = '<div class="receipt">' +
+    '<div class="receipt-header">' +
+    '<div style="font-size:10px;font-weight:700;text-transform:uppercase;color:var(--saffron)">Official Receipt</div>' +
+    '<div style="font-size:17px;font-weight:800;margin:3px 0">'+(mandal.name||'Mandal Manager')+'</div>' +
+    (mandal.address?'<div style="font-size:11px;color:var(--text2)">'+mandal.address+'</div>':'')+'</div>' +
+    '<div class="receipt-row"><span>Receipt No.</span><strong>'+receiptNo+'</strong></div>' +
+    '<div class="receipt-row"><span>Date</span><span>'+fmtDate(date)+'</span></div>' +
+    (event?'<div class="receipt-row"><span>Event</span><span>'+event.name+'</span></div>':'') +
+    '<div class="receipt-row"><span>Received From</span><span>'+fromName+'</span></div>' +
+    (mobile?'<div class="receipt-row"><span>Mobile</span><span>'+mobile+'</span></div>':'') +
+    '<div class="receipt-row"><span>Purpose</span><span>'+creditLedger+'</span></div>' +
+    '<div class="receipt-row"><span>Payment Mode</span><span>'+mode+'</span></div>' +
+    (debitLedger!=='Cash in Hand'?'<div class="receipt-row"><span>Bank Account</span><span>'+debitLedger+'</span></div>':'') +
+    (ref?'<div class="receipt-row"><span>Ref / Cheque No.</span><span>'+ref+'</span></div>':'') +
+    '<div class="receipt-row total"><span>Amount Received</span><strong>'+fmtAmt(amount)+'</strong></div>' +
+    (narration?'<div class="receipt-row" style="font-size:11px;color:var(--text2)"><span>Remarks</span><span>'+narration+'</span></div>':'') +
+    '<div style="margin-top:22px;display:flex;justify-content:space-between;font-size:11px;color:var(--text2)"><span>Collected by: '+((currentUser&&currentUser.name)||'Admin')+'</span><span>Authorised Signature</span></div></div>';
+  openModal('modal-receipt');
+  addAudit('Manual Receipt',receiptNo+' — '+fromName+': '+fmtAmt(amount));
+  showToast('Receipt saved! '+receiptNo,'success');
 }
 
 // ============================================================
