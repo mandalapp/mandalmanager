@@ -855,12 +855,13 @@ function getFYList() { var s=2022, e=2032; var r=[]; for(var i=s;i<e;i++) r.push
 
 function checkDateInFY(dateStr) {
   if(!dateStr) return true;
-  var parts = currentFY.split('-');
-  var startYear = parseInt(parts[0]);
-  var endYear = startYear + 1;
-  var fyStart = new Date(startYear, 3, 1);
-  var fyEnd   = new Date(endYear, 2, 31, 23, 59, 59);
-  var d = new Date(dateStr);
+  var fyParts = currentFY.split('-');
+  var startYear = parseInt(fyParts[0]);
+  var endYear   = startYear + 1;
+  // FY: 1 April to 31 March (full days)
+  var fyStart = new Date(startYear, 3,  1,  0,  0,  0);  // 1 Apr 00:00:00
+  var fyEnd   = new Date(endYear,   2, 31, 23, 59, 59);  // 31 Mar 23:59:59
+  var d = parseLocalDate(dateStr); // parsed as 00:00:00 local
   return d >= fyStart && d <= fyEnd;
 }
 
