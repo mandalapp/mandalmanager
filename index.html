@@ -394,6 +394,19 @@ tr:hover td{background:var(--saffron-light)}
     <div class="tab-content" id="tab-acc-ledger-view">
       <div class="form-group" style="max-width:320px"><label>Select Ledger</label><select id="ledger-view-select" onchange="renderLedgerView()"><option value="">— Select Ledger —</option></select></div>
       <div id="ledger-view-detail"></div>
+      <div class="card">
+    <div class="card-header">
+        <h3>Income Ledgers</h3>
+    </div>
+    <div id="income-ledgers-list"></div>
+</div>
+
+<div class="card">
+    <div class="card-header">
+        <h3>Expense Ledgers</h3>
+    </div>
+    <div id="expense-ledgers-list"></div>
+</div>
     </div>
   </div>
 </div>
@@ -781,7 +794,7 @@ tr:hover td{background:var(--saffron-light)}
 <div class="modal-overlay" id="modal-ledger">
   <div class="modal" style="max-width:480px"><div class="modal-header"><div class="modal-title" id="modal-ledger-title">Add Ledger</div><button class="modal-close" onclick="closeModal('modal-ledger')">✕</button></div>
   <div class="modal-body">
-    <div class="form-group"><label class="mandatory">Type</label><select id="ledger-type"><option value="income">Income</option><option value="expense">Expense</option></select></div>
+    <div class="form-group"><label class="mandatory">Type</label><select id="ledger-type"><option value="income">Income</option><option value="expense">Expense</option><option value="bank">Bank</option></select></div>
     <div class="form-group"><label class="mandatory">Group Name</label><input type="text" id="ledger-group" placeholder="e.g. Festival Income"></div>
     <div class="form-group"><label class="mandatory">Ledger Name</label><input type="text" id="ledger-name" placeholder="e.g. Ganesh Festival Donation"></div>
     <div class="form-group"><label>Opening Balance (₹)</label><input type="number" id="ledger-opening" value="0"></div>
@@ -1640,7 +1653,17 @@ function renderMeetings() {
 // ============================================================
 // TALLY-STYLE VOUCHER ENGINE
 // ============================================================
-var STD_LEDGERS = ['Cash in Hand','Bank Account'];
+  var STD_LEDGERS = ['Cash in Hand'];
+
+function getBankLedgers() {
+  return DB.get('ledgers')
+    .filter(function(l){
+      return l.fy===currentFY && l.type==='bank';
+    })
+    .map(function(l){
+      return l.name;
+    });
+}
 
 function postVoucher(v) {
   var totalDr = v.entries.filter(function(e){ return e.type==='debit'; }).reduce(function(s,e){ return s+Number(e.amount); },0);
@@ -1664,12 +1687,12 @@ function getAllLedgerNames() {
   var vendors = DB.get('vendors');
   var investments = DB.get('investments');
   return {
-    income: ledgers.filter(function(l){ return l.type==='income'; }).map(function(l){ return l.name; }),
-    expense: ledgers.filter(function(l){ return l.type==='expense'; }).map(function(l){ return l.name; }),
-    creditors: vendors.map(function(v){ return v.name; }),
-    investments: investments.map(function(i){ return i.name; }),
-    bankcash: STD_LEDGERS
-  };
+  income: ledgers.filter(function(l){ return l.type==='income'; }).map(function(l){ return l.name; }),
+  expense: ledgers.filter(function(l){ return l.type==='expense'; }).map(function(l){ return l.name; }),
+  creditors: vendors.map(function(v){ return v.name; }),
+  investments: investments.map(function(i){ return i.name; }),
+  bankcash: STD_LEDGERS.concat(getBankLedgers())
+};
 }
 
 function getLedgerBalance(ledgerName) {
@@ -2029,9 +2052,9 @@ function saveLedger() {
 
 function renderLedgers() {
   var ledgers = DB.get('ledgers').filter(function(l){ return l.fy===currentFY; });
-  ['income','expense'].forEach(function(type){
+  ['income','expense','bank'].forEach(function(type){
     var filtered = ledgers.filter(function(l){ return l.type===type; });
-    var elId = type==='income'?'income-ledgers-list':'expense-ledgers-list';
+    var elId = type==='income'?'income-ledgers-list':'expense-ledgers-list';? 'expense-ledgers-list': 'bank-ledgers-list';
     var el = document.getElementById(elId);
     if(!el) return;
     if(!filtered.length) { el.innerHTML='<div class="empty-state" style="padding:30px"><div class="icon">📒</div><h3>No '+type+' ledgers</h3></div>'; return; }
