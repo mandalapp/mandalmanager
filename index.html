@@ -443,6 +443,7 @@ tr:hover td{background:var(--saffron-light)}
         <div class="form-row"><div class="form-group"><label class="mandatory">Donor Name</label><input type="text" id="dd-name"></div><div class="form-group"><label class="mandatory">Mobile</label><input type="tel" id="dd-mobile"></div></div>
         <div class="form-row"><div class="form-group"><label>Link to Sabhashad</label><select id="dd-sabhashad"><option value="">— Not a member —</option></select></div><div class="form-group"><label class="mandatory">Amount (₹)</label><input type="number" id="dd-amount" min="1"></div></div>
         <div class="form-row"><div class="form-group"><label>Payment Mode</label><select id="dd-mode"><option>Cash</option><option>Online/UPI</option><option>Cheque</option><option>Bank Transfer</option></select></div><div class="form-group"><label>Date</label><input type="date" id="dd-date"></div></div>
+        <div class="form-group" id="dd-bank-group" style="display:none"><label>Received In Bank Account</label><select id="dd-bank-account"></select></div>
         <div id="dd-qr-section" style="display:none;margin-bottom:14px"><div class="section-label">Scan QR to Pay</div><div class="qr-display" id="donation-qr-show"></div></div>
         <button class="btn btn-primary" onclick="addDirectDonor()">💰 Record Donation</button>
       </div>
@@ -662,7 +663,7 @@ tr:hover td{background:var(--saffron-light)}
 <div class="modal-overlay" id="modal-voucher-payment">
   <div class="modal"><div class="modal-header"><div class="modal-title">💸 Payment Voucher</div><button class="modal-close" onclick="closeModal('modal-voucher-payment')">✕</button></div>
   <div class="modal-body">
-    <div class="form-row"><div class="form-group"><label class="mandatory">Date</label><input type="date" id="pv-date"></div><div class="form-group"><label class="mandatory">Paid From</label><select id="pv-from"></select></div>
+    <div class="form-row"><div class="form-group"><label class="mandatory">Date</label><input type="date" id="pv-date"></div><div class="form-group"><label class="mandatory">Paid From</label><select id="pv-from"></select></div></div>
     <div class="form-group"><label class="mandatory">Paid To (Vendor / Ledger)</label><select id="pv-to" onchange="loadVendorOutstandingHint()"></select></div>
     <div id="pv-outstanding-hint" class="form-hint"></div>
     <div class="form-row"><div class="form-group"><label class="mandatory">Amount (₹)</label><input type="number" id="pv-amount" min="0"></div><div class="form-group"><label>Ref / Cheque No.</label><input type="text" id="pv-ref"></div></div>
@@ -767,6 +768,7 @@ tr:hover td{background:var(--saffron-light)}
     <div id="flat-qr-section" style="display:none;margin-bottom:14px"><div class="section-label">Scan QR to Pay</div><div class="qr-display" id="flat-qr-display"></div></div>
     <div class="form-row"><div class="form-group"><label>Donor Name</label><input type="text" id="fd-name"></div><div class="form-group"><label class="mandatory">Amount (₹)</label><input type="number" id="fd-amount" min="1"></div></div>
     <div class="form-row"><div class="form-group"><label>Payment Mode</label><select id="fd-mode"><option>Cash</option><option>Online/UPI</option><option>Cheque</option></select></div><div class="form-group"><label>Date</label><input type="date" id="fd-date"></div></div>
+    <div class="form-group" id="fd-bank-group" style="display:none"><label>Received In Bank Account</label><select id="fd-bank-account"></select></div>
   </div>
   <div class="modal-footer"><button class="btn btn-secondary" onclick="closeModal('modal-flat-donation')">Cancel</button><button class="btn btn-primary" onclick="saveFlatDonation()">💰 Record &amp; Receipt</button></div></div>
 </div>
@@ -1626,10 +1628,12 @@ function saveFlatDonation() {
   if(!amt||amt<=0) { showToast('Enter valid amount','error'); return; }
   var existing = DB.get('donations').find(function(d){ return d.flatKey===currentFlatKey.flatKey && d.eventId===currentFlatKey.eventId; });
   if(existing) { showToast('Donation already recorded for this flat!','error'); return; }
+  var date = document.getElementById('fd-date').value;
   if(!checkDateInFY(date)) { fyDateError(date); return; }
   var receipt = genReceipt();
   var don = {id:uid(),eventId:currentFlatKey.eventId,flatKey:currentFlatKey.flatKey,type:'area',
     donorName:document.getElementById('fd-name').value,amount:amt,mode:document.getElementById('fd-mode').value,
+    bankAccount:getSelectedBankForDonation('fd-mode','fd-bank-account'),
     date:document.getElementById('fd-date').value,receipt:receipt,collectedBy:currentUser.name,fy:currentFY,createdAt:now()};
   DB.push('donations',don); queueSync('donations',don);
   var ev = DB.get('events').find(function(e){ return e.id===don.eventId; });
@@ -1646,10 +1650,12 @@ function addDirectDonor() {
   var mobile = document.getElementById('dd-mobile').value.trim();
   var amt = parseFloat(document.getElementById('dd-amount').value);
   if(!name||!mobile||!amt) { showToast('Name, mobile and amount required','error'); return; }
+  var date = document.getElementById('dd-date').value;
   if(!checkDateInFY(date)) { fyDateError(date); return; }
   var receipt = genReceipt();
   var don = {id:uid(),eventId:eventId,type:'direct',donorName:name,mobile:mobile,
     sabhashadId:document.getElementById('dd-sabhashad').value,amount:amt,mode:document.getElementById('dd-mode').value,
+    bankAccount:getSelectedBankForDonation('dd-mode','dd-bank-account'),
     date:document.getElementById('dd-date').value,receipt:receipt,collectedBy:currentUser.name,fy:currentFY,createdAt:now()};
   DB.push('donations',don); queueSync('donations',don);
   var ev = DB.get('events').find(function(e){ return e.id===don.eventId; });
@@ -1812,24 +1818,24 @@ function getCashBankBalance(ledgerName, fy) {
 }
   
 function autoPostDonationReceipt(don, event) {
-  var debitLedger = (don.mode==='Cash') ? 'Cash in Hand' : 'Bank Account';
-  var debitLedger = (don.mode==='Cash') ? 'Cash in Hand' : (bankLedgers[0]||'Bank Account');
+  var bankLedgers = DB.get('bankaccounts').map(function(b){ return b.name; });
+  var debitLedger = (don.mode==='Cash') ? 'Cash in Hand' : (don.bankAccount||bankLedgers[0]||'Bank Account');
   postVoucher({type:'Receipt',date:don.date,narration:'Donation — '+(don.donorName||'Unknown')+(event?' ('+event.name+')':''),
     ref:don.receipt,entries:[{ledger:debitLedger,type:'debit',amount:don.amount},{ledger:'Donation Income',type:'credit',amount:don.amount}],
     linkedEventId:don.eventId,linkedDonationId:don.id,fy:don.fy,auto:true});
 }
 
 function autoPostFeeReceipt(member, fy, fee) {
-  var debitLedger = (fee.mode==='Cash'||fee.mode==='Cash in Hand') ? 'Cash in Hand' : 'Bank Account';
-  var debitLedger = (fee.mode==='Cash'||fee.mode==='Cash in Hand') ? 'Cash in Hand' : (bankLedgers[0]||'Bank Account');
+  var bankLedgers = DB.get('bankaccounts').map(function(b){ return b.name; });
+  var debitLedger = (fee.mode==='Cash'||fee.mode==='Cash in Hand') ? 'Cash in Hand' : (fee.bankAccount||bankLedgers[0]||'Bank Account');
   postVoucher({type:'Receipt',date:fee.date,narration:'Membership fee — '+member.name+' FY '+fy,
     ref:fee.receipt,entries:[{ledger:debitLedger,type:'debit',amount:fee.amount},{ledger:'Membership Fee Income',type:'credit',amount:fee.amount}],
     linkedSabhashadId:member.id,fy:currentFY,auto:true});
 }
 
 function reverseFeeReceipt(member, fy, fee) {
-  var creditLedger = (fee.mode==='Cash'||fee.mode==='Cash in Hand') ? 'Cash in Hand' : 'Bank Account';
-  var creditLedger = (fee.mode==='Cash'||fee.mode==='Cash in Hand') ? 'Cash in Hand' : (bankLedgers[0]||'Bank Account');
+  var bankLedgers = DB.get('bankaccounts').map(function(b){ return b.name; });
+  var creditLedger = (fee.mode==='Cash'||fee.mode==='Cash in Hand') ? 'Cash in Hand' : (fee.bankAccount||bankLedgers[0]||'Bank Account');
   postVoucher({type:'Journal',date:new Date().toISOString().split('T')[0],narration:'Reversal — Membership fee '+member.name+' FY '+fy,
     ref:fee.receipt,entries:[{ledger:'Membership Fee Income',type:'debit',amount:fee.amount},{ledger:creditLedger,type:'credit',amount:fee.amount}],
     linkedSabhashadId:member.id,fy:currentFY,auto:true});
@@ -1856,6 +1862,7 @@ function openVoucherModal(type) {
     openModal('modal-voucher-purchase');
   } else if(type==='Contra') {
     document.getElementById('cv-date').value = today; document.getElementById('cv-amount').value=''; document.getElementById('cv-narration').value='';
+    var stdOpts = getStdLedgers().map(function(n){ return '<option value="'+n+'">'+(n==='Cash in Hand'?'💵 ':'🏦 ')+n+'</option>'; }).join('');
     document.getElementById('cv-from').innerHTML = stdOpts;
     document.getElementById('cv-to').innerHTML = stdOpts;
     document.getElementById('cv-to').selectedIndex = getStdLedgers().length>1?1:0;
@@ -2557,7 +2564,9 @@ function showFeeModal(id) {
         '<div class="form-group" style="margin:0"><label style="font-size:11px">Amount (Min '+fmtAmt(minAmt)+')</label>' +
         '<input type="number" id="fee-amt-'+fy+'" min="'+minAmt+'" value="'+minAmt+'" style="padding:7px 10px;border:2px solid var(--border);border-radius:8px;width:100%;font-size:13px"></div>' +
         '<div class="form-group" style="margin:0"><label style="font-size:11px">Payment Mode</label>' +
-        '<select id="fee-mode-'+fy+'" style="padding:7px 10px;border:2px solid var(--border);border-radius:8px;width:100%;font-size:13px"><option>Cash</option><option>UPI/Online</option><option>Cheque</option><option>Bank Transfer</option></select></div>' +
+        '<select id="fee-mode-'+fy+'" onchange="toggleFeeBankSelect(this,\''+fy+'\')" style="padding:7px 10px;border:2px solid var(--border);border-radius:8px;width:100%;font-size:13px"><option>Cash</option><option>UPI/Online</option><option>Cheque</option><option>Bank Transfer</option></select></div>' +
+        '<div class="form-group" id="fee-bank-group-'+fy+'" style="display:none;margin:0"><label style="font-size:11px">Bank Account</label>' +
+        '<select id="fee-bank-'+fy+'" style="padding:7px 10px;border:2px solid var(--border);border-radius:8px;width:100%;font-size:13px">'+DB.get('bankaccounts').map(function(b){ return '<option value="'+b.name+'">'+b.name+'</option>'; }).join('')+'</select></div>' +
         '<div class="form-group" style="margin:0"><label style="font-size:11px">Payment Date</label>' +
         '<input type="date" id="fee-date-'+fy+'" value="'+new Date().toISOString().split('T')[0]+'" style="padding:7px 10px;border:2px solid var(--border);border-radius:8px;width:100%;font-size:13px"></div>' +
         '<div class="form-group" style="margin:0"><label style="font-size:11px">Remarks</label>' +
@@ -2584,7 +2593,9 @@ function markFeePaid(memberId, fy, minAmt) {
   var i = members.findIndex(function(x){ return x.id===memberId; });
   if(i<0) return;
   if(!members[i].fees) members[i].fees = {};
-  var fee = {paid:true,date:date,receipt:receipt,amount:paidAmt,mode:mode,remarks:remarks,collectedBy:currentUser&&currentUser.name||'Admin'};
+  var bankEl = document.getElementById('fee-bank-'+fy);
+  var bankAcct = (mode==='Cash') ? 'Cash in Hand' : (bankEl&&bankEl.value ? bankEl.value : (DB.get('bankaccounts')[0]&&DB.get('bankaccounts')[0].name||'Bank Account'));
+  var fee = {paid:true,date:date,receipt:receipt,amount:paidAmt,mode:mode,bankAccount:bankAcct,remarks:remarks,collectedBy:currentUser&&currentUser.name||'Admin'};
   members[i].fees[fy] = fee;
   DB.set('sabhashad',members); queueSync('sabhashad',members[i]);
   autoPostFeeReceipt(members[i], fy, fee);
@@ -2891,6 +2902,41 @@ function filterTableCol(tableId, colIdx, val) {
   document.querySelectorAll('#'+tableId+' tr').forEach(function(r){
     r.style.display=(!val||r.cells[colIdx]&&r.cells[colIdx].textContent.indexOf(val)>-1)?'':'none';
   });
+}
+
+// ============================================================
+// BANK ACCOUNT SELECTOR HELPERS
+// ============================================================
+function populateBankSelects() {
+  var accounts = DB.get('bankaccounts');
+  var opts = accounts.map(function(b){ return '<option value="'+b.name+'">'+b.name+'</option>'; }).join('');
+  ['fd-bank-account','dd-bank-account'].forEach(function(id){
+    var el = document.getElementById(id); if(el) el.innerHTML = opts||'<option value="Bank Account">Bank Account</option>';
+  });
+}
+
+function toggleFlatBankSelect(mode) {
+  var grp = document.getElementById('fd-bank-group');
+  if(grp) { grp.style.display = (mode==='Cash') ? 'none' : 'block'; populateBankSelects(); }
+}
+
+function toggleDirectBankSelect(mode) {
+  var grp = document.getElementById('dd-bank-group');
+  if(grp) { grp.style.display = (mode==='Cash') ? 'none' : 'block'; populateBankSelects(); }
+}
+
+function toggleFeeBankSelect(sel, fy) {
+  var grp = document.getElementById('fee-bank-group-'+fy);
+  if(grp) grp.style.display = (sel.value==='Cash') ? 'none' : 'block';
+}
+
+function getSelectedBankForDonation(modeSelectId, bankSelectId) {
+  var mode = document.getElementById(modeSelectId) && document.getElementById(modeSelectId).value;
+  if(mode === 'Cash') return 'Cash in Hand';
+  var bankEl = document.getElementById(bankSelectId);
+  if(bankEl && bankEl.value) return bankEl.value;
+  var accounts = DB.get('bankaccounts');
+  return accounts.length ? accounts[0].name : 'Bank Account';
 }
 
 // ============================================================
