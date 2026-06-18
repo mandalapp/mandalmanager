@@ -1,0 +1,2641 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="theme-color" content="#FF6B00">
+<title>Mandal Manager</title>
+<style>
+:root{--saffron:#FF6B00;--saffron-dark:#CC5500;--saffron-light:#FFF3E8;--gold:#F5A623;--deep:#1A1A2E;--deep2:#16213E;--card:#FFFFFF;--bg:#F7F4F0;--text:#1A1A2E;--text2:#6B6B8A;--border:#E8E0D5;--success:#2ECC71;--danger:#E74C3C;--warning:#F39C12;--info:#3498DB;--sidebar-w:260px;--radius:12px;--shadow:0 2px 16px rgba(255,107,0,0.08)}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(--text);min-height:100vh}
+#login-screen{display:flex;align-items:center;justify-content:center;min-height:100vh;background:linear-gradient(135deg,var(--deep) 0%,var(--deep2) 50%,#0F3460 100%)}
+.login-card{background:white;border-radius:20px;padding:48px 40px;width:100%;max-width:420px;box-shadow:0 20px 60px rgba(0,0,0,0.3)}
+.login-logo{text-align:center;margin-bottom:32px}
+.login-logo .om{font-size:48px}
+.login-logo h1{font-size:24px;font-weight:700;color:var(--deep);margin-top:8px}
+.login-logo p{color:var(--text2);font-size:14px;margin-top:4px}
+.form-group{margin-bottom:20px}
+.form-group label{display:block;font-size:13px;font-weight:600;color:var(--text2);margin-bottom:6px;text-transform:uppercase;letter-spacing:.5px}
+.form-group input,.form-group select,.form-group textarea{width:100%;padding:12px 16px;border:2px solid var(--border);border-radius:10px;font-size:15px;outline:none;transition:border-color .2s;background:var(--bg)}
+.form-group input:focus,.form-group select:focus,.form-group textarea:focus{border-color:var(--saffron);background:white}
+.btn{display:inline-flex;align-items:center;gap:8px;padding:12px 24px;border-radius:10px;border:none;font-size:14px;font-weight:600;cursor:pointer;transition:all .2s;text-decoration:none}
+.btn-primary{background:var(--saffron);color:white}
+.btn-primary:hover{background:var(--saffron-dark);transform:translateY(-1px);box-shadow:0 4px 12px rgba(255,107,0,.3)}
+.btn-secondary{background:var(--bg);color:var(--text);border:2px solid var(--border)}
+.btn-secondary:hover{border-color:var(--saffron);color:var(--saffron)}
+.btn-danger{background:var(--danger);color:white}
+.btn-success{background:var(--success);color:white}
+.btn-warning{background:var(--warning);color:white}
+.btn-sm{padding:7px 14px;font-size:13px}
+.btn-full{width:100%;justify-content:center}
+.login-error{background:#FFF0F0;border:1px solid #FFD0D0;color:var(--danger);padding:10px 14px;border-radius:8px;font-size:14px;margin-bottom:16px;display:none}
+#app{display:none;min-height:100vh}
+.sidebar{position:fixed;left:0;top:0;bottom:0;width:var(--sidebar-w);background:var(--deep);color:white;z-index:100;display:flex;flex-direction:column;overflow-y:auto;transition:transform .3s}
+.sidebar-header{padding:20px;border-bottom:1px solid rgba(255,255,255,.08)}
+.sidebar-header .om{font-size:24px}
+.sidebar-header h2{font-size:15px;font-weight:700;margin-top:4px;color:var(--gold)}
+.sidebar-header p{font-size:11px;color:rgba(255,255,255,.4);margin-top:2px}
+.fy-badge{background:rgba(255,107,0,.2);border:1px solid var(--saffron);color:var(--saffron);padding:4px 10px;border-radius:6px;font-size:11px;font-weight:700;margin-top:8px;display:inline-block}
+.nav-section{padding:14px 12px 6px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:rgba(255,255,255,.3)}
+.nav-item{display:flex;align-items:center;gap:10px;padding:10px 14px;margin:2px 8px;border-radius:10px;cursor:pointer;font-size:13px;color:rgba(255,255,255,.7);transition:all .2s}
+.nav-item:hover{background:rgba(255,255,255,.07);color:white}
+.nav-item.active{background:var(--saffron);color:white}
+.nav-item .icon{font-size:16px;width:22px;text-align:center}
+.sidebar-footer{margin-top:auto;padding:14px;border-top:1px solid rgba(255,255,255,.08)}
+.user-info{display:flex;align-items:center;gap:10px}
+.user-avatar{width:34px;height:34px;border-radius:50%;background:var(--saffron);display:flex;align-items:center;justify-content:center;font-weight:700;font-size:13px;flex-shrink:0}
+.user-name{font-size:13px;font-weight:600}
+.user-role{font-size:11px;color:rgba(255,255,255,.4)}
+.main{margin-left:var(--sidebar-w);min-height:100vh}
+.topbar{background:white;padding:14px 24px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid var(--border);position:sticky;top:0;z-index:50}
+.topbar h1{font-size:18px;font-weight:700}
+.topbar-actions{display:flex;align-items:center;gap:10px}
+.content{padding:24px}
+.hamburger{display:none;background:none;border:none;font-size:22px;cursor:pointer}
+.card{background:white;border-radius:var(--radius);padding:22px;box-shadow:var(--shadow);margin-bottom:18px}
+.card-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:18px;flex-wrap:wrap;gap:8px}
+.card-title{font-size:16px;font-weight:700}
+.stat-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:14px;margin-bottom:22px}
+.stat-card{background:white;border-radius:var(--radius);padding:18px;box-shadow:var(--shadow);border-left:4px solid var(--saffron)}
+.stat-card.green{border-left-color:var(--success)}
+.stat-card.blue{border-left-color:var(--info)}
+.stat-card.gold{border-left-color:var(--gold)}
+.stat-card.red{border-left-color:var(--danger)}
+.stat-label{font-size:11px;color:var(--text2);font-weight:600;text-transform:uppercase;letter-spacing:.5px}
+.stat-value{font-size:26px;font-weight:800;color:var(--text);margin-top:4px}
+.stat-sub{font-size:12px;color:var(--text2);margin-top:2px}
+.table-wrap{overflow-x:auto}
+table{width:100%;border-collapse:collapse}
+th{background:var(--bg);padding:10px 12px;text-align:left;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--text2);border-bottom:2px solid var(--border)}
+td{padding:11px 12px;border-bottom:1px solid var(--border);font-size:13px;vertical-align:middle}
+tr:hover td{background:var(--saffron-light)}
+.badge{display:inline-flex;align-items:center;gap:4px;padding:3px 9px;border-radius:20px;font-size:11px;font-weight:600}
+.badge-success{background:#E8F8F0;color:var(--success)}
+.badge-danger{background:#FEF0F0;color:var(--danger)}
+.badge-warning{background:#FEF9E7;color:var(--warning)}
+.badge-info{background:#EBF5FB;color:var(--info)}
+.badge-gray{background:#F0F0F0;color:#888}
+.badge-purple{background:#F4EAFF;color:#8B5CF6}
+.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:200;display:none;align-items:center;justify-content:center;padding:16px}
+.modal-overlay.open{display:flex}
+.modal{background:white;border-radius:16px;width:100%;max-width:640px;max-height:92vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,.3)}
+.modal-header{padding:18px 22px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;background:white;z-index:1}
+.modal-title{font-size:17px;font-weight:700}
+.modal-close{background:none;border:none;font-size:22px;cursor:pointer;color:var(--text2);padding:4px}
+.modal-body{padding:22px}
+.modal-footer{padding:14px 22px;border-top:1px solid var(--border);display:flex;gap:10px;justify-content:flex-end}
+.form-row{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.form-row-3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px}
+.form-hint{font-size:12px;color:var(--text2);margin-top:4px}
+.divider{border:none;border-top:1px solid var(--border);margin:18px 0}
+.section-label{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--saffron);margin-bottom:10px}
+.tabs{display:flex;gap:2px;border-bottom:2px solid var(--border);margin-bottom:22px;overflow-x:auto}
+.tab{padding:10px 18px;border:none;background:none;font-size:13px;font-weight:600;color:var(--text2);cursor:pointer;border-bottom:3px solid transparent;margin-bottom:-2px;white-space:nowrap;transition:all .2s}
+.tab.active{color:var(--saffron);border-bottom-color:var(--saffron)}
+.tab-content{display:none}
+.tab-content.active{display:block}
+.search-bar{display:flex;gap:10px;margin-bottom:18px;flex-wrap:wrap}
+.search-input{flex:1;min-width:180px;padding:9px 14px;border:2px solid var(--border);border-radius:10px;font-size:13px;outline:none}
+.search-input:focus{border-color:var(--saffron)}
+.empty-state{text-align:center;padding:50px 20px;color:var(--text2)}
+.empty-state .icon{font-size:42px;margin-bottom:14px}
+.empty-state h3{font-size:17px;font-weight:600;margin-bottom:8px;color:var(--text)}
+.empty-state p{font-size:13px;margin-bottom:18px}
+.alert{padding:11px 14px;border-radius:10px;font-size:13px;margin-bottom:14px;display:flex;align-items:flex-start;gap:8px}
+.alert-success{background:#E8F8F0;color:var(--success);border:1px solid #B8EDD4}
+.alert-danger{background:#FEF0F0;color:var(--danger);border:1px solid #F5C6C6}
+.alert-warning{background:#FEF9E7;color:var(--warning);border:1px solid #FAE5A0}
+.alert-info{background:#EBF5FB;color:var(--info);border:1px solid #AED6F1}
+.progress-bar{background:var(--border);border-radius:10px;height:7px;overflow:hidden;margin-top:6px}
+.progress-fill{height:100%;background:var(--saffron);border-radius:10px;transition:width .5s}
+.progress-fill.green{background:var(--success)}
+.flat-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(72px,1fr));gap:7px}
+.flat-item{border:2px solid var(--border);border-radius:8px;padding:8px 4px;text-align:center;cursor:pointer;font-size:11px;font-weight:600;transition:all .2s}
+.flat-item.paid{border-color:var(--success);background:#E8F8F0;color:var(--success)}
+.flat-item.pending{border-color:var(--border);color:var(--text2)}
+.flat-item:hover{border-color:var(--saffron)}
+.ledger-row{display:flex;justify-content:space-between;align-items:center;padding:9px 0;border-bottom:1px solid var(--border);font-size:13px}
+.ledger-row:last-child{border-bottom:none}
+.ledger-group-header{font-weight:700;color:var(--text);background:var(--bg);padding:7px 12px;border-radius:6px;margin-top:8px;font-size:13px}
+.amount-positive{color:var(--success);font-weight:600}
+.amount-negative{color:var(--danger);font-weight:600}
+.fy-selector{display:flex;align-items:center;gap:6px;background:var(--saffron-light);border:2px solid var(--saffron);border-radius:10px;padding:6px 12px;font-size:12px;font-weight:700;color:var(--saffron);cursor:pointer}
+.qr-display{border:2px dashed var(--border);border-radius:12px;padding:20px;text-align:center;min-height:80px;display:flex;align-items:center;justify-content:center}
+.qr-display img{max-width:180px;border-radius:8px}
+.receipt{border:2px solid var(--deep);border-radius:12px;padding:22px;max-width:380px;margin:0 auto}
+.receipt-header{text-align:center;border-bottom:2px dashed var(--border);padding-bottom:14px;margin-bottom:14px}
+.receipt-row{display:flex;justify-content:space-between;padding:5px 0;font-size:13px}
+.receipt-row.total{font-weight:700;font-size:15px;border-top:1px solid var(--border);padding-top:10px;margin-top:5px}
+.perm-grid{display:grid;grid-template-columns:2fr 1fr;gap:0;border:1px solid var(--border);border-radius:10px;overflow:hidden}
+.perm-header{background:var(--bg);padding:9px 10px;font-size:11px;font-weight:700;text-transform:uppercase;color:var(--text2);text-align:center;border-bottom:1px solid var(--border)}
+.perm-header:first-child{text-align:left}
+.perm-cell{padding:9px 10px;border-bottom:1px solid var(--border);font-size:12px;display:flex;align-items:center;justify-content:center}
+.perm-cell:first-child{justify-content:flex-start;font-weight:600}
+.toggle{position:relative;display:inline-block;width:42px;height:22px}
+.toggle input{opacity:0;width:0;height:0}
+.toggle-slider{position:absolute;inset:0;background:#ccc;border-radius:22px;cursor:pointer;transition:.3s}
+.toggle-slider:before{content:'';position:absolute;width:16px;height:16px;left:3px;bottom:3px;background:white;border-radius:50%;transition:.3s}
+.toggle input:checked+.toggle-slider{background:var(--saffron)}
+.toggle input:checked+.toggle-slider:before{transform:translateX(20px)}
+.sidebar-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:99}
+.meeting-card{border:1px solid var(--border);border-radius:12px;padding:18px;margin-bottom:10px;transition:all .2s}
+.meeting-card:hover{border-color:var(--saffron);box-shadow:var(--shadow)}
+.meeting-meta{display:flex;gap:14px;margin-top:7px;font-size:12px;color:var(--text2);flex-wrap:wrap}
+.toast{position:fixed;bottom:20px;right:20px;background:var(--deep);color:white;padding:12px 18px;border-radius:12px;font-size:13px;z-index:9999;transform:translateY(100px);opacity:0;transition:all .3s;max-width:300px}
+.toast.show{transform:translateY(0);opacity:1}
+.toast.success{background:var(--success)}
+.toast.error{background:var(--danger)}
+.toast.warning{background:var(--warning)}
+.collection-summary{display:flex;gap:10px;margin-bottom:18px;flex-wrap:wrap}
+.collection-stat{flex:1;min-width:90px;background:var(--bg);border-radius:10px;padding:12px;text-align:center}
+.collection-stat .num{font-size:22px;font-weight:800}
+.collection-stat .lbl{font-size:10px;color:var(--text2);text-transform:uppercase;font-weight:600;margin-top:2px}
+.mandatory::after{content:' *';color:var(--danger)}
+.page{display:none}
+.page.active{display:block}
+.audit-item{display:flex;gap:10px;padding:10px 0;border-bottom:1px solid var(--border);font-size:12px}
+.audit-dot{width:7px;height:7px;border-radius:50%;background:var(--saffron);margin-top:4px;flex-shrink:0}
+.chart-container{position:relative;height:180px;display:flex;align-items:flex-end;gap:6px;padding:0 4px}
+.chart-bar{flex:1;background:var(--saffron);border-radius:4px 4px 0 0;opacity:.8;min-height:4px;position:relative;cursor:pointer}
+.chart-bar:hover{opacity:1}
+.chart-bar .tip{position:absolute;bottom:100%;left:50%;transform:translateX(-50%);background:var(--deep);color:white;padding:3px 7px;border-radius:5px;font-size:10px;white-space:nowrap;display:none;margin-bottom:3px;z-index:10}
+.chart-bar:hover .tip{display:block}
+.chart-labels{display:flex;gap:6px;padding:6px 4px 0}
+.chart-label{flex:1;text-align:center;font-size:9px;color:var(--text2)}
+.pie-container{display:flex;align-items:center;gap:20px;flex-wrap:wrap;padding:10px 0}
+.pie-legend{display:flex;flex-direction:column;gap:9px}
+.pie-legend-item{display:flex;align-items:center;gap:7px;font-size:12px}
+.pie-dot{width:11px;height:11px;border-radius:50%}
+.fee-type-row{display:flex;align-items:center;gap:8px;padding:10px 0;border-bottom:1px solid var(--border)}
+@media(max-width:768px){
+  .sidebar{transform:translateX(-100%)}
+  .sidebar.open{transform:translateX(0)}
+  .sidebar-overlay.open{display:block}
+  .main{margin-left:0}
+  .hamburger{display:block}
+  .form-row,.form-row-3{grid-template-columns:1fr}
+  .stat-grid{grid-template-columns:1fr 1fr}
+  .content{padding:14px}
+  .topbar{padding:11px 14px}
+}
+@media print{.sidebar,.topbar,.no-print{display:none!important}.main{margin-left:0}}
+</style>
+</head>
+<body>
+<div class="toast" id="toast"></div>
+
+<!-- LOGIN -->
+<div id="login-screen">
+  <div class="login-card">
+    <div class="login-logo"><div class="om">🕉️</div><h1>Mandal Manager</h1><p>Complete Mandal Management System</p></div>
+    <div class="login-error" id="login-error">Invalid username or password.</div>
+    <div class="form-group"><label>Username</label><input type="text" id="login-user" placeholder="Enter username"></div>
+    <div class="form-group"><label>Password</label><input type="password" id="login-pass" placeholder="Enter password"></div>
+    <button class="btn btn-primary btn-full" onclick="doLogin()">Sign In →</button>
+    <p style="text-align:center;margin-top:14px;font-size:12px;color:var(--text2)">Default: admin / admin123</p>
+  </div>
+</div>
+
+<!-- APP -->
+<div id="app">
+  <div class="sidebar-overlay" id="sidebar-overlay" onclick="closeSidebar()"></div>
+  <div class="sidebar" id="sidebar">
+    <div class="sidebar-header">
+      <div class="om">🕉️</div>
+      <h2 id="mandal-sidebar-name">Mandal Manager</h2>
+      <p id="mandal-sidebar-loc">Setup Mandal Profile</p>
+      <div class="fy-badge" id="current-fy-badge">FY 2025-26</div>
+    </div>
+    <div class="nav-section">Main</div>
+    <div class="nav-item active" onclick="showPage('dashboard')"><span class="icon">📊</span>Dashboard</div>
+    <div class="nav-section">Masters</div>
+    <div class="nav-item" onclick="showPage('mandal-profile')"><span class="icon">🏛️</span>Mandal Profile</div>
+    <div class="nav-item" onclick="showPage('committee')"><span class="icon">👥</span>Committee Members</div>
+    <div class="nav-item" onclick="showPage('sabhashad')"><span class="icon">👤</span>General Sabhashad</div>
+    <div class="nav-item" onclick="showPage('collection-area')"><span class="icon">🏘️</span>Collection Area</div>
+    <div class="nav-section">Operations</div>
+    <div class="nav-item" onclick="showPage('events')"><span class="icon">🎉</span>Events</div>
+    <div class="nav-item" onclick="showPage('donations')"><span class="icon">💰</span>Donation Collection</div>
+    <div class="nav-item" onclick="showPage('meetings')"><span class="icon">📋</span>Meetings</div>
+    <div class="nav-section">Accounting</div>
+    <div class="nav-item" onclick="showPage('accounts')"><span class="icon">📒</span>Account Master</div>
+    <div class="nav-item" onclick="showPage('vouchers')"><span class="icon">🧾</span>Vouchers</div>
+    <div class="nav-item" onclick="showPage('fy-management')"><span class="icon">📅</span>FY Management</div>
+    <div class="nav-item" onclick="showPage('financials')"><span class="icon">📈</span>Financial Reports</div>
+    <div class="nav-section">Admin</div>
+    <div class="nav-item" onclick="showPage('users')"><span class="icon">🔐</span>User Management</div>
+    <div class="nav-item" onclick="showPage('audit')"><span class="icon">📝</span>Audit Log</div>
+    <div class="nav-item" onclick="showPage('sync-settings')"><span class="icon">☁️</span>Google Sync <span id="sync-badge" style="display:none;background:var(--danger);color:white;border-radius:10px;padding:1px 6px;font-size:10px;margin-left:4px"></span></div>
+    <div class="nav-item" onclick="showPage('backup')"><span class="icon">💾</span>Backup &amp; Restore</div>
+    <div class="sidebar-footer">
+      <div class="user-info">
+        <div class="user-avatar" id="user-avatar">A</div>
+        <div><div class="user-name" id="user-display-name">Admin</div><div class="user-role" id="user-display-role">Super Admin</div></div>
+        <button class="btn btn-sm btn-secondary" style="margin-left:auto" onclick="doLogout()">↩</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="main">
+    <div class="topbar">
+      <div style="display:flex;align-items:center;gap:10px">
+        <button class="hamburger" onclick="toggleSidebar()">☰</button>
+        <h1 id="page-title">Dashboard</h1>
+      </div>
+      <div class="topbar-actions">
+        <div class="fy-selector" onclick="showFYModal()">📅 <span id="fy-display">FY 2025-26</span> ▾</div>
+      </div>
+    </div>
+    <div class="content">
+
+<!-- DASHBOARD -->
+<div class="page active" id="page-dashboard">
+  <div class="stat-grid">
+    <div class="stat-card"><div class="stat-label">Total Donations</div><div class="stat-value" id="dash-total-donations">₹0</div><div class="stat-sub">Current FY</div></div>
+    <div class="stat-card red"><div class="stat-label">Pending Flats</div><div class="stat-value" id="dash-pending">0</div><div class="stat-sub">Not collected</div></div>
+    <div class="stat-card green"><div class="stat-label">Sabhashad</div><div class="stat-value" id="dash-sabhashad">0</div><div class="stat-sub">Members</div></div>
+    <div class="stat-card blue"><div class="stat-label">Committee</div><div class="stat-value" id="dash-committee">0</div><div class="stat-sub">Current term</div></div>
+    <div class="stat-card gold"><div class="stat-label">Fee Collected</div><div class="stat-value" id="dash-fee-paid">0</div><div class="stat-sub">of <span id="dash-fee-total">0</span> members</div></div>
+    <div class="stat-card"><div class="stat-label">Active Events</div><div class="stat-value" id="dash-events">0</div><div class="stat-sub">This FY</div></div>
+    <div class="stat-card red"><div class="stat-label">Vendor Outstanding</div><div class="stat-value" id="dash-outstanding">₹0</div><div class="stat-sub">Total payable</div></div>
+    <div class="stat-card blue"><div class="stat-label">Total Expenses</div><div class="stat-value" id="dash-expenses">₹0</div><div class="stat-sub">This FY</div></div>
+    <div class="stat-card gold"><div class="stat-label">Total Investments</div><div class="stat-value" id="dash-investments">₹0</div><div class="stat-sub">FD / RD / MF</div></div>
+  </div>
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:18px" class="chart-grid">
+    <div class="card"><div class="card-header"><div class="card-title">Donations by Event</div></div><div class="chart-container" id="bar-chart"></div><div class="chart-labels" id="bar-labels"></div></div>
+    <div class="card"><div class="card-header"><div class="card-title">Collection Status</div></div><div class="pie-container"><svg width="110" height="110" id="pie-chart" viewBox="0 0 42 42"></svg><div class="pie-legend" id="pie-legend"></div></div></div>
+  </div>
+  <div class="card" style="margin-top:18px"><div class="card-header"><div class="card-title">🏆 Top Donors</div></div><div id="top-donors-list"></div></div>
+</div>
+
+<!-- MANDAL PROFILE -->
+<div class="page" id="page-mandal-profile">
+  <div class="card">
+    <div class="card-header"><div class="card-title">🏛️ Mandal Profile</div><button class="btn btn-primary btn-sm" onclick="saveMandal()">💾 Save Profile</button></div>
+    <div class="tabs">
+      <button class="tab active" onclick="switchTab(this,'mandal-basic')">Basic Info</button>
+      <button class="tab" onclick="switchTab(this,'mandal-docs')">Documents</button>
+      <button class="tab" onclick="switchTab(this,'mandal-social')">Contact &amp; Social</button>
+      <button class="tab" onclick="switchTab(this,'mandal-finance');renderFeeTypes()">Fee Settings</button>
+      <button class="tab" onclick="switchTab(this,'mandal-qr')">Payment QR</button>
+    </div>
+    <div class="tab-content active" id="tab-mandal-basic">
+      <div class="form-row"><div class="form-group"><label class="mandatory">Mandal Name</label><input type="text" id="m-name"></div><div class="form-group"><label>Mandal ID</label><input type="text" id="m-id" placeholder="Auto or custom"></div></div>
+      <div class="form-row"><div class="form-group"><label>Registration Number</label><input type="text" id="m-reg-no"></div><div class="form-group"><label>Registration Date</label><input type="date" id="m-reg-date"></div></div>
+      <div class="form-group"><label>Address</label><textarea id="m-address" rows="2"></textarea></div>
+      <div class="form-row-3"><div class="form-group"><label>City</label><input type="text" id="m-city"></div><div class="form-group"><label>State</label><input type="text" id="m-state" value="Maharashtra"></div><div class="form-group"><label>Pincode</label><input type="text" id="m-pin"></div></div>
+    </div>
+    <div class="tab-content" id="tab-mandal-docs">
+      <div class="section-label">Upload Documents</div>
+      <div class="alert alert-info">💡 Add multiple files per category. Files sync to Google Drive when connected.</div>
+      <div id="mandal-docs-list"></div>
+    </div>
+    <div class="tab-content" id="tab-mandal-social">
+      <div class="form-row"><div class="form-group"><label>Contact Person</label><input type="text" id="m-contact-name"></div><div class="form-group"><label>Contact Phone</label><input type="tel" id="m-contact-phone"></div></div>
+      <div class="form-group"><label>Email</label><input type="email" id="m-email"></div>
+      <hr class="divider">
+      <div class="section-label">Social Media</div>
+      <div class="form-group"><label>Facebook</label><input type="url" id="m-facebook" placeholder="https://facebook.com/..."></div>
+      <div class="form-group"><label>Instagram</label><input type="url" id="m-instagram" placeholder="https://instagram.com/..."></div>
+      <div class="form-group"><label>Website</label><input type="url" id="m-website"></div>
+    </div>
+    <div class="tab-content" id="tab-mandal-finance">
+      <div class="section-label">Annual Membership Fee Types — FY <span id="finance-fy-label">2025-26</span></div>
+      <div class="alert alert-info">💡 Create fee types (e.g. General ₹500, Life Member ₹5000). Each Sabhashad is assigned a fee type.</div>
+      <div id="fee-types-list" style="margin-bottom:14px"></div>
+      <div class="card" style="box-shadow:none;border:1px solid var(--border)">
+        <div class="section-label">Add Fee Type</div>
+        <div class="form-row">
+          <div class="form-group"><label class="mandatory">Fee Type Name</label><input type="text" id="new-fee-type-name" placeholder="e.g. General Member, Life Member"></div>
+          <div class="form-group"><label class="mandatory">Amount (₹)</label><input type="number" id="new-fee-type-amount" min="0"></div>
+        </div>
+        <button class="btn btn-primary btn-sm" onclick="addFeeType()">+ Add Fee Type</button>
+      </div>
+      <hr class="divider">
+      <div class="section-label">Opening Balance — FY <span id="ob-fy-label">2025-26</span></div>
+      <div class="form-row">
+        <div class="form-group"><label>Opening Cash Balance (₹)</label><input type="number" id="ob-cash" min="0" value="0"></div>
+        <div class="form-group"><label>Opening Bank Balance (₹)</label><input type="number" id="ob-bank" min="0" value="0"></div>
+      </div>
+      <button class="btn btn-primary btn-sm" onclick="saveOpeningBalance()">💾 Save Opening Balance</button>
+    </div>
+    <div class="tab-content" id="tab-mandal-qr">
+      <div class="section-label">Payment QR Code</div>
+      <div class="alert alert-info">📱 Upload UPI/Bank QR. Displayed during donation collection.</div>
+      <div class="form-group"><label>Upload QR Code Image</label><input type="file" id="m-qr-code" accept="image/*" onchange="previewQR(this)"></div>
+      <div class="qr-display" id="qr-preview"><div style="color:var(--text2);font-size:13px">📲 QR Code will appear here</div></div>
+    </div>
+  </div>
+</div>
+
+<!-- COMMITTEE -->
+<div class="page" id="page-committee">
+  <div class="card">
+    <div class="card-header"><div class="card-title">👥 Committee Members</div><button class="btn btn-primary btn-sm" onclick="openModal('modal-committee');editingId=null;resetForm('modal-committee')">+ Add Member</button></div>
+    <div class="search-bar">
+      <input class="search-input" placeholder="Search members..." oninput="filterTable('committee-table',this.value)">
+      <select class="search-input" style="flex:0;min-width:150px" onchange="filterTableCol('committee-table',1,this.value)"><option value="">All Roles</option><option>President</option><option>Vice President</option><option>Secretary</option><option>Treasurer</option><option>General Member</option></select>
+      <select class="search-input" style="flex:0;min-width:130px" id="committee-term-filter" onchange="filterTableCol('committee-table',2,this.value)"><option value="">All Terms</option></select>
+    </div>
+    <div class="table-wrap"><table><thead><tr><th>Name</th><th>Role</th><th>Term</th><th>Mobile</th><th>KYC</th><th>Actions</th></tr></thead><tbody id="committee-table"></tbody></table></div>
+  </div>
+</div>
+
+<!-- SABHASHAD -->
+<div class="page" id="page-sabhashad">
+  <div class="card">
+    <div class="card-header"><div class="card-title">👤 General Sabhashad</div><button class="btn btn-primary btn-sm" onclick="openModal('modal-sabhashad');editingId=null;resetForm('modal-sabhashad')">+ Add Member</button></div>
+    <div class="search-bar">
+      <input class="search-input" placeholder="Search name or mobile..." oninput="filterTable('sabhashad-table',this.value)">
+      <select class="search-input" style="flex:0;min-width:150px" onchange="filterSabhashadFee(this.value)"><option value="">All Fee Status</option><option value="paid">Paid ✅</option><option value="unpaid">Unpaid ❌</option></select>
+    </div>
+    <div class="table-wrap"><table><thead><tr><th>Name</th><th>Mobile</th><th>T-Shirt</th><th>Fee Type</th><th>Fee Status</th><th>Flat</th><th>Actions</th></tr></thead><tbody id="sabhashad-table"></tbody></table></div>
+  </div>
+</div>
+
+<!-- COLLECTION AREA -->
+<div class="page" id="page-collection-area">
+  <div class="card">
+    <div class="card-header"><div class="card-title">🏘️ Collection Area Master</div><button class="btn btn-primary btn-sm" onclick="openModal('modal-area');editingId=null">+ Add Area</button></div>
+    <div id="area-list"></div>
+  </div>
+</div>
+
+<!-- ACCOUNT MASTER -->
+<div class="page" id="page-accounts">
+  <div class="card">
+    <div class="card-header"><div class="card-title">📒 Account Master</div>
+      <div style="display:flex;gap:6px">
+        <button class="btn btn-primary btn-sm" onclick="openModal('modal-ledger');editingId=null">+ Add Ledger</button>
+        <button class="btn btn-secondary btn-sm" onclick="openModal('modal-vendor');editingId=null">+ Add Vendor</button>
+        <button class="btn btn-secondary btn-sm" onclick="openModal('modal-investment');editingId=null">+ Add Investment</button>
+      </div>
+    </div>
+    <div class="alert alert-info">💡 Tally-style ledgers. Vendors = Sundry Creditors. Investments = FD/RD/MF ledgers.</div>
+    <div class="tabs">
+      <button class="tab active" onclick="switchTab(this,'acc-income')">Income</button>
+      <button class="tab" onclick="switchTab(this,'acc-expense')">Expense</button>
+      <button class="tab" onclick="switchTab(this,'acc-creditors')">Vendors</button>
+      <button class="tab" onclick="switchTab(this,'acc-investment')">Investments</button>
+      <button class="tab" onclick="switchTab(this,'acc-assetbank')">Bank &amp; Cash</button>
+      <button class="tab" onclick="switchTab(this,'acc-ledger-view');populateLedgerViewSelect();renderLedgerView()">Ledger View</button>
+    </div>
+    <div class="tab-content active" id="tab-acc-income"><div id="income-ledgers-list"></div></div>
+    <div class="tab-content" id="tab-acc-expense"><div id="expense-ledgers-list"></div></div>
+    <div class="tab-content" id="tab-acc-creditors">
+      <div class="search-bar"><input class="search-input" placeholder="Search vendor ledgers..." oninput="filterTable('creditor-table',this.value)"></div>
+      <div class="table-wrap"><table><thead><tr><th>Vendor / Ledger Name</th><th>Category</th><th>Mobile</th><th>GST</th><th>Balance Payable</th><th>Actions</th></tr></thead><tbody id="creditor-table"></tbody></table></div>
+    </div>
+    <div class="tab-content" id="tab-acc-investment">
+      <div class="table-wrap"><table><thead><tr><th>Investment Name</th><th>Type</th><th>Principal</th><th>Bank/Institution</th><th>Maturity Date</th><th>Status</th><th>Actions</th></tr></thead><tbody id="investment-table"></tbody></table></div>
+    </div>
+    <div class="tab-content" id="tab-acc-assetbank"><div id="asset-bank-list"></div></div>
+    <div class="tab-content" id="tab-acc-ledger-view">
+      <div class="form-group" style="max-width:320px"><label>Select Ledger</label><select id="ledger-view-select" onchange="renderLedgerView()"><option value="">— Select Ledger —</option></select></div>
+      <div id="ledger-view-detail"></div>
+    </div>
+  </div>
+</div>
+
+<!-- VOUCHERS -->
+<div class="page" id="page-vouchers">
+  <div class="card">
+    <div class="card-header"><div class="card-title">🧾 Vouchers</div></div>
+    <div class="alert alert-info">💡 Donations &amp; Fees auto-create Receipt vouchers. Use this page for Purchase, Payment, Contra and Journal entries.</div>
+    <div class="tabs">
+      <button class="tab active" onclick="switchTab(this,'v-receipt');renderVoucherList('Receipt')">🧾 Receipt</button>
+      <button class="tab" onclick="switchTab(this,'v-payment');renderVoucherList('Payment')">💸 Payment</button>
+      <button class="tab" onclick="switchTab(this,'v-purchase');renderVoucherList('Purchase')">🛒 Purchase</button>
+      <button class="tab" onclick="switchTab(this,'v-contra');renderVoucherList('Contra')">🔁 Contra</button>
+      <button class="tab" onclick="switchTab(this,'v-journal');renderVoucherList('Journal')">📘 Journal</button>
+      <button class="tab" onclick="switchTab(this,'v-all');renderVoucherList('All')">📋 All</button>
+    </div>
+    <div class="tab-content active" id="tab-v-receipt"><div class="form-hint" style="margin-bottom:10px">Auto-created from Donation &amp; Fee payments.</div><div id="voucher-list-Receipt"></div></div>
+    <div class="tab-content" id="tab-v-payment"><button class="btn btn-primary btn-sm" style="margin-bottom:12px" onclick="openVoucherModal('Payment')">+ New Payment Voucher</button><div id="voucher-list-Payment"></div></div>
+    <div class="tab-content" id="tab-v-purchase"><button class="btn btn-primary btn-sm" style="margin-bottom:12px" onclick="openVoucherModal('Purchase')">+ New Purchase Voucher</button><div id="voucher-list-Purchase"></div></div>
+    <div class="tab-content" id="tab-v-contra"><button class="btn btn-primary btn-sm" style="margin-bottom:12px" onclick="openVoucherModal('Contra')">+ New Contra Voucher</button><div id="voucher-list-Contra"></div></div>
+    <div class="tab-content" id="tab-v-journal"><button class="btn btn-primary btn-sm" style="margin-bottom:12px" onclick="openVoucherModal('Journal')">+ New Journal Voucher</button><div id="voucher-list-Journal"></div></div>
+    <div class="tab-content" id="tab-v-all"><div id="voucher-list-All"></div></div>
+  </div>
+</div>
+
+<!-- EVENTS -->
+<div class="page" id="page-events">
+  <div class="card">
+    <div class="card-header"><div class="card-title">🎉 Events</div><button class="btn btn-primary btn-sm" onclick="openModal('modal-event');editingId=null;resetForm('modal-event')">+ Create Event</button></div>
+    <div id="events-list"></div>
+  </div>
+</div>
+
+<!-- DONATIONS -->
+<div class="page" id="page-donations">
+  <div class="card">
+    <div class="card-header"><div class="card-title">💰 Donation Collection</div></div>
+    <div class="form-group"><label class="mandatory">Select Event</label><select id="donation-event-select" onchange="loadDonationArea()"><option value="">— Select Active Event —</option></select></div>
+    <div class="tabs" id="donation-tabs">
+      <button class="tab active" onclick="switchTab(this,'don-area')">🏘️ Collection Area</button>
+      <button class="tab" onclick="switchTab(this,'don-direct')">👤 Direct Donor</button>
+    </div>
+    <div class="tab-content active" id="tab-don-area"><div id="collection-area-navigator"></div></div>
+    <div class="tab-content" id="tab-don-direct">
+      <div class="card" style="box-shadow:none;border:1px solid var(--border)">
+        <div class="section-label">Add Direct Donor</div>
+        <div class="form-row"><div class="form-group"><label class="mandatory">Donor Name</label><input type="text" id="dd-name"></div><div class="form-group"><label class="mandatory">Mobile</label><input type="tel" id="dd-mobile"></div></div>
+        <div class="form-row"><div class="form-group"><label>Link to Sabhashad</label><select id="dd-sabhashad"><option value="">— Not a member —</option></select></div><div class="form-group"><label class="mandatory">Amount (₹)</label><input type="number" id="dd-amount" min="1"></div></div>
+        <div class="form-row"><div class="form-group"><label>Payment Mode</label><select id="dd-mode"><option>Cash</option><option>Online/UPI</option><option>Cheque</option><option>Bank Transfer</option></select></div><div class="form-group"><label>Date</label><input type="date" id="dd-date"></div></div>
+        <div id="dd-qr-section" style="display:none;margin-bottom:14px"><div class="section-label">Scan QR to Pay</div><div class="qr-display" id="donation-qr-show"></div></div>
+        <button class="btn btn-primary" onclick="addDirectDonor()">💰 Record Donation</button>
+      </div>
+      <div class="card" style="margin-top:14px;box-shadow:none;border:1px solid var(--border)">
+        <div class="card-header"><div class="card-title">Direct Donors List</div></div>
+        <div class="table-wrap"><table><thead><tr><th>Receipt#</th><th>Name</th><th>Mobile</th><th>Amount</th><th>Mode</th><th>Date</th><th>Actions</th></tr></thead><tbody id="direct-donors-table"></tbody></table></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- MEETINGS -->
+<div class="page" id="page-meetings">
+  <div class="card">
+    <div class="card-header"><div class="card-title">📋 Meetings</div><button class="btn btn-primary btn-sm" onclick="openModal('modal-meeting');editingId=null">+ Schedule Meeting</button></div>
+    <div id="meetings-list"></div>
+  </div>
+</div>
+
+<!-- FINANCIAL REPORTS -->
+<div class="page" id="page-financials">
+  <div class="card">
+    <div class="card-header"><div class="card-title">📈 Financial Reports</div>
+      <div style="display:flex;gap:8px">
+        <select id="fin-event-filter" class="search-input" style="min-width:160px" onchange="renderFinancials()"><option value="">All Events (FY)</option></select>
+        <button class="btn btn-secondary btn-sm no-print" onclick="window.print()">🖨️ Print</button>
+      </div>
+    </div>
+    <div class="tabs">
+      <button class="tab active" onclick="switchTab(this,'fin-tb')">Trial Balance</button>
+      <button class="tab" onclick="switchTab(this,'fin-pl')">P&amp;L Statement</button>
+      <button class="tab" onclick="switchTab(this,'fin-bs')">Balance Sheet</button>
+    </div>
+    <div class="tab-content active" id="tab-fin-tb"><div id="tb-report"></div></div>
+    <div class="tab-content" id="tab-fin-pl"><div id="pl-report"></div></div>
+    <div class="tab-content" id="tab-fin-bs"><div id="bs-report"></div></div>
+  </div>
+</div>
+
+<!-- USERS -->
+<div class="page" id="page-users">
+  <div class="card">
+    <div class="card-header"><div class="card-title">🔐 User Management</div><button class="btn btn-primary btn-sm" onclick="openModal('modal-user');editingId=null;resetForm('modal-user')">+ Add User</button></div>
+    <div class="table-wrap"><table><thead><tr><th>Name</th><th>Username</th><th>Role</th><th>Mobile</th><th>Status</th><th>Actions</th></tr></thead><tbody id="users-table"></tbody></table></div>
+  </div>
+</div>
+
+<!-- AUDIT -->
+<div class="page" id="page-audit">
+  <div class="card">
+    <div class="card-header"><div class="card-title">📝 Audit Log</div></div>
+    <div id="audit-log-list"></div>
+  </div>
+</div>
+
+<!-- FY MANAGEMENT -->
+<div class="page" id="page-fy-management">
+  <div class="card">
+    <div class="card-header"><div class="card-title">📅 Financial Year Management</div></div>
+    <div class="alert alert-info">💡 FY runs April–March. Each year fee statuses reset fresh. History preserved permanently.</div>
+    <div class="tabs">
+      <button class="tab active" onclick="switchTab(this,'fy-overview');renderFYOverview()">FY Overview</button>
+      <button class="tab" onclick="switchTab(this,'fy-opening');loadOpeningBalance()">Opening Balance</button>
+      <button class="tab" onclick="switchTab(this,'fy-history');renderFYHistory()">FY History</button>
+    </div>
+    <div class="tab-content active" id="tab-fy-overview">
+      <div class="stat-grid" id="fy-overview-stats"></div>
+      <hr class="divider">
+      <div class="section-label">Start New Financial Year</div>
+      <div class="alert alert-warning">⚠️ Only Super Admin. Closing balance auto-carries to new FY opening balance.</div>
+      <div id="fy-closing-preview" style="margin-bottom:14px"></div>
+      <button class="btn btn-primary" onclick="startNewFY()">🔄 Start New Financial Year</button>
+      <hr class="divider">
+      <div class="section-label">Sabhashad Fee Management</div>
+      <div id="fee-reset-status"></div>
+      <button class="btn btn-warning" style="margin-top:8px" onclick="resetAllFees()">🔄 Reset All Member Fees for Current FY</button>
+    </div>
+    <div class="tab-content" id="tab-fy-opening">
+      <div class="section-label">Opening Balance — FY <span id="ob-fy-label2">2025-26</span></div>
+      <div id="prev-fy-closing-info"></div>
+      <div class="form-row">
+        <div class="form-group"><label>Opening Cash Balance (₹)</label><input type="number" id="ob-cash2" min="0" value="0"></div>
+        <div class="form-group"><label>Opening Bank Balance (₹)</label><input type="number" id="ob-bank2" min="0" value="0"></div>
+      </div>
+      <button class="btn btn-primary" onclick="saveOpeningBalance2()">💾 Save Opening Balance</button>
+    </div>
+    <div class="tab-content" id="tab-fy-history"><div id="fy-history-list"></div></div>
+  </div>
+</div>
+
+<!-- GOOGLE SYNC -->
+<div class="page" id="page-sync-settings">
+  <div class="card">
+    <div class="card-header"><div class="card-title">☁️ Google Sheets &amp; Drive Sync</div></div>
+    <div class="alert alert-info">💡 Data always saved locally first (works offline). When connected, saves also push to your Google Sheet and Drive.</div>
+    <div class="form-group">
+      <label>Google Apps Script Web App URL</label>
+      <input type="text" id="gas-url-input" placeholder="https://script.google.com/macros/s/AKfycbxMuzNDDQm-As7jMrp9F4VLptmpb94kAOC4RaqFUIBeHWR5eeXLcsyHzj3M19FlFoyk/exec">
+    </div>
+    <div style="display:flex;gap:10px;margin-bottom:16px">
+      <button class="btn btn-primary" onclick="saveGasUrl()">💾 Save Connection</button>
+      <button class="btn btn-secondary" onclick="testGasConnection()">🔌 Test Connection</button>
+      <button class="btn btn-secondary" onclick="forceSyncNow()">🔄 Force Full Sync</button>
+    </div>
+    <div class="alert alert-success">Status: <strong id="sync-status-text">⚪ Not connected</strong></div>
+    <div class="tabs">
+      <button class="tab active" onclick="switchTab(this,'sync-queue')">Sync Queue</button>
+      <button class="tab" onclick="switchTab(this,'sync-help')">Setup Help</button>
+    </div>
+    <div class="tab-content active" id="tab-sync-queue"><div id="sync-queue-list"></div></div>
+    <div class="tab-content" id="tab-sync-help">
+      <ol style="padding-left:20px;font-size:14px;line-height:1.9">
+        <li>Open Google Drive → create a new <strong>Google Sheet</strong>.</li>
+        <li>In the Sheet, go to <strong>Extensions → Apps Script</strong>. Paste the contents of <code>google-apps-script.gs</code>.</li>
+        <li>Create a folder in Google Drive. Copy its Folder ID into <code>DRIVE_FOLDER_ID</code> in the script.</li>
+        <li>Click <strong>Deploy → New deployment → Web app</strong>. Set "Execute as: Me" and "Who has access: Anyone".</li>
+        <li>Copy the Web App URL and paste it above, then click Save &amp; Test.</li>
+      </ol>
+    </div>
+  </div>
+</div>
+
+<!-- BACKUP -->
+<div class="page" id="page-backup">
+  <div class="card">
+    <div class="card-header"><div class="card-title">💾 Backup &amp; Restore</div></div>
+    <div class="alert alert-warning">⚠️ Super Admin only. All data replaced on restore.</div>
+    <div style="display:flex;gap:14px;flex-wrap:wrap;margin-top:14px">
+      <div class="card" style="flex:1;min-width:220px;box-shadow:none;border:1px solid var(--border)">
+        <div class="section-label">Export Backup</div>
+        <p style="font-size:13px;color:var(--text2);margin-bottom:14px">Download all data as JSON.</p>
+        <button class="btn btn-primary" onclick="exportBackup()">📥 Export All Data</button>
+      </div>
+      <div class="card" style="flex:1;min-width:220px;box-shadow:none;border:1px solid var(--border)">
+        <div class="section-label">Import / Restore</div>
+        <p style="font-size:13px;color:var(--text2);margin-bottom:14px">Restore from previously exported JSON.</p>
+        <input type="file" id="restore-file" accept=".json" style="margin-bottom:10px">
+        <button class="btn btn-danger" onclick="importBackup()">📤 Restore Data</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+    </div><!-- /content -->
+  </div><!-- /main -->
+</div><!-- /app -->
+
+<!-- ========== MODALS ========== -->
+
+<!-- COMMITTEE MODAL -->
+<div class="modal-overlay" id="modal-committee">
+  <div class="modal"><div class="modal-header"><div class="modal-title" id="modal-committee-title">Add Committee Member</div><button class="modal-close" onclick="closeModal('modal-committee')">✕</button></div>
+  <div class="modal-body">
+    <div class="form-row"><div class="form-group"><label class="mandatory">Full Name</label><input type="text" id="cm-name"></div><div class="form-group"><label class="mandatory">Mobile</label><input type="tel" id="cm-mobile"></div></div>
+    <div class="form-row">
+      <div class="form-group"><label class="mandatory">Role</label><select id="cm-role" onchange="toggleCustomRole(this)"><option>President</option><option>Vice President</option><option>Secretary</option><option>Treasurer</option><option>General Member</option><option value="custom">Custom Role</option></select></div>
+      <div class="form-group" id="cm-custom-role-group" style="display:none"><label>Custom Role</label><input type="text" id="cm-custom-role"></div>
+    </div>
+    <div class="form-row"><div class="form-group"><label class="mandatory">Term (FY)</label><select id="cm-term"></select></div><div class="form-group"><label>Date of Birth</label><input type="date" id="cm-dob"></div></div>
+    <div class="form-group"><label>Email</label><input type="email" id="cm-email"></div>
+    <div class="form-group"><label>Address</label><textarea id="cm-address" rows="2"></textarea></div>
+    <div class="form-group"><label>Link to Sabhashad</label><select id="cm-sabhashad-link"><option value="">— Not a Sabhashad member —</option></select></div>
+  </div>
+  <div class="modal-footer"><button class="btn btn-secondary" onclick="closeModal('modal-committee')">Cancel</button><button class="btn btn-primary" onclick="saveCommitteeMember()">Save Member</button></div></div>
+</div>
+
+<!-- SABHASHAD MODAL -->
+<div class="modal-overlay" id="modal-sabhashad">
+  <div class="modal"><div class="modal-header"><div class="modal-title" id="modal-sabhashad-title">Add Sabhashad Member</div><button class="modal-close" onclick="closeModal('modal-sabhashad')">✕</button></div>
+  <div class="modal-body">
+    <div class="form-row"><div class="form-group"><label class="mandatory">Full Name</label><input type="text" id="sb-name"></div><div class="form-group"><label class="mandatory">Mobile</label><input type="tel" id="sb-mobile"></div></div>
+    <div class="form-row">
+      <div class="form-group"><label>T-Shirt Size</label><select id="sb-tshirt"><option>S</option><option>M</option><option>L</option><option selected>XL</option><option>XXL</option><option>XXXL</option></select></div>
+      <div class="form-group"><label>Fee Type</label><select id="sb-fee-type"><option value="">— Select Fee Type —</option></select></div>
+    </div>
+    <div class="form-group"><label>Link to Flat/Room</label><select id="sb-flat-link"><option value="">— No flat linked —</option></select></div>
+  </div>
+  <div class="modal-footer"><button class="btn btn-secondary" onclick="closeModal('modal-sabhashad')">Cancel</button><button class="btn btn-primary" onclick="saveSabhashad()">Save Member</button></div></div>
+</div>
+
+<!-- SABHASHAD FEE MODAL -->
+<div class="modal-overlay" id="modal-sabhashad-fee">
+  <div class="modal"><div class="modal-header"><div class="modal-title">Fee Tracking — <span id="fee-member-name"></span></div><button class="modal-close" onclick="closeModal('modal-sabhashad-fee')">✕</button></div>
+  <div class="modal-body"><div id="fee-years-list"></div></div>
+  <div class="modal-footer"><button class="btn btn-secondary" onclick="closeModal('modal-sabhashad-fee')">Close</button></div></div>
+</div>
+
+<!-- AREA MODAL -->
+<div class="modal-overlay" id="modal-area">
+  <div class="modal"><div class="modal-header"><div class="modal-title" id="modal-area-title">Add Collection Area</div><button class="modal-close" onclick="closeModal('modal-area')">✕</button></div>
+  <div class="modal-body">
+    <div class="form-group"><label class="mandatory">Area Type</label><select id="area-type" onchange="toggleAreaType(this.value)"><option value="building">Building / Society</option><option value="slum">Slum / Chawl</option></select></div>
+    <div class="form-group"><label class="mandatory">Area / Building Name</label><input type="text" id="area-name"></div>
+    <div class="form-group"><label>Zone / Location</label><input type="text" id="area-zone"></div>
+    <div id="building-fields">
+      <div class="form-group"><label>Structure</label><select id="building-type" onchange="toggleWings(this.value)"><option value="wing">Building → Wings → Floors → Flats</option><option value="no-wing">Building → Floors → Flats (no wings)</option></select></div>
+      <div id="wings-section"><div class="form-row"><div class="form-group"><label>Number of Wings</label><input type="number" id="num-wings" min="1" value="1"></div><div class="form-group"><label>Wing Names (comma sep.)</label><input type="text" id="wing-names" placeholder="A,B,C"></div></div></div>
+      <div class="form-row"><div class="form-group"><label class="mandatory">Total Floors</label><input type="number" id="num-floors" min="1" value="4"></div><div class="form-group"><label class="mandatory">Flats per Floor</label><input type="number" id="flats-per-floor" min="1" value="4"></div></div>
+    </div>
+    <div id="slum-fields" style="display:none">
+      <div class="form-group"><label>Room Entry Type</label><select id="slum-type" onchange="toggleSlumType(this.value)"><option value="auto">Auto Number (total rooms)</option><option value="manual">Manual Room Numbers</option></select></div>
+      <div class="form-group" id="slum-auto-field"><label class="mandatory">Total Rooms</label><input type="number" id="total-rooms" min="1" value="10"></div>
+      <div class="form-group" id="slum-manual-field" style="display:none"><label class="mandatory">Room Numbers (comma sep.)</label><input type="text" id="room-numbers" placeholder="1,2,3,4A,5B"></div>
+    </div>
+  </div>
+  <div class="modal-footer"><button class="btn btn-secondary" onclick="closeModal('modal-area')">Cancel</button><button class="btn btn-primary" onclick="saveArea()">Save Area</button></div></div>
+</div>
+
+<!-- PAYMENT VOUCHER MODAL -->
+<div class="modal-overlay" id="modal-voucher-payment">
+  <div class="modal"><div class="modal-header"><div class="modal-title">💸 Payment Voucher</div><button class="modal-close" onclick="closeModal('modal-voucher-payment')">✕</button></div>
+  <div class="modal-body">
+    <div class="form-row"><div class="form-group"><label class="mandatory">Date</label><input type="date" id="pv-date"></div><div class="form-group"><label class="mandatory">Paid From</label><select id="pv-from"><option value="Cash in Hand">💵 Cash in Hand</option><option value="Bank Account">🏦 Bank Account</option></select></div></div>
+    <div class="form-group"><label class="mandatory">Paid To (Vendor / Ledger)</label><select id="pv-to" onchange="loadVendorOutstandingHint()"></select></div>
+    <div id="pv-outstanding-hint" class="form-hint"></div>
+    <div class="form-row"><div class="form-group"><label class="mandatory">Amount (₹)</label><input type="number" id="pv-amount" min="0"></div><div class="form-group"><label>Ref / Cheque No.</label><input type="text" id="pv-ref"></div></div>
+    <div class="form-group"><label>Narration</label><textarea id="pv-narration" rows="2"></textarea></div>
+  </div>
+  <div class="modal-footer"><button class="btn btn-secondary" onclick="closeModal('modal-voucher-payment')">Cancel</button><button class="btn btn-primary" onclick="savePaymentVoucher()">Save Payment</button></div></div>
+</div>
+
+<!-- PURCHASE VOUCHER MODAL -->
+<div class="modal-overlay" id="modal-voucher-purchase">
+  <div class="modal"><div class="modal-header"><div class="modal-title">🛒 Purchase Voucher</div><button class="modal-close" onclick="closeModal('modal-voucher-purchase')">✕</button></div>
+  <div class="modal-body">
+    <div class="form-row"><div class="form-group"><label class="mandatory">Date</label><input type="date" id="pu-date"></div><div class="form-group"><label class="mandatory">Vendor</label><select id="pu-vendor"></select></div></div>
+    <div class="form-row"><div class="form-group"><label class="mandatory">Expense Ledger</label><select id="pu-ledger"></select></div><div class="form-group"><label class="mandatory">Amount (₹)</label><input type="number" id="pu-amount" min="0"></div></div>
+    <div class="form-row"><div class="form-group"><label>Bill / Invoice No.</label><input type="text" id="pu-bill"></div><div class="form-group"><label>Link to Event</label><select id="pu-event"><option value="">— No event —</option></select></div></div>
+    <div class="form-group"><label>Description</label><textarea id="pu-desc" rows="2"></textarea></div>
+    <div class="alert alert-info">This raises Vendor outstanding. Pay later via Payment Voucher.</div>
+  </div>
+  <div class="modal-footer"><button class="btn btn-secondary" onclick="closeModal('modal-voucher-purchase')">Cancel</button><button class="btn btn-primary" onclick="savePurchaseVoucher()">Save Purchase</button></div></div>
+</div>
+
+<!-- CONTRA VOUCHER MODAL -->
+<div class="modal-overlay" id="modal-voucher-contra">
+  <div class="modal" style="max-width:480px"><div class="modal-header"><div class="modal-title">🔁 Contra Voucher</div><button class="modal-close" onclick="closeModal('modal-voucher-contra')">✕</button></div>
+  <div class="modal-body">
+    <div class="form-group"><label class="mandatory">Date</label><input type="date" id="cv-date"></div>
+    <div class="form-group"><label class="mandatory">Transfer Direction</label><select id="cv-direction"><option value="cash-to-bank">Cash deposited to Bank</option><option value="bank-to-cash">Bank withdrawn to Cash</option></select></div>
+    <div class="form-group"><label class="mandatory">Amount (₹)</label><input type="number" id="cv-amount" min="0"></div>
+    <div class="form-group"><label>Narration</label><input type="text" id="cv-narration"></div>
+  </div>
+  <div class="modal-footer"><button class="btn btn-secondary" onclick="closeModal('modal-voucher-contra')">Cancel</button><button class="btn btn-primary" onclick="saveContraVoucher()">Save Contra</button></div></div>
+</div>
+
+<!-- JOURNAL VOUCHER MODAL -->
+<div class="modal-overlay" id="modal-voucher-journal">
+  <div class="modal"><div class="modal-header"><div class="modal-title">📘 Journal Voucher</div><button class="modal-close" onclick="closeModal('modal-voucher-journal')">✕</button></div>
+  <div class="modal-body">
+    <div class="form-row"><div class="form-group"><label class="mandatory">Date</label><input type="date" id="jv-date"></div><div class="form-group"><label class="mandatory">Amount (₹)</label><input type="number" id="jv-amount" min="0"></div></div>
+    <div class="form-row"><div class="form-group"><label class="mandatory">Debit Ledger</label><select id="jv-debit"></select></div><div class="form-group"><label class="mandatory">Credit Ledger</label><select id="jv-credit"></select></div></div>
+    <div class="form-group"><label>Narration</label><textarea id="jv-narration" rows="2"></textarea></div>
+  </div>
+  <div class="modal-footer"><button class="btn btn-secondary" onclick="closeModal('modal-voucher-journal')">Cancel</button><button class="btn btn-primary" onclick="saveJournalVoucher()">Save Journal</button></div></div>
+</div>
+
+<!-- VOUCHER VIEW MODAL -->
+<div class="modal-overlay" id="modal-voucher-view">
+  <div class="modal" style="max-width:480px"><div class="modal-header"><div class="modal-title">Voucher Detail</div><button class="modal-close" onclick="closeModal('modal-voucher-view')">✕</button></div>
+  <div class="modal-body" id="voucher-view-content"></div>
+  <div class="modal-footer"><button class="btn btn-secondary" onclick="closeModal('modal-voucher-view')">Close</button><button class="btn btn-primary no-print" onclick="window.print()">🖨️ Print</button></div></div>
+</div>
+
+<!-- VENDOR MODAL -->
+<div class="modal-overlay" id="modal-vendor">
+  <div class="modal"><div class="modal-header"><div class="modal-title" id="modal-vendor-title">Add Vendor Ledger</div><button class="modal-close" onclick="closeModal('modal-vendor')">✕</button></div>
+  <div class="modal-body">
+    <div class="alert alert-info">Vendors are Sundry Creditor ledgers.</div>
+    <div class="form-row"><div class="form-group"><label class="mandatory">Vendor Name</label><input type="text" id="vnd-name"></div><div class="form-group"><label>Category</label><select id="vnd-cat"><option>Decoration</option><option>Catering / Food</option><option>Sound &amp; Lighting</option><option>Printing</option><option>Transport</option><option>Pooja Samagri</option><option>Photography</option><option>Electrician</option><option>Other</option></select></div></div>
+    <div class="form-row"><div class="form-group"><label>Mobile</label><input type="tel" id="vnd-mobile"></div><div class="form-group"><label>GST Number</label><input type="text" id="vnd-gst"></div></div>
+    <div class="form-group"><label>Address</label><textarea id="vnd-address" rows="2"></textarea></div>
+    <div class="form-row"><div class="form-group"><label>UPI ID</label><input type="text" id="vnd-upi"></div><div class="form-group"><label>Opening Balance Payable (₹)</label><input type="number" id="vnd-opening" value="0" min="0"></div></div>
+  </div>
+  <div class="modal-footer"><button class="btn btn-secondary" onclick="closeModal('modal-vendor')">Cancel</button><button class="btn btn-primary" onclick="saveVendor()">Save Vendor</button></div></div>
+</div>
+
+<!-- INVESTMENT MODAL -->
+<div class="modal-overlay" id="modal-investment">
+  <div class="modal"><div class="modal-header"><div class="modal-title" id="modal-investment-title">Add Investment / FD</div><button class="modal-close" onclick="closeModal('modal-investment')">✕</button></div>
+  <div class="modal-body">
+    <div class="form-row"><div class="form-group"><label class="mandatory">Investment Name</label><input type="text" id="inv-name" placeholder="e.g. SBI FD 2026"></div><div class="form-group"><label class="mandatory">Type</label><select id="inv-type"><option>Fixed Deposit (FD)</option><option>Recurring Deposit (RD)</option><option>Mutual Fund</option><option>Other</option></select></div></div>
+    <div class="form-row"><div class="form-group"><label class="mandatory">Principal Amount (₹)</label><input type="number" id="inv-principal" min="0"></div><div class="form-group"><label>Interest Rate (%)</label><input type="number" id="inv-rate" min="0" step="0.01"></div></div>
+    <div class="form-row"><div class="form-group"><label>Bank / Institution</label><input type="text" id="inv-bank"></div><div class="form-group"><label>Maturity Date</label><input type="date" id="inv-maturity"></div></div>
+    <div class="form-row"><div class="form-group"><label class="mandatory">Date of Investment</label><input type="date" id="inv-date"></div><div class="form-group"><label class="mandatory">Funded From</label><select id="inv-source"><option value="Cash in Hand">💵 Cash in Hand</option><option value="Bank Account">🏦 Bank Account</option></select></div></div>
+  </div>
+  <div class="modal-footer"><button class="btn btn-secondary" onclick="closeModal('modal-investment')">Cancel</button><button class="btn btn-primary" onclick="saveInvestment()">Save Investment</button></div></div>
+</div>
+
+<!-- EVENT MODAL -->
+<div class="modal-overlay" id="modal-event">
+  <div class="modal"><div class="modal-header"><div class="modal-title" id="modal-event-title">Create Event</div><button class="modal-close" onclick="closeModal('modal-event')">✕</button></div>
+  <div class="modal-body">
+    <div class="form-row"><div class="form-group"><label class="mandatory">Event Name</label><input type="text" id="ev-name"></div><div class="form-group"><label class="mandatory">Event Date</label><input type="date" id="ev-date"></div></div>
+    <div class="form-group"><label class="mandatory">Venue</label><input type="text" id="ev-venue"></div>
+    <div class="form-group"><label>Description</label><textarea id="ev-desc" rows="2"></textarea></div>
+    <div class="form-row"><div class="form-group"><label>Budget (₹)</label><input type="number" id="ev-budget" min="0"></div><div class="form-group"><label>Status</label><select id="ev-status"><option>Draft</option><option>Active</option><option>Completed</option><option>Cancelled</option></select></div></div>
+  </div>
+  <div class="modal-footer"><button class="btn btn-secondary" onclick="closeModal('modal-event')">Cancel</button><button class="btn btn-primary" onclick="saveEvent()">Save Event</button></div></div>
+</div>
+
+<!-- FLAT DONATION MODAL -->
+<div class="modal-overlay" id="modal-flat-donation">
+  <div class="modal" style="max-width:500px"><div class="modal-header"><div class="modal-title">Record Donation — <span id="flat-title"></span></div><button class="modal-close" onclick="closeModal('modal-flat-donation')">✕</button></div>
+  <div class="modal-body">
+    <div id="flat-qr-section" style="display:none;margin-bottom:14px"><div class="section-label">Scan QR to Pay</div><div class="qr-display" id="flat-qr-display"></div></div>
+    <div class="form-row"><div class="form-group"><label>Donor Name</label><input type="text" id="fd-name"></div><div class="form-group"><label class="mandatory">Amount (₹)</label><input type="number" id="fd-amount" min="1"></div></div>
+    <div class="form-row"><div class="form-group"><label>Payment Mode</label><select id="fd-mode"><option>Cash</option><option>Online/UPI</option><option>Cheque</option></select></div><div class="form-group"><label>Date</label><input type="date" id="fd-date"></div></div>
+  </div>
+  <div class="modal-footer"><button class="btn btn-secondary" onclick="closeModal('modal-flat-donation')">Cancel</button><button class="btn btn-primary" onclick="saveFlatDonation()">💰 Record &amp; Receipt</button></div></div>
+</div>
+
+<!-- RECEIPT MODAL -->
+<div class="modal-overlay" id="modal-receipt">
+  <div class="modal" style="max-width:440px"><div class="modal-header"><div class="modal-title">Donation Receipt</div><button class="modal-close" onclick="closeModal('modal-receipt')">✕</button></div>
+  <div class="modal-body" id="receipt-content"></div>
+  <div class="modal-footer"><button class="btn btn-secondary" onclick="closeModal('modal-receipt')">Close</button><button class="btn btn-primary no-print" onclick="window.print()">🖨️ Print</button></div></div>
+</div>
+
+<!-- MEETING MODAL -->
+<div class="modal-overlay" id="modal-meeting">
+  <div class="modal"><div class="modal-header"><div class="modal-title">Schedule Meeting</div><button class="modal-close" onclick="closeModal('modal-meeting')">✕</button></div>
+  <div class="modal-body">
+    <div class="form-row"><div class="form-group"><label class="mandatory">Date</label><input type="date" id="mt-date"></div><div class="form-group"><label>Time</label><input type="time" id="mt-time"></div></div>
+    <div class="form-group"><label class="mandatory">Venue</label><input type="text" id="mt-venue"></div>
+    <div class="form-group"><label>Agenda</label><textarea id="mt-agenda" rows="3"></textarea></div>
+    <div class="form-group"><label>Minutes of Meeting</label><textarea id="mt-minutes" rows="4"></textarea></div>
+    <div class="section-label" style="margin-top:14px">Attendance</div>
+    <div id="meeting-attendance-list"></div>
+  </div>
+  <div class="modal-footer"><button class="btn btn-secondary" onclick="closeModal('modal-meeting')">Cancel</button><button class="btn btn-primary" onclick="saveMeeting()">Save Meeting</button></div></div>
+</div>
+
+<!-- LEDGER MODAL -->
+<div class="modal-overlay" id="modal-ledger">
+  <div class="modal" style="max-width:480px"><div class="modal-header"><div class="modal-title" id="modal-ledger-title">Add Ledger</div><button class="modal-close" onclick="closeModal('modal-ledger')">✕</button></div>
+  <div class="modal-body">
+    <div class="form-group"><label class="mandatory">Type</label><select id="ledger-type"><option value="income">Income</option><option value="expense">Expense</option></select></div>
+    <div class="form-group"><label class="mandatory">Group Name</label><input type="text" id="ledger-group" placeholder="e.g. Festival Income"></div>
+    <div class="form-group"><label class="mandatory">Ledger Name</label><input type="text" id="ledger-name" placeholder="e.g. Ganesh Festival Donation"></div>
+    <div class="form-group"><label>Opening Balance (₹)</label><input type="number" id="ledger-opening" value="0"></div>
+  </div>
+  <div class="modal-footer"><button class="btn btn-secondary" onclick="closeModal('modal-ledger')">Cancel</button><button class="btn btn-primary" onclick="saveLedger()">Save Ledger</button></div></div>
+</div>
+
+<!-- USER MODAL -->
+<div class="modal-overlay" id="modal-user">
+  <div class="modal"><div class="modal-header"><div class="modal-title" id="modal-user-title">Add User</div><button class="modal-close" onclick="closeModal('modal-user')">✕</button></div>
+  <div class="modal-body">
+    <div class="form-row"><div class="form-group"><label class="mandatory">Full Name</label><input type="text" id="usr-name"></div><div class="form-group"><label class="mandatory">Mobile</label><input type="tel" id="usr-mobile"></div></div>
+    <div class="form-group"><label>Email</label><input type="email" id="usr-email"></div>
+    <div class="form-row"><div class="form-group"><label class="mandatory">Username</label><input type="text" id="usr-username"></div><div class="form-group"><label class="mandatory">Password</label><input type="password" id="usr-password"></div></div>
+    <div class="form-group"><label class="mandatory">Role</label><select id="usr-role" onchange="toggleUserRole(this.value)"><option value="superadmin">Super Admin</option><option value="admin">Admin</option><option value="collector">Collector</option><option value="viewer">Viewer</option></select></div>
+    <div id="collector-area-field" style="display:none"><div class="form-group"><label>Assigned Area</label><select id="usr-area"><option value="">All Areas</option></select></div></div>
+  </div>
+  <div class="modal-footer"><button class="btn btn-secondary" onclick="closeModal('modal-user')">Cancel</button><button class="btn btn-primary" onclick="saveUser()">Save User</button></div></div>
+</div>
+
+<!-- FY MODAL -->
+<div class="modal-overlay" id="modal-fy">
+  <div class="modal" style="max-width:380px"><div class="modal-header"><div class="modal-title">Select Financial Year</div><button class="modal-close" onclick="closeModal('modal-fy')">✕</button></div>
+  <div class="modal-body" id="fy-list"></div>
+  <div class="modal-footer"><button class="btn btn-secondary" onclick="closeModal('modal-fy')">Close</button></div></div>
+</div>
+
+<script>
+// ============================================================
+// SAFE localStorage WRAPPER (prevents crash if blocked)
+// ============================================================
+var DB = (function() {
+  function safeGet(k) {
+    try { return JSON.parse(localStorage.getItem('mm_' + k)) || []; } catch(e) { return []; }
+  }
+  function safeGetObj(k) {
+    try { return JSON.parse(localStorage.getItem('mm_' + k)) || {}; } catch(e) { return {}; }
+  }
+  function safeSet(k, v) {
+    try { localStorage.setItem('mm_' + k, JSON.stringify(v)); } catch(e) { console.warn('Storage write failed:', k); }
+  }
+  return {
+    get: safeGet,
+    getObj: safeGetObj,
+    set: safeSet,
+    push: function(k, item) { var a = safeGet(k); a.push(item); safeSet(k, a); return item; },
+    update: function(k, id, data) { var a = safeGet(k); var i = a.findIndex(function(x){ return x.id === id; }); if(i > -1) { a[i] = Object.assign({}, a[i], data); safeSet(k, a); } },
+    delete: function(k, id) { safeSet(k, safeGet(k).filter(function(x){ return x.id !== id; })); }
+  };
+})();
+
+var currentUser = null;
+var currentFY = '2025-26';
+var editingId = null;
+var currentFlatKey = null;
+
+function uid() { return Date.now().toString(36) + Math.random().toString(36).slice(2,6); }
+function now() { return new Date().toISOString(); }
+function fmtDate(d) { if(!d) return '—'; try { return new Date(d).toLocaleDateString('en-IN'); } catch(e) { return d; } }
+function fmtAmt(n) { return '₹' + Number(n||0).toLocaleString('en-IN'); }
+function getFYList() { var s=2022, e=2032; var r=[]; for(var i=s;i<e;i++) r.push(i+'-'+(i+1).toString().slice(2)); return r; }
+
+function showToast(msg, type) {
+  var t = document.getElementById('toast');
+  t.textContent = msg;
+  t.className = 'toast show ' + (type||'');
+  setTimeout(function(){ t.classList.remove('show'); }, 3000);
+}
+
+function addAudit(action, detail) {
+  DB.push('audit', {id:uid(), action:action, detail:detail, user:(currentUser&&currentUser.name)||'System', time:now()});
+}
+
+function genReceipt(prefix) {
+  prefix = prefix || 'RCP';
+  return prefix + '-' + String(DB.get('donations').length + 1).padStart(4,'0');
+}
+
+function resetForm(modalId) {
+  var m = document.getElementById(modalId);
+  if(!m) return;
+  m.querySelectorAll('input:not([type=file])').forEach(function(i){
+    if(i.type==='checkbox') i.checked = true;
+    else if(i.type!=='number') i.value = '';
+    else i.value = i.defaultValue || '';
+  });
+  m.querySelectorAll('select').forEach(function(s){ s.selectedIndex = 0; });
+  m.querySelectorAll('textarea').forEach(function(t){ t.value = ''; });
+}
+
+// ============================================================
+// INIT
+// ============================================================
+function initApp() {
+  try {
+    localStorage.setItem('mm_test', '1');
+    localStorage.removeItem('mm_test');
+  } catch(e) {
+    document.getElementById('login-error').textContent = 'Warning: localStorage not available. Data will not persist.';
+    document.getElementById('login-error').style.display = 'block';
+  }
+
+  var users = DB.get('users');
+  if(!users.length) {
+    DB.push('users', {id:uid(), name:'Admin', username:'admin', password:'admin123', role:'superadmin', mobile:'', email:'', status:'active', createdAt:now()});
+  }
+  var settings = DB.getObj('settings');
+  currentFY = settings.currentFY || '2025-26';
+  populateFYSelects();
+  seedDefaultLedgers();
+  updateSyncBadge();
+  updateFYDisplay();
+}
+
+function seedDefaultLedgers() {
+  var ledgers = DB.get('ledgers');
+  var need = [
+    {type:'income', group:'Direct Income', name:'Donation Income'},
+    {type:'income', group:'Direct Income', name:'Membership Fee Income'}
+  ];
+  var changed = false;
+  need.forEach(function(n){
+    if(!ledgers.find(function(l){ return l.name===n.name && l.fy===currentFY; })){
+      ledgers.push({id:uid(), type:n.type, group:n.group, name:n.name, opening:0, fy:currentFY, createdAt:now(), system:true});
+      changed = true;
+    }
+  });
+  if(changed) DB.set('ledgers', ledgers);
+}
+
+function populateFYSelects() {
+  var fys = getFYList();
+  var el = document.getElementById('cm-term');
+  if(el) el.innerHTML = fys.map(function(f){ return '<option'+(f===currentFY?' selected':'')+'>'+f+'</option>'; }).join('');
+}
+
+function doLogin() {
+  var u = document.getElementById('login-user').value.trim();
+  var p = document.getElementById('login-pass').value.trim();
+  var errEl = document.getElementById('login-error');
+  var user = DB.get('users').find(function(x){ return x.username===u && x.password===p && x.status==='active'; });
+  if(!user) { errEl.style.display='block'; errEl.textContent='Invalid username or password.'; return; }
+  errEl.style.display = 'none';
+  currentUser = user;
+  document.getElementById('login-screen').style.display = 'none';
+  document.getElementById('app').style.display = 'block';
+  document.getElementById('user-avatar').textContent = user.name[0].toUpperCase();
+  document.getElementById('user-display-name').textContent = user.name;
+  document.getElementById('user-display-role').textContent = user.role;
+  updateFYDisplay();
+  loadMandal();
+  loadDashboard();
+  addAudit('Login', 'User logged in');
+}
+
+function doLogout() {
+  addAudit('Logout','User logged out');
+  currentUser = null;
+  document.getElementById('app').style.display = 'none';
+  document.getElementById('login-screen').style.display = 'flex';
+}
+
+function showPage(page) {
+  document.querySelectorAll('.page').forEach(function(p){ p.classList.remove('active'); });
+  document.querySelectorAll('.nav-item').forEach(function(n){ n.classList.remove('active'); });
+  var el = document.getElementById('page-'+page);
+  if(el) el.classList.add('active');
+  var titles = {
+    dashboard:'Dashboard','mandal-profile':'Mandal Profile',committee:'Committee Members',
+    sabhashad:'General Sabhashad','collection-area':'Collection Area Master',events:'Events',
+    donations:'Donation Collection',meetings:'Meetings',accounts:'Account Master',vouchers:'Vouchers',
+    financials:'Financial Reports',users:'User Management',audit:'Audit Log',
+    'fy-management':'FY Management','sync-settings':'Google Sheets & Drive Sync',backup:'Backup & Restore'
+  };
+  document.getElementById('page-title').textContent = titles[page] || page;
+  document.querySelectorAll('.nav-item').forEach(function(n){
+    var oc = n.getAttribute('onclick')||'';
+    if(oc.indexOf("'"+page+"'")>-1) n.classList.add('active');
+  });
+  closeSidebar();
+  if(page==='dashboard') loadDashboard();
+  else if(page==='mandal-profile') { loadMandal(); renderMandalDocuments(); }
+  else if(page==='committee') renderCommittee();
+  else if(page==='sabhashad') renderSabhashad();
+  else if(page==='collection-area') renderAreas();
+  else if(page==='events') { renderEvents(); populateEventSelects(); }
+  else if(page==='donations') loadDonationPage();
+  else if(page==='meetings') renderMeetings();
+  else if(page==='accounts') { renderLedgers(); renderCreditorLedgers(); renderInvestments(); renderAssetBankCash(); populateLedgerViewSelect(); }
+  else if(page==='vouchers') renderVoucherList('Receipt');
+  else if(page==='financials') renderFinancials();
+  else if(page==='users') renderUsers();
+  else if(page==='audit') renderAudit();
+  else if(page==='fy-management') { renderFYOverview(); loadOpeningBalance(); }
+  else if(page==='sync-settings') renderSyncQueueList();
+}
+
+function toggleSidebar() { document.getElementById('sidebar').classList.toggle('open'); document.getElementById('sidebar-overlay').classList.toggle('open'); }
+function closeSidebar() { document.getElementById('sidebar').classList.remove('open'); document.getElementById('sidebar-overlay').classList.remove('open'); }
+
+function switchTab(btn, contentId) {
+  var parent = btn.closest('.card,.modal-body,.page');
+  if(!parent) return;
+  parent.querySelectorAll('.tab').forEach(function(t){ t.classList.remove('active'); });
+  parent.querySelectorAll('.tab-content').forEach(function(t){ t.classList.remove('active'); });
+  btn.classList.add('active');
+  var el = document.getElementById('tab-'+contentId);
+  if(el) el.classList.add('active');
+}
+
+function openModal(id) { document.getElementById(id).classList.add('open'); }
+
+function closeModal(id) {
+  var modal = document.getElementById(id);
+  if(!modal) return;
+  modal.classList.remove('open');
+  editingId = null;
+  modal.querySelectorAll('input:not([type=file])').forEach(function(inp){
+    if(inp.type==='checkbox') inp.checked = false;
+    else inp.value = '';
+  });
+  modal.querySelectorAll('select').forEach(function(s){ s.selectedIndex = 0; });
+  modal.querySelectorAll('textarea').forEach(function(t){ t.value = ''; });
+  var titleMap = {
+    'modal-committee':'Add Committee Member','modal-sabhashad':'Add Sabhashad Member',
+    'modal-area':'Add Collection Area','modal-vendor':'Add Vendor Ledger',
+    'modal-investment':'Add Investment / FD','modal-event':'Create Event',
+    'modal-ledger':'Add Ledger','modal-user':'Add User'
+  };
+  var titleEl = modal.querySelector('.modal-title');
+  if(titleEl && titleMap[id]) titleEl.textContent = titleMap[id];
+}
+
+function updateFYDisplay() {
+  var v = 'FY ' + currentFY;
+  ['fy-display','current-fy-badge'].forEach(function(id){ var e=document.getElementById(id); if(e) e.textContent=v; });
+  ['finance-fy-label','ob-fy-label','ob-fy-label2'].forEach(function(id){ var e=document.getElementById(id); if(e) e.textContent=currentFY; });
+}
+
+function showFYModal() {
+  var fys = getFYList();
+  document.getElementById('fy-list').innerHTML = fys.map(function(f){
+    return '<div style="display:flex;align-items:center;justify-content:space-between;padding:9px 0;border-bottom:1px solid var(--border)">' +
+      '<span style="font-weight:'+(f===currentFY?'700':'400')+'">'+ f + (f===currentFY?' ✓ Current':'') +'</span>' +
+      '<button class="btn btn-sm '+(f===currentFY?'btn-primary':'btn-secondary')+'" onclick="selectFY(\''+f+'\')">Select</button></div>';
+  }).join('');
+  openModal('modal-fy');
+}
+
+function selectFY(fy) {
+  currentFY = fy;
+  var s = DB.getObj('settings'); s.currentFY = fy; DB.set('settings', s);
+  seedDefaultLedgers(); updateFYDisplay(); closeModal('modal-fy'); loadDashboard();
+  showToast('FY changed to ' + fy);
+}
+
+// ============================================================
+// MANDAL PROFILE
+// ============================================================
+function loadMandal() {
+  var m = DB.getObj('mandal');
+  ['name','id','reg-no','reg-date','address','city','state','pin','contact-name','contact-phone','email','facebook','instagram','website'].forEach(function(k){
+    var el = document.getElementById('m-'+k); if(el && m[k]!==undefined) el.value = m[k];
+  });
+  if(m.qrCode) document.getElementById('qr-preview').innerHTML = '<img src="'+m.qrCode+'" alt="QR">';
+  if(m.name) { document.getElementById('mandal-sidebar-name').textContent = m.name; document.getElementById('mandal-sidebar-loc').textContent = m.city||''; }
+  renderFeeTypes();
+}
+
+function saveMandal() {
+  var m = DB.getObj('mandal');
+  ['name','id','reg-no','reg-date','address','city','state','pin','contact-name','contact-phone','email','facebook','instagram','website'].forEach(function(k){
+    var el = document.getElementById('m-'+k); if(el) m[k] = el.value;
+  });
+  DB.set('mandal', m);
+  queueSync('mandal', m);
+  if(m.name) { document.getElementById('mandal-sidebar-name').textContent = m.name; document.getElementById('mandal-sidebar-loc').textContent = m.city||''; }
+  addAudit('Mandal Profile','Updated'); showToast('Profile saved!','success');
+}
+
+function previewQR(input) {
+  if(!input.files[0]) return;
+  var r = new FileReader();
+  r.onload = function(e) {
+    document.getElementById('qr-preview').innerHTML = '<img src="'+e.target.result+'" style="max-width:180px;border-radius:8px">';
+    var m = DB.getObj('mandal'); m.qrCode = e.target.result; DB.set('mandal', m);
+  };
+  r.readAsDataURL(input.files[0]);
+}
+
+function addFeeType() {
+  var name = document.getElementById('new-fee-type-name').value.trim();
+  var amt = parseFloat(document.getElementById('new-fee-type-amount').value)||0;
+  if(!name||!amt) { showToast('Name and amount required','error'); return; }
+  var m = DB.getObj('mandal');
+  if(!m.feeTypes) m.feeTypes = {};
+  if(!m.feeTypes[currentFY]) m.feeTypes[currentFY] = [];
+  m.feeTypes[currentFY].push({id:uid(), name:name, amount:amt});
+  DB.set('mandal', m);
+  document.getElementById('new-fee-type-name').value = '';
+  document.getElementById('new-fee-type-amount').value = '';
+  renderFeeTypes(); showToast('Fee type added!','success');
+}
+
+function renderFeeTypes() {
+  var m = DB.getObj('mandal');
+  var types = (m.feeTypes||{})[currentFY]||[];
+  var el = document.getElementById('fee-types-list');
+  if(!el) return;
+  el.innerHTML = types.length ? types.map(function(ft){
+    return '<div class="fee-type-row"><span class="badge badge-info">'+ft.name+'</span><span style="font-weight:700">'+fmtAmt(ft.amount)+'</span><button class="btn btn-sm btn-danger" onclick="deleteFeeType(\''+ft.id+'\')">✕</button></div>';
+  }).join('') : '<div style="color:var(--text2);font-size:13px;padding:8px 0">No fee types defined. Add one below.</div>';
+}
+
+function deleteFeeType(id) {
+  var m = DB.getObj('mandal');
+  if(m.feeTypes && m.feeTypes[currentFY]) m.feeTypes[currentFY] = m.feeTypes[currentFY].filter(function(x){ return x.id!==id; });
+  DB.set('mandal', m); renderFeeTypes();
+}
+
+function getFeeTypes() { var m = DB.getObj('mandal'); return (m.feeTypes||{})[currentFY]||[]; }
+
+// ============================================================
+// MANDAL DOCUMENTS
+// ============================================================
+function readFilesAsRecords(fileList) {
+  var files = Array.from(fileList||[]);
+  if(!files.length) return Promise.resolve([]);
+  return Promise.all(files.map(function(f){
+    return new Promise(function(resolve){
+      var r = new FileReader();
+      r.onload = function(){ resolve({name:f.name,type:f.type,size:f.size,dataUrl:r.result,driveLink:'',uploaded:false,id:uid()}); };
+      r.onerror = function(){ resolve({name:f.name,type:f.type,size:f.size,dataUrl:'',driveLink:'',uploaded:false,id:uid()}); };
+      r.readAsDataURL(f);
+    });
+  }));
+}
+
+function addMandalDocuments(category) {
+  var input = document.getElementById('doc-upload-'+category);
+  if(!input || !input.files.length) { showToast('Choose file(s) first','error'); return; }
+  readFilesAsRecords(input.files).then(function(files){
+    var m = DB.getObj('mandal');
+    if(!m.documents) m.documents = {};
+    if(!m.documents[category]) m.documents[category] = [];
+    m.documents[category].push.apply(m.documents[category], files);
+    DB.set('mandal', m); queueSync('mandal', m);
+    input.value = ''; renderMandalDocuments();
+    showToast(files.length+' file(s) added','success');
+  });
+}
+
+function renderMandalDocuments() {
+  var m = DB.getObj('mandal');
+  var docs = m.documents||{};
+  var categories = [
+    {key:'registration',label:'Registration Certificate'},
+    {key:'trust',label:'Trust / Society Certificate'},
+    {key:'pan',label:'PAN Card / Tax Document'},
+    {key:'bank',label:'Bank Details Document'},
+    {key:'other',label:'Other Documents'}
+  ];
+  var el = document.getElementById('mandal-docs-list');
+  if(!el) return;
+  el.innerHTML = categories.map(function(c){
+    var files = docs[c.key]||[];
+    return '<div class="card" style="box-shadow:none;border:1px solid var(--border);margin-bottom:10px">' +
+      '<div class="card-header" style="margin-bottom:10px">' +
+      '<div style="font-weight:700;font-size:14px">'+c.label+' <span class="badge badge-gray">'+files.length+' file'+(files.length!==1?'s':'')+'</span></div>' +
+      '<div style="display:flex;gap:6px;align-items:center"><input type="file" id="doc-upload-'+c.key+'" accept=".pdf,image/*" multiple style="font-size:12px"><button class="btn btn-sm btn-primary" onclick="addMandalDocuments(\''+c.key+'\')">+ Add</button></div>' +
+      '</div>' +
+      (files.length ? '<div style="display:flex;flex-wrap:wrap;gap:8px">'+files.map(function(f,idx){
+        return '<div style="border:1px solid var(--border);border-radius:8px;padding:6px 10px;font-size:12px;display:flex;align-items:center;gap:6px">📄 '+f.name+' '+
+          (f.driveLink?'<span class="badge badge-success" style="font-size:9px">☁️ Drive</span>':'<span class="badge badge-warning" style="font-size:9px">⏳ Local</span>')+
+          '<button onclick="removeMandalDocument(\''+c.key+'\','+idx+')" style="border:none;background:none;color:var(--danger);cursor:pointer;font-weight:700">✕</button></div>';
+      }).join('')+'</div>' : '<div style="color:var(--text2);font-size:12px">No files uploaded yet</div>') + '</div>';
+  }).join('');
+}
+
+function removeMandalDocument(category, idx) {
+  var m = DB.getObj('mandal');
+  if(m.documents && m.documents[category]) m.documents[category].splice(idx,1);
+  DB.set('mandal', m); queueSync('mandal', m); renderMandalDocuments();
+}
+
+// ============================================================
+// COMMITTEE
+// ============================================================
+function populateCommitteeModal() {
+  populateFYSelects();
+  var sabs = DB.get('sabhashad');
+  document.getElementById('cm-sabhashad-link').innerHTML = '<option value="">— Not a Sabhashad member —</option>' +
+    sabs.map(function(s){ return '<option value="'+s.id+'">'+s.name+' ('+s.mobile+')</option>'; }).join('');
+}
+
+function toggleCustomRole(sel) { document.getElementById('cm-custom-role-group').style.display = sel.value==='custom'?'block':'none'; }
+
+function saveCommitteeMember() {
+  var name = document.getElementById('cm-name').value.trim();
+  var mobile = document.getElementById('cm-mobile').value.trim();
+  var role = document.getElementById('cm-role').value;
+  var customRole = document.getElementById('cm-custom-role').value.trim();
+  var term = document.getElementById('cm-term').value;
+  if(!name||!mobile) { showToast('Name and mobile required','error'); return; }
+  var finalRole = role==='custom' ? customRole : role;
+  var fixedRoles = ['President','Vice President','Secretary','Treasurer'];
+  if(fixedRoles.indexOf(finalRole)>-1) {
+    var ex = DB.get('committee').find(function(c){ return c.role===finalRole&&c.term===term&&c.id!==editingId; });
+    if(ex) { showToast(finalRole+' already exists for '+term,'error'); return; }
+  }
+  var member = {id:editingId||uid(),name:name,mobile:mobile,role:finalRole,term:term,
+    email:document.getElementById('cm-email').value,dob:document.getElementById('cm-dob').value,
+    address:document.getElementById('cm-address').value,sabhashadLink:document.getElementById('cm-sabhashad-link').value,
+    fy:currentFY,createdAt:now()};
+  if(editingId) DB.update('committee',editingId,member); else DB.push('committee',member);
+  queueSync('committee', member);
+  closeModal('modal-committee'); renderCommittee();
+  addAudit('Committee',(editingId?'Updated':'Added')+' '+name); showToast('Member saved!','success');
+}
+
+function renderCommittee() {
+  populateCommitteeModal();
+  var members = DB.get('committee').filter(function(c){ return c.fy===currentFY; });
+  var tbody = document.getElementById('committee-table');
+  if(!members.length) { tbody.innerHTML='<tr><td colspan="6"><div class="empty-state"><div class="icon">👥</div><h3>No Committee Members</h3><p>Add for FY '+currentFY+'</p></div></td></tr>'; return; }
+  tbody.innerHTML = members.map(function(m){
+    return '<tr><td><strong>'+m.name+'</strong></td><td><span class="badge badge-info">'+m.role+'</span></td><td>'+m.term+'</td><td>'+m.mobile+'</td><td><span class="badge badge-success">✓</span></td><td>' +
+      '<button class="btn btn-sm btn-secondary" onclick="editCommitteeMember(\''+m.id+'\')">✏️</button> ' +
+      '<button class="btn btn-sm btn-danger" onclick="deleteItem(\'committee\',\''+m.id+'\',renderCommittee)">🗑️</button></td></tr>';
+  }).join('');
+  var terms = [...new Set(DB.get('committee').map(function(c){ return c.term; }))];
+  document.getElementById('committee-term-filter').innerHTML = '<option value="">All Terms</option>' + terms.map(function(t){ return '<option>'+t+'</option>'; }).join('');
+}
+
+function editCommitteeMember(id) {
+  var m = DB.get('committee').find(function(x){ return x.id===id; });
+  editingId = id;
+  document.getElementById('modal-committee-title').textContent = 'Edit Committee Member';
+  openModal('modal-committee');
+  setTimeout(function(){
+    document.getElementById('cm-name').value = m.name;
+    document.getElementById('cm-mobile').value = m.mobile;
+    document.getElementById('cm-role').value = m.role;
+    document.getElementById('cm-email').value = m.email||'';
+    document.getElementById('cm-dob').value = m.dob||'';
+    document.getElementById('cm-address').value = m.address||'';
+    document.getElementById('cm-term').value = m.term;
+    document.getElementById('cm-sabhashad-link').value = m.sabhashadLink||'';
+  }, 50);
+}
+
+// ============================================================
+// SABHASHAD
+// ============================================================
+function populateSabhashadModal() {
+  var areas = DB.get('areas');
+  var opts = '<option value="">— No flat linked —</option>';
+  areas.forEach(function(a){
+    var items = a.type==='building' ? a.flats : a.rooms;
+    (items||[]).forEach(function(i){ opts += '<option value="'+i.key+'">'+a.name+' — '+i.label+'</option>'; });
+  });
+  document.getElementById('sb-flat-link').innerHTML = opts;
+  var feeTypes = getFeeTypes();
+  document.getElementById('sb-fee-type').innerHTML = '<option value="">— Select Fee Type —</option>' +
+    feeTypes.map(function(ft){ return '<option value="'+ft.id+'">'+ft.name+' ('+fmtAmt(ft.amount)+')</option>'; }).join('');
+}
+
+function saveSabhashad() {
+  var name = document.getElementById('sb-name').value.trim();
+  var mobile = document.getElementById('sb-mobile').value.trim();
+  if(!name||!mobile) { showToast('Name and mobile required','error'); return; }
+  var existing = editingId ? (DB.get('sabhashad').find(function(x){ return x.id===editingId; })||{}) : {};
+  var member = {id:editingId||uid(),name:name,mobile:mobile,tshirt:document.getElementById('sb-tshirt').value,
+    feeTypeId:document.getElementById('sb-fee-type').value,flatLink:document.getElementById('sb-flat-link').value,
+    fees:existing.fees||{},createdAt:existing.createdAt||now()};
+  if(editingId) DB.update('sabhashad',editingId,member); else DB.push('sabhashad',member);
+  queueSync('sabhashad', member);
+  closeModal('modal-sabhashad'); renderSabhashad();
+  addAudit('Sabhashad',(editingId?'Updated':'Added')+' '+name); showToast('Member saved!','success');
+}
+
+function renderSabhashad() {
+  populateSabhashadModal();
+  var members = DB.get('sabhashad');
+  var feeTypes = getFeeTypes();
+  var tbody = document.getElementById('sabhashad-table');
+  if(!members.length) { tbody.innerHTML='<tr><td colspan="7"><div class="empty-state"><div class="icon">👤</div><h3>No Members</h3></div></td></tr>'; return; }
+  tbody.innerHTML = members.map(function(m){
+    var ft = feeTypes.find(function(f){ return f.id===m.feeTypeId; });
+    var feePaid = m.fees && m.fees[currentFY] && m.fees[currentFY].paid;
+    return '<tr><td><strong>'+m.name+'</strong></td><td>'+m.mobile+'</td><td><span class="badge badge-gray">'+m.tshirt+'</span></td>' +
+      '<td>'+(ft?'<span class="badge badge-purple">'+ft.name+'</span>':'—')+'</td>' +
+      '<td><span class="badge '+(feePaid?'badge-success':'badge-danger')+'">'+(feePaid?'✅ Paid':'❌ Unpaid')+'</span>'+(ft?' <small style="color:var(--text2)">'+fmtAmt(ft.amount)+'</small>':'')+'</td>' +
+      '<td>'+(m.flatLink||'—')+'</td>' +
+      '<td><button class="btn btn-sm btn-secondary" onclick="showFeeModal(\''+m.id+'\')">💰</button> <button class="btn btn-sm btn-secondary" onclick="editSabhashad(\''+m.id+'\')">✏️</button> <button class="btn btn-sm btn-danger" onclick="deleteItem(\'sabhashad\',\''+m.id+'\',renderSabhashad)">🗑️</button></td></tr>';
+  }).join('');
+}
+
+function editSabhashad(id) {
+  var m = DB.get('sabhashad').find(function(x){ return x.id===id; });
+  editingId = id;
+  document.getElementById('modal-sabhashad-title').textContent = 'Edit Sabhashad Member';
+  openModal('modal-sabhashad');
+  setTimeout(function(){
+    populateSabhashadModal();
+    document.getElementById('sb-name').value = m.name;
+    document.getElementById('sb-mobile').value = m.mobile;
+    document.getElementById('sb-tshirt').value = m.tshirt||'XL';
+    document.getElementById('sb-fee-type').value = m.feeTypeId||'';
+    document.getElementById('sb-flat-link').value = m.flatLink||'';
+  }, 60);
+}
+
+function filterSabhashadFee(val) {
+  var members = DB.get('sabhashad');
+  var filtered = val ? members.filter(function(m){ return val==='paid' ? (m.fees&&m.fees[currentFY]&&m.fees[currentFY].paid) : !(m.fees&&m.fees[currentFY]&&m.fees[currentFY].paid); }) : members;
+  var tbody = document.getElementById('sabhashad-table');
+  var feeTypes = getFeeTypes();
+  tbody.innerHTML = filtered.map(function(m){
+    var ft = feeTypes.find(function(f){ return f.id===m.feeTypeId; });
+    var feePaid = m.fees && m.fees[currentFY] && m.fees[currentFY].paid;
+    return '<tr><td><strong>'+m.name+'</strong></td><td>'+m.mobile+'</td><td>'+m.tshirt+'</td><td>'+(ft?ft.name:'—')+'</td>' +
+      '<td><span class="badge '+(feePaid?'badge-success':'badge-danger')+'">'+(feePaid?'✅ Paid':'❌ Unpaid')+'</span></td>' +
+      '<td>'+(m.flatLink||'—')+'</td>' +
+      '<td><button class="btn btn-sm btn-secondary" onclick="showFeeModal(\''+m.id+'\')">💰</button> <button class="btn btn-sm btn-secondary" onclick="editSabhashad(\''+m.id+'\')">✏️</button></td></tr>';
+  }).join('') || '<tr><td colspan="7" style="text-align:center;color:var(--text2);padding:20px">No members found</td></tr>';
+}
+
+// ============================================================
+// COLLECTION AREAS
+// ============================================================
+function toggleAreaType(val) {
+  document.getElementById('building-fields').style.display = val==='building'?'block':'none';
+  document.getElementById('slum-fields').style.display = val==='slum'?'block':'none';
+}
+function toggleWings(val) { document.getElementById('wings-section').style.display = val==='wing'?'block':'none'; }
+function toggleSlumType(val) {
+  document.getElementById('slum-auto-field').style.display = val==='auto'?'block':'none';
+  document.getElementById('slum-manual-field').style.display = val==='manual'?'block':'none';
+}
+
+function saveArea() {
+  var type = document.getElementById('area-type').value;
+  var name = document.getElementById('area-name').value.trim();
+  if(!name) { showToast('Area name required','error'); return; }
+  var isEditing = !!editingId;
+  var area = {id:editingId||uid(),type:type,name:name,zone:document.getElementById('area-zone').value,createdAt:now()};
+  if(type==='building') {
+    var btype = document.getElementById('building-type').value; area.buildingType = btype;
+    var floors = parseInt(document.getElementById('num-floors').value)||1;
+    var fpf = parseInt(document.getElementById('flats-per-floor').value)||4;
+    area.flats = [];
+    if(btype==='wing') {
+      var nw = parseInt(document.getElementById('num-wings').value)||1;
+      var wnames = document.getElementById('wing-names').value.split(',').map(function(w){ return w.trim(); }).filter(Boolean);
+      for(var w=0;w<nw;w++){var wn=wnames[w]||String.fromCharCode(65+w);for(var f=1;f<=floors;f++){for(var fl=1;fl<=fpf;fl++){var fn=f+'0'+fl;area.flats.push({key:area.id+'_'+wn+'_'+fn,wing:wn,floor:f,flat:fn,label:'Wing '+wn+' — '+fn});}}}
+    } else {
+      for(var f2=1;f2<=floors;f2++){for(var fl2=1;fl2<=fpf;fl2++){var fn2=f2+'0'+fl2;area.flats.push({key:area.id+'_'+fn2,floor:f2,flat:fn2,label:'Floor '+f2+' — '+fn2});}}
+    }
+  } else {
+    area.rooms = [];
+    var stype = document.getElementById('slum-type').value;
+    if(stype==='auto'){var total=parseInt(document.getElementById('total-rooms').value)||10;for(var r=1;r<=total;r++)area.rooms.push({key:area.id+'_R'+r,label:String(r)});}
+    else{var rns=document.getElementById('room-numbers').value.split(',').map(function(r){return r.trim();}).filter(Boolean);rns.forEach(function(r){area.rooms.push({key:area.id+'_R'+r,label:r});});}
+  }
+  if(isEditing) DB.update('areas',editingId,area); else DB.push('areas',area);
+  queueSync('areas', area);
+  closeModal('modal-area'); renderAreas();
+  addAudit('Collection Area',(isEditing?'Updated':'Added')+' '+name); showToast('Area saved!','success');
+}
+
+function renderAreas() {
+  var areas = DB.get('areas');
+  var el = document.getElementById('area-list');
+  if(!areas.length) { el.innerHTML='<div class="empty-state"><div class="icon">🏘️</div><h3>No Areas</h3><p>Add buildings or slum areas</p></div>'; return; }
+  el.innerHTML = areas.map(function(a){
+    var total = a.type==='building' ? (a.flats&&a.flats.length||0) : (a.rooms&&a.rooms.length||0);
+    return '<div class="card" style="box-shadow:none;border:1px solid var(--border);margin-bottom:10px">' +
+      '<div style="display:flex;align-items:center;justify-content:space-between">' +
+      '<div><div style="font-weight:700;font-size:15px">'+a.name+'</div>' +
+      '<div style="font-size:12px;color:var(--text2);margin-top:4px"><span class="badge badge-info">'+(a.type==='building'?'Building':'Slum')+'</span>'+(a.zone?' <span style="margin-left:8px">📍 '+a.zone+'</span>':'')+'<span style="margin-left:8px">'+total+' '+(a.type==='building'?'Flats':'Rooms')+'</span></div></div>' +
+      '<div style="display:flex;gap:6px">' +
+      '<button class="btn btn-sm btn-secondary" onclick="editArea(\''+a.id+'\')">✏️ Edit</button>' +
+      '<button class="btn btn-sm btn-danger" onclick="deleteItem(\'areas\',\''+a.id+'\',renderAreas)">🗑️</button></div></div></div>';
+  }).join('');
+}
+
+function editArea(id) {
+  var a = DB.get('areas').find(function(x){ return x.id===id; });
+  editingId = id;
+  document.getElementById('modal-area-title').textContent = 'Edit Collection Area';
+  openModal('modal-area');
+  setTimeout(function(){
+    document.getElementById('area-type').value = a.type; toggleAreaType(a.type);
+    document.getElementById('area-name').value = a.name;
+    document.getElementById('area-zone').value = a.zone||'';
+    if(a.type==='building'){ document.getElementById('building-type').value = a.buildingType||'no-wing'; toggleWings(a.buildingType||'no-wing'); }
+  }, 50);
+}
+
+// ============================================================
+// EVENTS
+// ============================================================
+function populateEventSelects() {
+  var events = DB.get('events').filter(function(e){ return e.fy===currentFY; });
+  ['pu-event','fin-event-filter'].forEach(function(id){
+    var el = document.getElementById(id);
+    if(el) el.innerHTML = (id==='fin-event-filter'?'<option value="">All Events (FY)</option>':'<option value="">— No event —</option>') +
+      events.map(function(e){ return '<option value="'+e.id+'">'+e.name+'</option>'; }).join('');
+  });
+}
+
+function saveEvent() {
+  var name = document.getElementById('ev-name').value.trim();
+  var date = document.getElementById('ev-date').value;
+  if(!name||!date) { showToast('Name and date required','error'); return; }
+  var ev = {id:editingId||uid(),name:name,date:date,venue:document.getElementById('ev-venue').value,
+    desc:document.getElementById('ev-desc').value,budget:parseFloat(document.getElementById('ev-budget').value)||0,
+    status:document.getElementById('ev-status').value,fy:currentFY,createdAt:now()};
+  if(editingId) DB.update('events',editingId,ev); else DB.push('events',ev);
+  queueSync('events', ev);
+  closeModal('modal-event'); renderEvents(); populateEventSelects();
+  addAudit('Events',(editingId?'Updated':'Created')+' '+name); showToast('Event saved!','success');
+}
+
+function renderEvents() {
+  var events = DB.get('events').filter(function(e){ return e.fy===currentFY; });
+  var el = document.getElementById('events-list');
+  if(!events.length) { el.innerHTML='<div class="empty-state"><div class="icon">🎉</div><h3>No Events</h3><p>Create events for FY '+currentFY+'</p></div>'; return; }
+  var statusColors = {Draft:'badge-gray',Active:'badge-success',Completed:'badge-info',Cancelled:'badge-danger'};
+  el.innerHTML = events.map(function(ev){
+    var donations = DB.get('donations').filter(function(d){ return d.eventId===ev.id; });
+    var collected = donations.reduce(function(s,d){ return s+Number(d.amount||0); },0);
+    var pct = ev.budget ? Math.min(100,(collected/ev.budget)*100) : 0;
+    return '<div class="meeting-card"><div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:8px">' +
+      '<div style="flex:1"><div style="font-size:16px;font-weight:700">'+ev.name+' <span class="badge '+(statusColors[ev.status]||'badge-gray')+'">'+ev.status+'</span></div>' +
+      '<div class="meeting-meta"><span>📅 '+fmtDate(ev.date)+'</span><span>📍 '+(ev.venue||'—')+'</span><span>Budget: '+fmtAmt(ev.budget)+'</span></div>' +
+      '<div style="margin-top:10px;font-size:13px">💰 Collected: <strong>'+fmtAmt(collected)+'</strong></div>' +
+      '<div class="progress-bar" style="margin-top:8px"><div class="progress-fill '+(pct>=100?'green':'')+'" style="width:'+pct+'%"></div></div></div>' +
+      '<div style="display:flex;gap:6px"><button class="btn btn-sm btn-secondary" onclick="editEvent(\''+ev.id+'\')">✏️ Edit</button>' +
+      '<button class="btn btn-sm btn-danger" onclick="deleteItem(\'events\',\''+ev.id+'\',renderEvents)">🗑️</button></div></div></div>';
+  }).join('');
+}
+
+function editEvent(id) {
+  var ev = DB.get('events').find(function(x){ return x.id===id; });
+  editingId = id;
+  document.getElementById('modal-event-title').textContent = 'Edit Event';
+  openModal('modal-event');
+  setTimeout(function(){
+    document.getElementById('ev-name').value = ev.name;
+    document.getElementById('ev-date').value = ev.date;
+    document.getElementById('ev-venue').value = ev.venue||'';
+    document.getElementById('ev-desc').value = ev.desc||'';
+    document.getElementById('ev-budget').value = ev.budget||0;
+    document.getElementById('ev-status').value = ev.status;
+  }, 50);
+}
+
+// ============================================================
+// DONATIONS
+// ============================================================
+function loadDonationPage() {
+  var events = DB.get('events').filter(function(e){ return e.fy===currentFY && e.status==='Active'; });
+  var sel = document.getElementById('donation-event-select');
+  sel.innerHTML = '<option value="">— Select Active Event —</option>' + events.map(function(e){ return '<option value="'+e.id+'">'+e.name+'</option>'; }).join('');
+  var sabs = DB.get('sabhashad');
+  document.getElementById('dd-sabhashad').innerHTML = '<option value="">— Not a member —</option>' + sabs.map(function(s){ return '<option value="'+s.id+'">'+s.name+' ('+s.mobile+')</option>'; }).join('');
+  document.getElementById('dd-date').value = new Date().toISOString().split('T')[0];
+  document.getElementById('fd-date').value = new Date().toISOString().split('T')[0];
+  var mandal = DB.getObj('mandal');
+  if(mandal.qrCode) { document.getElementById('dd-qr-section').style.display='block'; document.getElementById('donation-qr-show').innerHTML='<img src="'+mandal.qrCode+'" style="max-width:160px">'; }
+}
+
+function loadDonationArea() {
+  var eventId = document.getElementById('donation-event-select').value;
+  if(!eventId) { document.getElementById('collection-area-navigator').innerHTML='<div class="alert alert-warning">Select an event to start collecting.</div>'; return; }
+  renderCollectionNavigator(eventId); renderDirectDonorsTable(eventId);
+}
+
+function renderCollectionNavigator(eventId) {
+  var areas = DB.get('areas');
+  var donations = DB.get('donations').filter(function(d){ return d.eventId===eventId; });
+  var el = document.getElementById('collection-area-navigator');
+  if(!areas.length) { el.innerHTML='<div class="alert alert-warning">No collection areas. Add from Collection Area Master.</div>'; return; }
+  el.innerHTML = areas.map(function(a){
+    var items = a.type==='building' ? (a.flats||[]) : (a.rooms||[]);
+    var paidKeys = new Set(donations.filter(function(d){ return d.flatKey; }).map(function(d){ return d.flatKey; }));
+    var paidCount = items.filter(function(i){ return paidKeys.has(i.key); }).length;
+    var flatGridHtml = '';
+    if(a.type==='building' && a.buildingType==='wing') {
+      var wings = [...new Set(items.map(function(i){ return i.wing; }))];
+      flatGridHtml = wings.map(function(wName){
+        var wingItems = items.filter(function(i){ return i.wing===wName; });
+        return '<div style="margin-bottom:12px"><div style="font-size:12px;font-weight:700;color:var(--saffron);background:var(--saffron-light);padding:5px 10px;border-radius:6px;margin-bottom:7px;display:inline-block">🏢 Wing '+wName+'</div>' +
+          '<div class="flat-grid">'+wingItems.map(function(item){
+            var paid = paidKeys.has(item.key);
+            var don = donations.find(function(d){ return d.flatKey===item.key; });
+            return '<div class="flat-item '+(paid?'paid':'pending')+' fi-'+a.id+'" data-status="'+(paid?'paid':'pending')+'" data-wing="'+wName+'" onclick="'+(paid?'showReceiptById(\''+don.id+'\')':'openFlatDonation(\''+item.key+'\',\''+a.name.replace(/'/g,"\\'")+'\''+',\''+item.label.replace(/'/g,"\\'")+'\','+'\''+eventId+'\')' )+'" title="'+(paid?'Paid: '+fmtAmt(don&&don.amount):'Click to record')+'">'+item.flat+(paid?'<br><span style="font-size:10px">✅</span>':'')+'</div>';
+          }).join('')+'</div></div>';
+      }).join('');
+    } else {
+      flatGridHtml = '<div class="flat-grid">'+items.map(function(item){
+        var paid = paidKeys.has(item.key);
+        var don = donations.find(function(d){ return d.flatKey===item.key; });
+        return '<div class="flat-item '+(paid?'paid':'pending')+' fi-'+a.id+'" data-status="'+(paid?'paid':'pending')+'" onclick="'+(paid?'showReceiptById(\''+don.id+'\')':'openFlatDonation(\''+item.key+'\',\''+a.name.replace(/'/g,"\\'")+'\',\''+item.label.replace(/'/g,"\\'")+'\',\''+eventId+'\')' )+'" title="'+(paid?'Paid: '+fmtAmt(don&&don.amount):'Click to record')+'">'+item.label.split('—').pop().trim()+(paid?'<br><span style="font-size:10px">✅</span>':'')+'</div>';
+      }).join('')+'</div>';
+    }
+    return '<div class="card" style="box-shadow:none;border:1px solid var(--border);margin-bottom:14px">' +
+      '<div class="card-header"><strong>'+a.name+'</strong> <span class="badge badge-info">'+(a.type==='building'?'Building':'Slum')+'</span></div>' +
+      '<div class="collection-summary">' +
+      '<div class="collection-stat"><div class="num">'+items.length+'</div><div class="lbl">Total</div></div>' +
+      '<div class="collection-stat" style="background:#E8F8F0"><div class="num" style="color:var(--success)">'+paidCount+'</div><div class="lbl">Paid</div></div>' +
+      '<div class="collection-stat" style="background:#FEF0F0"><div class="num" style="color:var(--danger)">'+(items.length-paidCount)+'</div><div class="lbl">Pending</div></div></div>' +
+      '<div style="margin-bottom:10px;display:flex;gap:6px;flex-wrap:wrap">' +
+      '<button class="btn btn-sm btn-secondary" onclick="filterFlats(\''+a.id+'\',\'all\')">All</button>' +
+      '<button class="btn btn-sm btn-secondary" onclick="filterFlats(\''+a.id+'\',\'paid\')">✅ Paid</button>' +
+      '<button class="btn btn-sm btn-secondary" onclick="filterFlats(\''+a.id+'\',\'pending\')">⏳ Pending</button></div>' +
+      '<div id="fg-'+a.id+'">'+flatGridHtml+'</div></div>';
+  }).join('');
+}
+
+function filterFlats(areaId, status) {
+  document.querySelectorAll('.fi-'+areaId).forEach(function(el){
+    el.style.display = (status==='all'||el.dataset.status===status) ? '' : 'none';
+  });
+}
+
+function openFlatDonation(flatKey, areaName, flatLabel, eventId) {
+  currentFlatKey = {flatKey:flatKey, eventId:eventId};
+  document.getElementById('flat-title').textContent = areaName + ' — ' + flatLabel;
+  document.getElementById('fd-amount').value = '';
+  document.getElementById('fd-name').value = '';
+  var mandal = DB.getObj('mandal');
+  if(mandal.qrCode) { document.getElementById('flat-qr-section').style.display='block'; document.getElementById('flat-qr-display').innerHTML='<img src="'+mandal.qrCode+'" style="max-width:150px">'; }
+  else { document.getElementById('flat-qr-section').style.display='none'; }
+  openModal('modal-flat-donation');
+}
+
+function saveFlatDonation() {
+  var amt = parseFloat(document.getElementById('fd-amount').value);
+  if(!amt||amt<=0) { showToast('Enter valid amount','error'); return; }
+  var existing = DB.get('donations').find(function(d){ return d.flatKey===currentFlatKey.flatKey && d.eventId===currentFlatKey.eventId; });
+  if(existing) { showToast('Donation already recorded for this flat!','error'); return; }
+  var receipt = genReceipt();
+  var don = {id:uid(),eventId:currentFlatKey.eventId,flatKey:currentFlatKey.flatKey,type:'area',
+    donorName:document.getElementById('fd-name').value,amount:amt,mode:document.getElementById('fd-mode').value,
+    date:document.getElementById('fd-date').value,receipt:receipt,collectedBy:currentUser.name,fy:currentFY,createdAt:now()};
+  DB.push('donations',don); queueSync('donations',don);
+  var ev = DB.get('events').find(function(e){ return e.id===don.eventId; });
+  autoPostDonationReceipt(don,ev);
+  closeModal('modal-flat-donation'); showReceipt(don);
+  renderCollectionNavigator(currentFlatKey.eventId); loadDashboard();
+  addAudit('Donation','Flat '+currentFlatKey.flatKey+': '+fmtAmt(amt)); showToast('Recorded! '+receipt,'success');
+}
+
+function addDirectDonor() {
+  var eventId = document.getElementById('donation-event-select').value;
+  if(!eventId) { showToast('Select an event first','error'); return; }
+  var name = document.getElementById('dd-name').value.trim();
+  var mobile = document.getElementById('dd-mobile').value.trim();
+  var amt = parseFloat(document.getElementById('dd-amount').value);
+  if(!name||!mobile||!amt) { showToast('Name, mobile and amount required','error'); return; }
+  var receipt = genReceipt();
+  var don = {id:uid(),eventId:eventId,type:'direct',donorName:name,mobile:mobile,
+    sabhashadId:document.getElementById('dd-sabhashad').value,amount:amt,mode:document.getElementById('dd-mode').value,
+    date:document.getElementById('dd-date').value,receipt:receipt,collectedBy:currentUser.name,fy:currentFY,createdAt:now()};
+  DB.push('donations',don); queueSync('donations',don);
+  var ev = DB.get('events').find(function(e){ return e.id===don.eventId; });
+  autoPostDonationReceipt(don,ev);
+  showReceipt(don); renderDirectDonorsTable(eventId); loadDashboard();
+  document.getElementById('dd-name').value=''; document.getElementById('dd-mobile').value=''; document.getElementById('dd-amount').value='';
+  addAudit('Donation','Direct: '+name+' '+fmtAmt(amt)); showToast('Recorded! '+receipt,'success');
+}
+
+function renderDirectDonorsTable(eventId) {
+  var donations = DB.get('donations').filter(function(d){ return d.eventId===eventId && d.type==='direct'; });
+  var tbody = document.getElementById('direct-donors-table');
+  tbody.innerHTML = donations.length ? donations.map(function(d){
+    return '<tr><td><span class="badge badge-info">'+d.receipt+'</span></td><td>'+d.donorName+'</td><td>'+(d.mobile||'—')+'</td>' +
+      '<td style="font-weight:700">'+fmtAmt(d.amount)+'</td><td>'+d.mode+'</td><td>'+fmtDate(d.date)+'</td>' +
+      '<td><button class="btn btn-sm btn-secondary" onclick="showReceiptById(\''+d.id+'\')">🧾</button> <button class="btn btn-sm btn-danger" onclick="deleteItem(\'donations\',\''+d.id+'\',function(){renderDirectDonorsTable(\''+eventId+'\')})">🗑️</button></td></tr>';
+  }).join('') : '<tr><td colspan="7" style="text-align:center;color:var(--text2);padding:16px">No direct donors yet</td></tr>';
+}
+
+function showReceipt(don) {
+  var mandal = DB.getObj('mandal');
+  var event = DB.get('events').find(function(e){ return e.id===don.eventId; });
+  document.getElementById('receipt-content').innerHTML = '<div class="receipt">' +
+    '<div class="receipt-header">' + (mandal.qrCode?'<img src="'+mandal.qrCode+'" style="width:55px;height:55px;float:right;border-radius:6px">':'') +
+    '<div style="font-size:10px;font-weight:700;text-transform:uppercase;color:var(--saffron)">Official Receipt</div>' +
+    '<div style="font-size:17px;font-weight:800;margin:3px 0">'+(mandal.name||'Mandal Manager')+'</div>' +
+    (mandal.address?'<div style="font-size:11px;color:var(--text2)">'+mandal.address+'</div>':'') + '</div>' +
+    '<div class="receipt-row"><span>Receipt No.</span><strong>'+don.receipt+'</strong></div>' +
+    '<div class="receipt-row"><span>Date</span><span>'+fmtDate(don.date)+'</span></div>' +
+    '<div class="receipt-row"><span>Event</span><span>'+(event&&event.name||'—')+'</span></div>' +
+    '<div class="receipt-row"><span>Donor Name</span><span>'+(don.donorName||'—')+'</span></div>' +
+    (don.mobile?'<div class="receipt-row"><span>Mobile</span><span>'+don.mobile+'</span></div>':'') +
+    '<div class="receipt-row"><span>Payment Mode</span><span>'+don.mode+'</span></div>' +
+    '<div class="receipt-row total"><span>Amount Received</span><strong>'+fmtAmt(don.amount)+'</strong></div>' +
+    '<div style="margin-top:22px;display:flex;justify-content:space-between;font-size:11px;color:var(--text2)"><span>Collected by: '+don.collectedBy+'</span><span>Authorised Signature</span></div></div>';
+  openModal('modal-receipt');
+}
+
+function showReceiptById(id) { var don = DB.get('donations').find(function(d){ return d.id===id; }); if(don) showReceipt(don); }
+
+// ============================================================
+// MEETINGS
+// ============================================================
+function populateMeetingAttendance() {
+  var members = DB.get('committee').filter(function(c){ return c.fy===currentFY; });
+  document.getElementById('meeting-attendance-list').innerHTML = members.length ? members.map(function(m){
+    return '<div style="display:flex;align-items:center;justify-content:space-between;padding:7px 0;border-bottom:1px solid var(--border)"><span>'+m.name+' <small style="color:var(--text2)">('+m.role+')</small></span><label class="toggle"><input type="checkbox" id="att-'+m.id+'" checked><span class="toggle-slider"></span></label></div>';
+  }).join('') : '<div style="color:var(--text2);font-size:13px">No committee members.</div>';
+}
+
+function saveMeeting() {
+  var date = document.getElementById('mt-date').value;
+  var venue = document.getElementById('mt-venue').value.trim();
+  if(!date||!venue) { showToast('Date and venue required','error'); return; }
+  var members = DB.get('committee').filter(function(c){ return c.fy===currentFY; });
+  var attendance = {};
+  members.forEach(function(m){ var el=document.getElementById('att-'+m.id); attendance[m.id]=el?el.checked:false; });
+  var meeting = {id:uid(),date:date,time:document.getElementById('mt-time').value,venue:venue,
+    agenda:document.getElementById('mt-agenda').value,minutes:document.getElementById('mt-minutes').value,
+    attendance:attendance,fy:currentFY,createdAt:now()};
+  DB.push('meetings',meeting); queueSync('meetings',meeting);
+  closeModal('modal-meeting'); renderMeetings();
+  addAudit('Meeting','Scheduled on '+fmtDate(date)); showToast('Meeting saved!','success');
+}
+
+function renderMeetings() {
+  populateMeetingAttendance();
+  var meetings = DB.get('meetings').filter(function(m){ return m.fy===currentFY; }).sort(function(a,b){ return b.date.localeCompare(a.date); });
+  var el = document.getElementById('meetings-list');
+  if(!meetings.length) { el.innerHTML='<div class="empty-state"><div class="icon">📋</div><h3>No Meetings</h3></div>'; return; }
+  el.innerHTML = meetings.map(function(m){
+    var present = Object.values(m.attendance||{}).filter(Boolean).length;
+    var total = Object.keys(m.attendance||{}).length;
+    return '<div class="meeting-card"><div style="display:flex;justify-content:space-between;align-items:flex-start">' +
+      '<div><div style="font-size:15px;font-weight:700">📅 '+fmtDate(m.date)+(m.time?' at '+m.time:'')+'</div>' +
+      '<div class="meeting-meta"><span>📍 '+m.venue+'</span><span>👥 '+present+'/'+total+' Present</span></div>' +
+      (m.agenda?'<div style="margin-top:8px;font-size:12px;color:var(--text2)"><strong>Agenda:</strong> '+m.agenda+'</div>':'') + '</div>' +
+      '<button class="btn btn-sm btn-danger" onclick="deleteItem(\'meetings\',\''+m.id+'\',renderMeetings)">🗑️</button></div></div>';
+  }).join('');
+}
+
+// ============================================================
+// TALLY-STYLE VOUCHER ENGINE
+// ============================================================
+var STD_LEDGERS = ['Cash in Hand','Bank Account'];
+
+function postVoucher(v) {
+  var totalDr = v.entries.filter(function(e){ return e.type==='debit'; }).reduce(function(s,e){ return s+Number(e.amount); },0);
+  var totalCr = v.entries.filter(function(e){ return e.type==='credit'; }).reduce(function(s,e){ return s+Number(e.amount); },0);
+  if(Math.round(totalDr*100) !== Math.round(totalCr*100)) { showToast('Voucher not balanced! Dr '+fmtAmt(totalDr)+' ≠ Cr '+fmtAmt(totalCr),'error'); return null; }
+  var voucher = {id:uid(),voucherNo:genVoucherNo(v.type),type:v.type,date:v.date,narration:v.narration||'',
+    ref:v.ref||'',entries:v.entries,linkedVendorId:v.linkedVendorId||'',linkedInvestmentId:v.linkedInvestmentId||'',
+    linkedEventId:v.linkedEventId||'',linkedDonationId:v.linkedDonationId||'',linkedSabhashadId:v.linkedSabhashadId||'',
+    files:v.files||[],fy:v.fy||currentFY,postedBy:(currentUser&&currentUser.name)||'System',auto:v.auto||false,createdAt:now()};
+  DB.push('vouchers',voucher); queueSync('vouchers',voucher); return voucher;
+}
+
+function genVoucherNo(type) {
+  var prefix = {Receipt:'RV',Payment:'PV',Contra:'CV',Journal:'JV',Purchase:'PUR'}[type]||'V';
+  var existing = DB.get('vouchers').filter(function(v){ return v.type===type && v.fy===currentFY; });
+  return prefix+'-'+currentFY+'-'+String(existing.length+1).padStart(4,'0');
+}
+
+function getAllLedgerNames() {
+  var ledgers = DB.get('ledgers').filter(function(l){ return l.fy===currentFY; });
+  var vendors = DB.get('vendors');
+  var investments = DB.get('investments');
+  return {
+    income: ledgers.filter(function(l){ return l.type==='income'; }).map(function(l){ return l.name; }),
+    expense: ledgers.filter(function(l){ return l.type==='expense'; }).map(function(l){ return l.name; }),
+    creditors: vendors.map(function(v){ return v.name; }),
+    investments: investments.map(function(i){ return i.name; }),
+    bankcash: STD_LEDGERS
+  };
+}
+
+function getLedgerBalance(ledgerName) {
+  var dr=0, cr=0;
+  DB.get('vouchers').filter(function(v){ return v.fy===currentFY; }).forEach(function(v){
+    v.entries.forEach(function(e){ if(e.ledger===ledgerName){ if(e.type==='debit') dr+=Number(e.amount); else cr+=Number(e.amount); } });
+  });
+  var vendor = DB.get('vendors').find(function(v){ return v.name===ledgerName; });
+  if(vendor && vendor.opening) cr += Number(vendor.opening);
+  return {dr:dr, cr:cr, balance:dr-cr};
+}
+
+function getVendorOutstanding(vendorName) {
+  var b = getLedgerBalance(vendorName); return Math.max(0, b.cr-b.dr);
+}
+
+function getCashBankBalance(ledgerName, fy) {
+  var targetFY = fy||currentFY;
+  var s = DB.getObj('settings');
+  var obKey = ledgerName==='Cash in Hand' ? 'cash' : 'bank';
+  var ob = (s.openingBalance && s.openingBalance[targetFY]) ? Number(s.openingBalance[targetFY][obKey]||0) : 0;
+  var net = 0;
+  DB.get('vouchers').filter(function(v){ return v.fy===targetFY; }).forEach(function(v){
+    v.entries.forEach(function(e){ if(e.ledger===ledgerName){ net += (e.type==='debit'?1:-1)*Number(e.amount); } });
+  });
+  return ob + net;
+}
+
+function autoPostDonationReceipt(don, event) {
+  var debitLedger = (don.mode==='Cash') ? 'Cash in Hand' : 'Bank Account';
+  postVoucher({type:'Receipt',date:don.date,narration:'Donation — '+(don.donorName||'Unknown')+(event?' ('+event.name+')':''),
+    ref:don.receipt,entries:[{ledger:debitLedger,type:'debit',amount:don.amount},{ledger:'Donation Income',type:'credit',amount:don.amount}],
+    linkedEventId:don.eventId,linkedDonationId:don.id,fy:don.fy,auto:true});
+}
+
+function autoPostFeeReceipt(member, fy, fee) {
+  var debitLedger = (fee.mode==='Cash'||fee.mode==='Cash in Hand') ? 'Cash in Hand' : 'Bank Account';
+  postVoucher({type:'Receipt',date:fee.date,narration:'Membership fee — '+member.name+' FY '+fy,
+    ref:fee.receipt,entries:[{ledger:debitLedger,type:'debit',amount:fee.amount},{ledger:'Membership Fee Income',type:'credit',amount:fee.amount}],
+    linkedSabhashadId:member.id,fy:currentFY,auto:true});
+}
+
+function reverseFeeReceipt(member, fy, fee) {
+  var creditLedger = (fee.mode==='Cash'||fee.mode==='Cash in Hand') ? 'Cash in Hand' : 'Bank Account';
+  postVoucher({type:'Journal',date:new Date().toISOString().split('T')[0],narration:'Reversal — Membership fee '+member.name+' FY '+fy,
+    ref:fee.receipt,entries:[{ledger:'Membership Fee Income',type:'debit',amount:fee.amount},{ledger:creditLedger,type:'credit',amount:fee.amount}],
+    linkedSabhashadId:member.id,fy:currentFY,auto:true});
+}
+
+function openVoucherModal(type) {
+  var today = new Date().toISOString().split('T')[0];
+  if(type==='Payment') {
+    document.getElementById('pv-date').value = today;
+    var vendors = DB.get('vendors');
+    document.getElementById('pv-to').innerHTML = vendors.map(function(v){ return '<option value="'+v.id+'">'+v.name+' (Outstanding: '+fmtAmt(getVendorOutstanding(v.name))+')</option>'; }).join('') + '<option value="__other__">Other / Direct Expense</option>';
+    document.getElementById('pv-amount').value=''; document.getElementById('pv-ref').value=''; document.getElementById('pv-narration').value='';
+    loadVendorOutstandingHint(); openModal('modal-voucher-payment');
+  } else if(type==='Purchase') {
+    document.getElementById('pu-date').value = today;
+    var vendors2 = DB.get('vendors');
+    document.getElementById('pu-vendor').innerHTML = '<option value="">— Select Vendor —</option>'+vendors2.map(function(v){ return '<option value="'+v.id+'">'+v.name+'</option>'; }).join('');
+    var ledgers = DB.get('ledgers').filter(function(l){ return l.type==='expense'&&l.fy===currentFY; });
+    document.getElementById('pu-ledger').innerHTML = '<option value="">— Select Expense Ledger —</option>'+ledgers.map(function(l){ return '<option value="'+l.name+'">'+l.group+' › '+l.name+'</option>'; }).join('');
+    populateEventSelects();
+    document.getElementById('pu-amount').value=''; document.getElementById('pu-bill').value=''; document.getElementById('pu-desc').value='';
+    openModal('modal-voucher-purchase');
+  } else if(type==='Contra') {
+    document.getElementById('cv-date').value = today; document.getElementById('cv-amount').value=''; document.getElementById('cv-narration').value='';
+    openModal('modal-voucher-contra');
+  } else if(type==='Journal') {
+    document.getElementById('jv-date').value = today;
+    var all = getAllLedgerNames();
+    var allNames = STD_LEDGERS.concat(all.income).concat(all.expense).concat(all.creditors).concat(all.investments);
+    var optsHtml = allNames.map(function(n){ return '<option value="'+n+'">'+n+'</option>'; }).join('');
+    document.getElementById('jv-debit').innerHTML = '<option value="">— Select —</option>'+optsHtml;
+    document.getElementById('jv-credit').innerHTML = '<option value="">— Select —</option>'+optsHtml;
+    document.getElementById('jv-amount').value=''; document.getElementById('jv-narration').value='';
+    openModal('modal-voucher-journal');
+  }
+}
+
+function loadVendorOutstandingHint() {
+  var sel = document.getElementById('pv-to');
+  var hint = document.getElementById('pv-outstanding-hint');
+  if(!sel||!hint) return;
+  var val = sel.value;
+  if(val==='__other__'||!val) { hint.textContent=''; return; }
+  var vendor = DB.get('vendors').find(function(v){ return v.id===val; });
+  if(vendor) hint.innerHTML = 'Current outstanding: <strong>'+fmtAmt(getVendorOutstanding(vendor.name))+'</strong>';
+}
+
+function savePaymentVoucher() {
+  var date = document.getElementById('pv-date').value;
+  var fromLedger = document.getElementById('pv-from').value;
+  var toSel = document.getElementById('pv-to').value;
+  var amount = parseFloat(document.getElementById('pv-amount').value);
+  var ref = document.getElementById('pv-ref').value;
+  var narration = document.getElementById('pv-narration').value;
+  if(!date||!toSel||!amount) { showToast('Date, payee and amount required','error'); return; }
+  var toLedgerName, vendorId='';
+  if(toSel==='__other__') { toLedgerName = narration||'Sundry Expense'; }
+  else { var vendor = DB.get('vendors').find(function(v){ return v.id===toSel; }); toLedgerName=vendor.name; vendorId=vendor.id; }
+  postVoucher({type:'Payment',date:date,ref:ref,narration:narration||'Payment to '+toLedgerName,
+    entries:[{ledger:toLedgerName,type:'debit',amount:amount},{ledger:fromLedger,type:'credit',amount:amount}],
+    linkedVendorId:vendorId,fy:currentFY});
+  closeModal('modal-voucher-payment'); renderVoucherList('Payment'); loadDashboard();
+  addAudit('Payment Voucher',fmtAmt(amount)+' to '+toLedgerName); showToast('Payment voucher saved!','success');
+}
+
+function savePurchaseVoucher() {
+  var date = document.getElementById('pu-date').value;
+  var vendorId = document.getElementById('pu-vendor').value;
+  var ledgerName = document.getElementById('pu-ledger').value;
+  var amount = parseFloat(document.getElementById('pu-amount').value);
+  var bill = document.getElementById('pu-bill').value;
+  var eventId = document.getElementById('pu-event').value;
+  var desc = document.getElementById('pu-desc').value;
+  if(!date||!vendorId||!ledgerName||!amount) { showToast('Date, vendor, ledger and amount required','error'); return; }
+  var vendor = DB.get('vendors').find(function(v){ return v.id===vendorId; });
+  postVoucher({type:'Purchase',date:date,ref:bill,narration:desc||'Purchase from '+vendor.name,
+    entries:[{ledger:ledgerName,type:'debit',amount:amount},{ledger:vendor.name,type:'credit',amount:amount}],
+    linkedVendorId:vendorId,linkedEventId:eventId,fy:currentFY});
+  closeModal('modal-voucher-purchase'); renderVoucherList('Purchase'); loadDashboard();
+  addAudit('Purchase Voucher',fmtAmt(amount)+' from '+vendor.name); showToast('Purchase voucher saved!','success');
+}
+
+function saveContraVoucher() {
+  var date = document.getElementById('cv-date').value;
+  var direction = document.getElementById('cv-direction').value;
+  var amount = parseFloat(document.getElementById('cv-amount').value);
+  var narration = document.getElementById('cv-narration').value;
+  if(!date||!amount) { showToast('Date and amount required','error'); return; }
+  var debitLedger = direction==='cash-to-bank' ? 'Bank Account' : 'Cash in Hand';
+  var creditLedger = direction==='cash-to-bank' ? 'Cash in Hand' : 'Bank Account';
+  postVoucher({type:'Contra',date:date,narration:narration||(direction==='cash-to-bank'?'Cash deposited to bank':'Cash withdrawn from bank'),
+    entries:[{ledger:debitLedger,type:'debit',amount:amount},{ledger:creditLedger,type:'credit',amount:amount}],fy:currentFY});
+  closeModal('modal-voucher-contra'); renderVoucherList('Contra'); loadDashboard();
+  addAudit('Contra Voucher',fmtAmt(amount)+' '+direction); showToast('Contra voucher saved!','success');
+}
+
+function saveJournalVoucher() {
+  var date = document.getElementById('jv-date').value;
+  var debit = document.getElementById('jv-debit').value;
+  var credit = document.getElementById('jv-credit').value;
+  var amount = parseFloat(document.getElementById('jv-amount').value);
+  var narration = document.getElementById('jv-narration').value;
+  if(!date||!debit||!credit||!amount) { showToast('All fields required','error'); return; }
+  if(debit===credit) { showToast('Debit and Credit cannot be same','error'); return; }
+  postVoucher({type:'Journal',date:date,narration:narration,
+    entries:[{ledger:debit,type:'debit',amount:amount},{ledger:credit,type:'credit',amount:amount}],fy:currentFY});
+  closeModal('modal-voucher-journal'); renderVoucherList('Journal'); loadDashboard();
+  addAudit('Journal Voucher',narration||debit+'/'+credit+': '+fmtAmt(amount)); showToast('Journal voucher saved!','success');
+}
+
+function renderVoucherList(type) {
+  var el = document.getElementById('voucher-list-'+type);
+  if(!el) return;
+  var vouchers = DB.get('vouchers').filter(function(v){ return v.fy===currentFY; });
+  if(type!=='All') vouchers = vouchers.filter(function(v){ return v.type===type; });
+  vouchers = vouchers.sort(function(a,b){ return b.date.localeCompare(a.date); });
+  if(!vouchers.length) { el.innerHTML='<div class="empty-state"><div class="icon">🧾</div><h3>No '+(type==='All'?'':type)+' Vouchers</h3></div>'; return; }
+  var typeIcon = {Receipt:'🧾',Payment:'💸',Purchase:'🛒',Contra:'🔁',Journal:'📘'};
+  el.innerHTML = vouchers.map(function(v){
+    var totalAmt = v.entries.filter(function(e){ return e.type==='debit'; }).reduce(function(s,e){ return s+Number(e.amount); },0);
+    return '<div class="meeting-card" style="cursor:pointer" onclick="viewVoucher(\''+v.id+'\')"><div style="display:flex;justify-content:space-between;align-items:center">' +
+      '<div><div style="font-weight:700">'+(typeIcon[v.type]||'📄')+' '+v.voucherNo+' <span class="badge '+(v.auto?'badge-info':'badge-success')+'" style="margin-left:6px">'+(v.auto?'Auto':'Manual')+'</span></div>' +
+      '<div class="meeting-meta"><span>📅 '+fmtDate(v.date)+'</span><span>'+v.narration+'</span></div></div>' +
+      '<div style="text-align:right"><div style="font-weight:700;font-size:16px">'+fmtAmt(totalAmt)+'</div><div style="font-size:11px;color:var(--text2)">Ref: '+(v.ref||'—')+'</div></div></div></div>';
+  }).join('');
+}
+
+function viewVoucher(id) {
+  var v = DB.get('vouchers').find(function(x){ return x.id===id; });
+  if(!v) return;
+  var typeIcon = {Receipt:'🧾',Payment:'💸',Purchase:'🛒',Contra:'🔁',Journal:'📘'};
+  document.getElementById('voucher-view-content').innerHTML = '<div class="receipt"><div class="receipt-header">' +
+    '<div style="font-size:10px;font-weight:700;text-transform:uppercase;color:var(--saffron)">'+v.type+' Voucher</div>' +
+    '<div style="font-size:17px;font-weight:800;margin:3px 0">'+(typeIcon[v.type]||'')+' '+v.voucherNo+'</div></div>' +
+    '<div class="receipt-row"><span>Date</span><span>'+fmtDate(v.date)+'</span></div>' +
+    '<div class="receipt-row"><span>Reference</span><span>'+(v.ref||'—')+'</span></div>' +
+    '<div class="receipt-row"><span>Narration</span><span>'+v.narration+'</span></div><hr class="divider">' +
+    v.entries.map(function(e){ return '<div class="receipt-row"><span>'+(e.type==='debit'?'Dr':'Cr')+' '+e.ledger+'</span><strong>'+fmtAmt(e.amount)+'</strong></div>'; }).join('') +
+    '<div style="margin-top:18px;font-size:11px;color:var(--text2)">Posted by: '+v.postedBy+' '+(v.auto?'(Auto)':'(Manual)')+'</div></div>';
+  openModal('modal-voucher-view');
+}
+
+// ============================================================
+// LEDGER VIEW
+// ============================================================
+function populateLedgerViewSelect() {
+  var sel = document.getElementById('ledger-view-select');
+  if(!sel) return;
+  var all = getAllLedgerNames();
+  var groups = [
+    {label:'Bank & Cash', items:STD_LEDGERS},
+    {label:'Income', items:all.income},
+    {label:'Expense', items:all.expense},
+    {label:'Sundry Creditors (Vendors)', items:all.creditors},
+    {label:'Investments', items:all.investments}
+  ];
+  sel.innerHTML = '<option value="">— Select Ledger —</option>' +
+    groups.filter(function(g){ return g.items.length; }).map(function(g){
+      return '<optgroup label="'+g.label+'">'+g.items.map(function(n){ return '<option value="'+n+'">'+n+'</option>'; }).join('')+'</optgroup>';
+    }).join('');
+}
+
+function renderLedgerView() {
+  var ledgerName = document.getElementById('ledger-view-select') && document.getElementById('ledger-view-select').value;
+  var el = document.getElementById('ledger-view-detail');
+  if(!el) return;
+  if(!ledgerName) { el.innerHTML='<div style="color:var(--text2);padding:20px;text-align:center">Select a ledger to view transactions</div>'; return; }
+  var vouchers = DB.get('vouchers').filter(function(v){ return v.fy===currentFY; }).sort(function(a,b){ return a.date.localeCompare(b.date); });
+  var entries = [];
+  vouchers.forEach(function(v){
+    v.entries.forEach(function(e){
+      if(e.ledger===ledgerName) entries.push(Object.assign({},e,{date:v.date,narration:v.narration,ref:v.ref,voucherNo:v.voucherNo,voucherType:v.type,vId:v.id}));
+    });
+  });
+  var isBankCash = STD_LEDGERS.indexOf(ledgerName)>-1;
+  var s = DB.getObj('settings');
+  var openingBal = 0;
+  if(isBankCash) { var obKey = ledgerName==='Cash in Hand'?'cash':'bank'; openingBal = Number(s.openingBalance&&s.openingBalance[currentFY]?s.openingBalance[currentFY][obKey]||0:0); }
+  else { var vendor = DB.get('vendors').find(function(v){ return v.name===ledgerName; }); if(vendor) openingBal = -Number(vendor.opening||0); }
+  var totalDr = entries.filter(function(e){ return e.type==='debit'; }).reduce(function(s,e){ return s+Number(e.amount); },0);
+  var totalCr = entries.filter(function(e){ return e.type==='credit'; }).reduce(function(s,e){ return s+Number(e.amount); },0);
+  var runBal = openingBal;
+  var closingBal = openingBal + totalDr - totalCr;
+  el.innerHTML = '<div class="stat-grid" style="margin:14px 0">' +
+    '<div class="stat-card"><div class="stat-label">Opening</div><div class="stat-value">'+fmtAmt(Math.abs(openingBal))+'</div><div class="stat-sub">'+(openingBal>=0?'Dr':'Cr')+'</div></div>' +
+    '<div class="stat-card green"><div class="stat-label">Total Debit</div><div class="stat-value">'+fmtAmt(totalDr)+'</div></div>' +
+    '<div class="stat-card red"><div class="stat-label">Total Credit</div><div class="stat-value">'+fmtAmt(totalCr)+'</div></div>' +
+    '<div class="stat-card blue"><div class="stat-label">Closing</div><div class="stat-value">'+fmtAmt(Math.abs(closingBal))+'</div><div class="stat-sub">'+(closingBal>=0?'Dr':'Cr')+'</div></div></div>' +
+    '<div class="table-wrap"><table><thead><tr><th>Date</th><th>Voucher</th><th>Narration</th><th>Debit</th><th>Credit</th><th>Balance</th></tr></thead><tbody>' +
+    '<tr style="background:var(--saffron-light)"><td colspan="5"><strong>Opening Balance</strong></td><td><strong>'+fmtAmt(Math.abs(openingBal))+' '+(openingBal>=0?'Dr':'Cr')+'</strong></td></tr>' +
+    entries.map(function(e){
+      runBal += (e.type==='debit'?1:-1)*Number(e.amount);
+      return '<tr style="cursor:pointer" onclick="viewVoucher(\''+e.vId+'\')"><td>'+fmtDate(e.date)+'</td><td><span class="badge badge-info" style="font-size:10px">'+e.voucherNo+'</span></td><td>'+e.narration+'</td>' +
+        '<td class="amount-positive">'+(e.type==='debit'?fmtAmt(e.amount):'—')+'</td><td class="amount-negative">'+(e.type==='credit'?fmtAmt(e.amount):'—')+'</td>' +
+        '<td><strong>'+fmtAmt(Math.abs(runBal))+' '+(runBal>=0?'Dr':'Cr')+'</strong></td></tr>';
+    }).join('') + (entries.length?'':'<tr><td colspan="6" style="text-align:center;color:var(--text2);padding:20px">No transactions</td></tr>') +
+    '<tr style="background:var(--saffron-light);font-weight:700"><td colspan="5"><strong>Closing Balance</strong></td><td><strong>'+fmtAmt(Math.abs(closingBal))+' '+(closingBal>=0?'Dr':'Cr')+'</strong></td></tr></tbody></table></div>';
+}
+
+function switchToLedgerView(ledgerName) {
+  showPage('accounts');
+  setTimeout(function(){
+    populateLedgerViewSelect();
+    var sel = document.getElementById('ledger-view-select');
+    if(sel) sel.value = ledgerName;
+    renderLedgerView();
+  }, 100);
+}
+
+// ============================================================
+// VENDOR / INVESTMENT
+// ============================================================
+function saveVendor() {
+  var name = document.getElementById('vnd-name').value.trim();
+  if(!name) { showToast('Vendor name required','error'); return; }
+  var v = {id:editingId||uid(),name:name,group:'Sundry Creditors',category:document.getElementById('vnd-cat').value,
+    mobile:document.getElementById('vnd-mobile').value,gst:document.getElementById('vnd-gst').value,
+    address:document.getElementById('vnd-address').value,upi:document.getElementById('vnd-upi').value,
+    opening:parseFloat(document.getElementById('vnd-opening').value)||0,createdAt:now()};
+  if(editingId) DB.update('vendors',editingId,v); else DB.push('vendors',v);
+  queueSync('vendors',v); closeModal('modal-vendor'); renderCreditorLedgers();
+  addAudit('Vendor',(editingId?'Updated':'Added')+' '+name); showToast('Vendor saved!','success');
+}
+
+function renderCreditorLedgers() {
+  var vendors = DB.get('vendors');
+  var tbody = document.getElementById('creditor-table');
+  if(!tbody) return;
+  if(!vendors.length) { tbody.innerHTML='<tr><td colspan="6"><div class="empty-state"><div class="icon">🏪</div><h3>No Vendor Ledgers</h3></div></td></tr>'; return; }
+  tbody.innerHTML = vendors.map(function(v){
+    var outstanding = getVendorOutstanding(v.name);
+    return '<tr><td><strong>'+v.name+'</strong></td><td><span class="badge badge-info">'+v.category+'</span></td><td>'+(v.mobile||'—')+'</td><td>'+(v.gst||'—')+'</td>' +
+      '<td><span class="badge '+(outstanding>0?'badge-danger':'badge-success')+'">'+fmtAmt(outstanding)+'</span></td>' +
+      '<td><button class="btn btn-sm btn-secondary" onclick="editVendor(\''+v.id+'\')">✏️</button> <button class="btn btn-sm btn-secondary" onclick="switchToLedgerView(\''+v.name+'\')">📒</button> <button class="btn btn-sm btn-danger" onclick="deleteItem(\'vendors\',\''+v.id+'\',renderCreditorLedgers)">🗑️</button></td></tr>';
+  }).join('');
+}
+
+function editVendor(id) {
+  var v = DB.get('vendors').find(function(x){ return x.id===id; });
+  editingId = id;
+  document.getElementById('modal-vendor-title').textContent = 'Edit Vendor Ledger';
+  openModal('modal-vendor');
+  setTimeout(function(){
+    document.getElementById('vnd-name').value = v.name;
+    document.getElementById('vnd-cat').value = v.category||'Other';
+    document.getElementById('vnd-mobile').value = v.mobile||'';
+    document.getElementById('vnd-gst').value = v.gst||'';
+    document.getElementById('vnd-address').value = v.address||'';
+    document.getElementById('vnd-upi').value = v.upi||'';
+    document.getElementById('vnd-opening').value = v.opening||0;
+  }, 50);
+}
+
+function saveInvestment() {
+  var name = document.getElementById('inv-name').value.trim();
+  var principal = parseFloat(document.getElementById('inv-principal').value);
+  var date = document.getElementById('inv-date').value;
+  var source = document.getElementById('inv-source').value;
+  if(!name||!principal||!date) { showToast('Name, principal and date required','error'); return; }
+  var inv = {id:editingId||uid(),name:name,group:'Investments',invType:document.getElementById('inv-type').value,
+    principal:principal,rate:parseFloat(document.getElementById('inv-rate').value)||0,
+    bank:document.getElementById('inv-bank').value,maturity:document.getElementById('inv-maturity').value,
+    date:date,status:'active',createdAt:now()};
+  if(editingId) { DB.update('investments',editingId,inv); }
+  else {
+    DB.push('investments',inv);
+    postVoucher({type:'Contra',date:date,narration:'Investment created — '+name+' ('+inv.invType+')',
+      entries:[{ledger:name,type:'debit',amount:principal},{ledger:source,type:'credit',amount:principal}],
+      fy:currentFY,linkedInvestmentId:inv.id});
+  }
+  queueSync('investments',inv); closeModal('modal-investment'); renderInvestments(); loadDashboard();
+  addAudit('Investment',(editingId?'Updated':'Created')+' '+name+': '+fmtAmt(principal)); showToast('Investment saved!','success');
+}
+
+function renderInvestments() {
+  var investments = DB.get('investments');
+  var tbody = document.getElementById('investment-table');
+  if(!tbody) return;
+  if(!investments.length) { tbody.innerHTML='<tr><td colspan="7"><div class="empty-state"><div class="icon">🏦</div><h3>No Investments</h3></div></td></tr>'; return; }
+  tbody.innerHTML = investments.map(function(i){
+    return '<tr><td><strong>'+i.name+'</strong></td><td><span class="badge badge-info">'+i.invType+'</span></td><td>'+fmtAmt(i.principal)+'</td><td>'+(i.bank||'—')+'</td><td>'+fmtDate(i.maturity)+'</td><td><span class="badge badge-success">'+i.status+'</span></td>' +
+      '<td><button class="btn btn-sm btn-secondary" onclick="switchToLedgerView(\''+i.name+'\')">📒</button> <button class="btn btn-sm btn-danger" onclick="deleteItem(\'investments\',\''+i.id+'\',renderInvestments)">🗑️</button></td></tr>';
+  }).join('');
+}
+
+function renderAssetBankCash() {
+  var el = document.getElementById('asset-bank-list');
+  if(!el) return;
+  var cash = getCashBankBalance('Cash in Hand');
+  var bank = getCashBankBalance('Bank Account');
+  el.innerHTML = '<div class="stat-grid" style="margin-bottom:16px">' +
+    '<div class="stat-card green"><div class="stat-label">Cash in Hand</div><div class="stat-value">'+fmtAmt(cash)+'</div></div>' +
+    '<div class="stat-card blue"><div class="stat-label">Bank Account</div><div class="stat-value">'+fmtAmt(bank)+'</div></div>' +
+    '<div class="stat-card"><div class="stat-label">Total Liquid</div><div class="stat-value">'+fmtAmt(cash+bank)+'</div></div></div>' +
+    '<div style="display:flex;gap:10px">' +
+    '<button class="btn btn-secondary btn-sm" onclick="switchToLedgerView(\'Cash in Hand\')">📒 View Cash Book</button>' +
+    '<button class="btn btn-secondary btn-sm" onclick="switchToLedgerView(\'Bank Account\')">📒 View Bank Book</button></div>';
+}
+
+// ============================================================
+// LEDGER MASTER
+// ============================================================
+function saveLedger() {
+  var group = document.getElementById('ledger-group').value.trim();
+  var name = document.getElementById('ledger-name').value.trim();
+  var type = document.getElementById('ledger-type').value;
+  if(!group||!name) { showToast('Group and name required','error'); return; }
+  var ledger = {id:editingId||uid(),type:type,group:group,name:name,opening:parseFloat(document.getElementById('ledger-opening').value)||0,fy:currentFY,createdAt:now()};
+  if(editingId) DB.update('ledgers',editingId,ledger); else DB.push('ledgers',ledger);
+  queueSync('ledgers',ledger); closeModal('modal-ledger'); renderLedgers();
+  addAudit('Ledger',(editingId?'Updated':'Added')+' '+name); showToast('Ledger saved!','success');
+}
+
+function renderLedgers() {
+  var ledgers = DB.get('ledgers').filter(function(l){ return l.fy===currentFY; });
+  ['income','expense'].forEach(function(type){
+    var filtered = ledgers.filter(function(l){ return l.type===type; });
+    var elId = type==='income'?'income-ledgers-list':'expense-ledgers-list';
+    var el = document.getElementById(elId);
+    if(!el) return;
+    if(!filtered.length) { el.innerHTML='<div class="empty-state" style="padding:30px"><div class="icon">📒</div><h3>No '+type+' ledgers</h3></div>'; return; }
+    var groups = [...new Set(filtered.map(function(l){ return l.group; }))];
+    el.innerHTML = groups.map(function(g){
+      var gLedgers = filtered.filter(function(l){ return l.group===g; });
+      return '<div class="ledger-group-header">📂 '+g+'</div>' + gLedgers.map(function(l){
+        var bal = getLedgerBalance(l.name);
+        return '<div class="ledger-row"><div><span>'+l.name+'</span><div style="font-size:11px;color:var(--text2)">Balance: '+fmtAmt(Math.abs(bal.balance))+'</div></div>' +
+          '<div style="display:flex;gap:6px;align-items:center">' +
+          '<button class="btn btn-sm btn-secondary" onclick="switchToLedgerView(\''+l.name+'\')">📒</button>' +
+          '<button class="btn btn-sm btn-secondary" onclick="editLedger(\''+l.id+'\')">✏️</button>' +
+          '<button class="btn btn-sm btn-danger" onclick="deleteItem(\'ledgers\',\''+l.id+'\',renderLedgers)">🗑️</button></div></div>';
+      }).join('');
+    }).join('');
+  });
+}
+
+function editLedger(id) {
+  var l = DB.get('ledgers').find(function(x){ return x.id===id; });
+  editingId = id;
+  document.getElementById('modal-ledger-title').textContent = 'Edit Ledger';
+  openModal('modal-ledger');
+  setTimeout(function(){
+    document.getElementById('ledger-type').value = l.type;
+    document.getElementById('ledger-group').value = l.group;
+    document.getElementById('ledger-name').value = l.name;
+    document.getElementById('ledger-opening').value = l.opening||0;
+  }, 50);
+}
+
+// ============================================================
+// FINANCIAL REPORTS
+// ============================================================
+function renderFinancials() {
+  var eventId = (document.getElementById('fin-event-filter')&&document.getElementById('fin-event-filter').value)||'';
+  var vouchers = DB.get('vouchers').filter(function(v){ return v.fy===currentFY; });
+  if(eventId) vouchers = vouchers.filter(function(v){ return v.linkedEventId===eventId; });
+  var ledgers = DB.get('ledgers').filter(function(l){ return l.fy===currentFY; });
+  var incLedgerNames = ledgers.filter(function(l){ return l.type==='income'; }).map(function(l){ return l.name; }).concat(['Donation Income','Membership Fee Income']);
+  var expLedgerNames = ledgers.filter(function(l){ return l.type==='expense'; }).map(function(l){ return l.name; });
+  function sumLedgerCr(names){ var t=0; vouchers.forEach(function(v){v.entries.forEach(function(e){if(names.indexOf(e.ledger)>-1&&e.type==='credit')t+=Number(e.amount);});}); return t; }
+  function sumLedgerDr(names){ var t=0; vouchers.forEach(function(v){v.entries.forEach(function(e){if(names.indexOf(e.ledger)>-1&&e.type==='debit')t+=Number(e.amount);});}); return t; }
+  var totalDon = sumLedgerCr(['Donation Income']);
+  var totalFees = sumLedgerCr(['Membership Fee Income']);
+  var otherIncome = sumLedgerCr(incLedgerNames.filter(function(n){ return n!=='Donation Income'&&n!=='Membership Fee Income'; }));
+  var totalIncome = totalDon + totalFees + otherIncome;
+  var totalExp = sumLedgerDr(expLedgerNames);
+  var surplus = totalIncome - totalExp;
+  var s = DB.getObj('settings');
+  var ob = (s.openingBalance&&s.openingBalance[currentFY])||{cash:0,bank:0,total:0};
+  var cashBal = getCashBankBalance('Cash in Hand');
+  var bankBal = getCashBankBalance('Bank Account');
+  var vendors = DB.get('vendors');
+  var totalPayable = vendors.reduce(function(s,v){ return s+getVendorOutstanding(v.name); },0);
+  var investments = DB.get('investments');
+  var totalInvested = investments.reduce(function(s,i){ return s+Number(i.principal||0); },0);
+
+  document.getElementById('tb-report').innerHTML = '<div style="display:grid;grid-template-columns:1fr 1fr;gap:18px">' +
+    '<div><div class="section-label" style="color:var(--success)">Debit Balances</div>' +
+    '<div class="ledger-row"><span>Cash in Hand</span><span>'+fmtAmt(cashBal)+'</span></div>' +
+    '<div class="ledger-row"><span>Bank Account</span><span>'+fmtAmt(bankBal)+'</span></div>' +
+    investments.map(function(i){ return '<div class="ledger-row"><span>'+i.name+'</span><span>'+fmtAmt(i.principal)+'</span></div>'; }).join('') +
+    expLedgerNames.map(function(n){ var a=sumLedgerDr([n]); return a?'<div class="ledger-row"><span>'+n+'</span><span>'+fmtAmt(a)+'</span></div>':''; }).join('') +
+    '<div class="ledger-row" style="font-weight:700;border-top:2px solid var(--border)"><span>Total Debit</span><span>'+fmtAmt(cashBal+bankBal+totalInvested+totalExp)+'</span></div></div>' +
+    '<div><div class="section-label" style="color:var(--danger)">Credit Balances</div>' +
+    '<div class="ledger-row"><span>Donation Income</span><span>'+fmtAmt(totalDon)+'</span></div>' +
+    '<div class="ledger-row"><span>Membership Fee Income</span><span>'+fmtAmt(totalFees)+'</span></div>' +
+    vendors.map(function(v){ var o=getVendorOutstanding(v.name); return o?'<div class="ledger-row"><span>'+v.name+'</span><span>'+fmtAmt(o)+'</span></div>':''; }).join('') +
+    '<div class="ledger-row" style="font-weight:700;border-top:2px solid var(--border)"><span>Total Credit</span><span>'+fmtAmt(totalDon+totalFees+otherIncome+totalPayable)+'</span></div></div></div>';
+
+  document.getElementById('pl-report').innerHTML = '<div style="display:grid;grid-template-columns:1fr 1fr;gap:18px">' +
+    '<div><div class="section-label" style="color:var(--success)">Income</div>' +
+    '<div class="ledger-row"><span>Donation Collections</span><span class="amount-positive">'+fmtAmt(totalDon)+'</span></div>' +
+    '<div class="ledger-row"><span>Membership Fees</span><span class="amount-positive">'+fmtAmt(totalFees)+'</span></div>' +
+    (otherIncome?'<div class="ledger-row"><span>Other Income</span><span class="amount-positive">'+fmtAmt(otherIncome)+'</span></div>':'') +
+    '<div class="ledger-row" style="font-weight:700;border-top:2px solid var(--border)"><span>Total Income</span><span class="amount-positive">'+fmtAmt(totalIncome)+'</span></div></div>' +
+    '<div><div class="section-label" style="color:var(--danger)">Expenses</div>' +
+    (expLedgerNames.map(function(n){ var a=sumLedgerDr([n]); return a?'<div class="ledger-row"><span>'+n+'</span><span class="amount-negative">'+fmtAmt(a)+'</span></div>':''; }).join('')||'<div style="color:var(--text2);font-size:13px">No expenses</div>') +
+    '<div class="ledger-row" style="font-weight:700;border-top:2px solid var(--border)"><span>Total Expenses</span><span class="amount-negative">'+fmtAmt(totalExp)+'</span></div></div></div>' +
+    '<div style="margin-top:18px;padding:16px;background:var(--saffron-light);border-radius:10px;text-align:center">' +
+    '<div style="font-size:12px;color:var(--text2)">Net Surplus / (Deficit)</div>' +
+    '<div style="font-size:26px;font-weight:800;color:'+(surplus>=0?'var(--success)':'var(--danger)')+'">'+fmtAmt(surplus)+'</div></div>';
+
+  document.getElementById('bs-report').innerHTML = '<div style="display:grid;grid-template-columns:1fr 1fr;gap:18px">' +
+    '<div><div class="section-label">Assets</div>' +
+    '<div class="ledger-row"><span>Cash in Hand</span><span class="amount-positive">'+fmtAmt(cashBal)+'</span></div>' +
+    '<div class="ledger-row"><span>Bank Balance</span><span class="amount-positive">'+fmtAmt(bankBal)+'</span></div>' +
+    investments.map(function(i){ return '<div class="ledger-row"><span>'+i.name+'</span><span>'+fmtAmt(i.principal)+'</span></div>'; }).join('') +
+    '<div class="ledger-row" style="font-weight:700;border-top:2px solid var(--border)"><span>Total Assets</span><span>'+fmtAmt(cashBal+bankBal+totalInvested)+'</span></div></div>' +
+    '<div><div class="section-label">Liabilities &amp; Capital</div>' +
+    '<div class="ledger-row"><span>Opening Balance (FY)</span><span>'+fmtAmt(ob.total||0)+'</span></div>' +
+    '<div class="ledger-row"><span>Current Year Surplus</span><span class="'+(surplus>=0?'amount-positive':'amount-negative')+'">'+fmtAmt(surplus)+'</span></div>' +
+    '<div class="ledger-row"><span>Sundry Creditors Payable</span><span class="amount-negative">'+fmtAmt(totalPayable)+'</span></div>' +
+    '<div class="ledger-row" style="font-weight:700;border-top:2px solid var(--border)"><span>Total Liabilities</span><span>'+fmtAmt((ob.total||0)+surplus+totalPayable)+'</span></div></div></div>';
+
+  populateEventSelects();
+}
+
+// ============================================================
+// FY MANAGEMENT
+// ============================================================
+function calculateClosingBalance(fy) {
+  var s = DB.getObj('settings');
+  var ob = (s.openingBalance&&s.openingBalance[fy])||{cash:0,bank:0,total:0};
+  var cash = getCashBankBalance('Cash in Hand',fy);
+  var bank = getCashBankBalance('Bank Account',fy);
+  var totalIncome=0,totalExp=0;
+  var vouchers = DB.get('vouchers').filter(function(v){ return v.fy===fy; });
+  var ledgers = DB.get('ledgers').filter(function(l){ return l.fy===fy; });
+  var expNames = ledgers.filter(function(l){ return l.type==='expense'; }).map(function(l){ return l.name; });
+  vouchers.forEach(function(v){v.entries.forEach(function(e){
+    if((e.ledger==='Donation Income'||e.ledger==='Membership Fee Income')&&e.type==='credit') totalIncome+=Number(e.amount);
+    if(expNames.indexOf(e.ledger)>-1&&e.type==='debit') totalExp+=Number(e.amount);
+  });});
+  return {cash:cash,bank:bank,total:cash+bank,totalIncome:totalIncome,totalExp:totalExp,surplus:totalIncome-totalExp,opening:ob};
+}
+
+function renderFYOverview() {
+  var closing = calculateClosingBalance(currentFY);
+  var fys = getFYList(); var idx = fys.indexOf(currentFY);
+  var s = DB.getObj('settings');
+  var ob = (s.openingBalance&&s.openingBalance[currentFY])||{cash:0,bank:0,total:0};
+  document.getElementById('fy-overview-stats').innerHTML =
+    '<div class="stat-card green"><div class="stat-label">Opening Balance</div><div class="stat-value">'+fmtAmt(ob.total||0)+'</div><div class="stat-sub">FY '+currentFY+'</div></div>' +
+    '<div class="stat-card blue"><div class="stat-label">Current Cash+Bank</div><div class="stat-value">'+fmtAmt(closing.total)+'</div></div>' +
+    '<div class="stat-card"><div class="stat-label">Total Income</div><div class="stat-value">'+fmtAmt(closing.totalIncome)+'</div></div>' +
+    '<div class="stat-card red"><div class="stat-label">Total Expenses</div><div class="stat-value">'+fmtAmt(closing.totalExp)+'</div></div>';
+  var nextFY = idx < fys.length-1 ? fys[idx+1] : null;
+  document.getElementById('fy-closing-preview').innerHTML = nextFY ?
+    '<div class="alert alert-info">📊 Closing — Cash: <strong>'+fmtAmt(closing.cash)+'</strong> | Bank: <strong>'+fmtAmt(closing.bank)+'</strong> → becomes Opening for <strong>'+nextFY+'</strong></div>' : '';
+  var sabhashad = DB.get('sabhashad');
+  var paid = sabhashad.filter(function(m){ return m.fees&&m.fees[currentFY]&&m.fees[currentFY].paid; }).length;
+  document.getElementById('fee-reset-status').innerHTML = '<div class="alert alert-info">FY '+currentFY+' Fee Status: <strong>'+paid+' Paid</strong> | <strong>'+(sabhashad.length-paid)+' Unpaid</strong> | Total: '+sabhashad.length+'</div>';
+}
+
+function saveOpeningBalance() {
+  var cash = parseFloat(document.getElementById('ob-cash').value)||0;
+  var bank = parseFloat(document.getElementById('ob-bank').value)||0;
+  var s = DB.getObj('settings');
+  if(!s.openingBalance) s.openingBalance = {};
+  s.openingBalance[currentFY] = {cash:cash,bank:bank,total:cash+bank,setAt:now(),setBy:(currentUser&&currentUser.name)||'Admin'};
+  DB.set('settings',s); queueSync('settings',s);
+  showToast('Opening balance saved!','success');
+  addAudit('Opening Balance','FY '+currentFY+': Cash '+fmtAmt(cash)+', Bank '+fmtAmt(bank));
+}
+
+function saveOpeningBalance2() {
+  var cash = parseFloat(document.getElementById('ob-cash2').value)||0;
+  var bank = parseFloat(document.getElementById('ob-bank2').value)||0;
+  var s = DB.getObj('settings');
+  if(!s.openingBalance) s.openingBalance = {};
+  s.openingBalance[currentFY] = {cash:cash,bank:bank,total:cash+bank,setAt:now(),setBy:(currentUser&&currentUser.name)||'Admin'};
+  DB.set('settings',s); queueSync('settings',s);
+  showToast('Opening balance saved!','success');
+  addAudit('Opening Balance','FY '+currentFY+': Cash '+fmtAmt(cash)+', Bank '+fmtAmt(bank));
+}
+
+function loadOpeningBalance() {
+  var s = DB.getObj('settings');
+  var ob = s.openingBalance&&s.openingBalance[currentFY];
+  var cashEl = document.getElementById('ob-cash2');
+  var bankEl = document.getElementById('ob-bank2');
+  if(cashEl) cashEl.value = ob&&ob.cash||0;
+  if(bankEl) bankEl.value = ob&&ob.bank||0;
+  var lbl = document.getElementById('ob-fy-label2'); if(lbl) lbl.textContent = currentFY;
+  var fys = getFYList(); var idx = fys.indexOf(currentFY);
+  var el = document.getElementById('prev-fy-closing-info');
+  if(el && idx > 0) {
+    var prevFY = fys[idx-1]; var closing = calculateClosingBalance(prevFY);
+    el.innerHTML = '<div class="alert alert-info">📊 Previous FY ('+prevFY+') — Cash: <strong>'+fmtAmt(closing.cash)+'</strong> | Bank: <strong>'+fmtAmt(closing.bank)+'</strong>' +
+      '<br><button class="btn btn-sm btn-primary" style="margin-top:8px" onclick="applyPrevClosing(\''+prevFY+'\')">⬇️ Use as Opening for '+currentFY+'</button></div>';
+  } else if(el) { el.innerHTML=''; }
+}
+
+function applyPrevClosing(prevFY) {
+  var closing = calculateClosingBalance(prevFY);
+  var cashEl = document.getElementById('ob-cash2'); var bankEl = document.getElementById('ob-bank2');
+  if(cashEl) cashEl.value = Math.max(0,closing.cash);
+  if(bankEl) bankEl.value = Math.max(0,closing.bank);
+  showToast('Applied! Click Save to confirm.','success');
+}
+
+function renderFYHistory() {
+  var fys = getFYList(); var s = DB.getObj('settings');
+  var relevant = fys.filter(function(fy){ return DB.get('vouchers').some(function(v){ return v.fy===fy; }) || (s.openingBalance&&s.openingBalance[fy]) || fy===currentFY; });
+  var el = document.getElementById('fy-history-list');
+  if(!relevant.length) { el.innerHTML='<div class="empty-state"><div class="icon">📅</div><h3>No FY History</h3></div>'; return; }
+  el.innerHTML = relevant.slice().reverse().map(function(fy){
+    var closing = calculateClosingBalance(fy);
+    var isCurrent = fy===currentFY;
+    var vouchers = DB.get('vouchers').filter(function(v){ return v.fy===fy; });
+    var sab = DB.get('sabhashad'); var feesPaid = sab.filter(function(m){ return m.fees&&m.fees[fy]&&m.fees[fy].paid; }).length;
+    return '<div class="meeting-card"><div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:8px">' +
+      '<div><div style="font-size:16px;font-weight:700">FY '+fy+' '+(isCurrent?'<span class="badge badge-success">Current</span>':'<span class="badge badge-gray">Past</span>')+'</div>' +
+      '<div class="meeting-meta"><span>💰 Income: <strong>'+fmtAmt(closing.totalIncome)+'</strong></span><span>📤 Exp: <strong>'+fmtAmt(closing.totalExp)+'</strong></span><span>📊 Surplus: <strong style="color:'+(closing.surplus>=0?'var(--success)':'var(--danger)')+'">'+fmtAmt(closing.surplus)+'</strong></span></div>' +
+      '<div class="meeting-meta"><span>🧾 Vouchers: '+vouchers.length+'</span><span>👤 Fees Paid: '+feesPaid+'/'+sab.length+'</span></div></div>' +
+      '<button class="btn btn-sm btn-secondary" onclick="selectFY(\''+fy+'\')">View →</button></div></div>';
+  }).join('');
+}
+
+function resetAllFees() {
+  if(!confirm('Reset ALL Sabhashad member fees for FY '+currentFY+' to UNPAID?')) return;
+  var members = DB.get('sabhashad');
+  members.forEach(function(m){ if(!m.fees)m.fees={}; delete m.fees[currentFY]; });
+  DB.set('sabhashad',members); renderFYOverview(); renderSabhashad();
+  addAudit('Fee Reset','All fees reset for FY '+currentFY); showToast('All fees reset','success');
+}
+
+function startNewFY() {
+  if(!currentUser||currentUser.role!=='superadmin') { showToast('Only Super Admin','error'); return; }
+  var fys = getFYList(); var idx = fys.indexOf(currentFY);
+  if(idx >= fys.length-1) { showToast('No next FY available','error'); return; }
+  var nextFY = fys[idx+1]; var closing = calculateClosingBalance(currentFY);
+  if(confirm('Start FY '+nextFY+'?\n\nClosing Balance:\nCash: '+fmtAmt(closing.cash)+'\nBank: '+fmtAmt(closing.bank)+'\n\nThis becomes Opening Balance for '+nextFY+'.')) {
+    var s = DB.getObj('settings');
+    if(!s.closingBalance) s.closingBalance = {};
+    s.closingBalance[currentFY] = Object.assign({},closing,{closedAt:now(),closedBy:currentUser.name});
+    if(!s.openingBalance) s.openingBalance = {};
+    s.openingBalance[nextFY] = {cash:Math.max(0,closing.cash),bank:Math.max(0,closing.bank),total:Math.max(0,closing.total),carriedFrom:currentFY,setAt:now(),setBy:'Auto'};
+    DB.set('settings',s); queueSync('settings',s);
+    addAudit('New FY','Started '+nextFY+'. Closing FY '+currentFY+': Total '+fmtAmt(closing.total));
+    selectFY(nextFY); showToast('✅ FY '+nextFY+' started!','success');
+  }
+}
+
+// ============================================================
+// FEE MODAL
+// ============================================================
+function showFeeModal(id) {
+  var m = DB.get('sabhashad').find(function(x){ return x.id===id; });
+  var feeTypes = getFeeTypes();
+  var ft = feeTypes.find(function(f){ return f.id===m.feeTypeId; });
+  document.getElementById('fee-member-name').textContent = m.name;
+  var fys = getFYList().slice(0, getFYList().indexOf(currentFY)+1).slice().reverse();
+  document.getElementById('fee-years-list').innerHTML = fys.map(function(fy){
+    var fee = m.fees&&m.fees[fy];
+    var allTypes = ((DB.getObj('mandal').feeTypes)||{})[fy]||[];
+    var thisFt = allTypes.find(function(f){ return f.id===m.feeTypeId; })||ft;
+    var minAmt = thisFt&&thisFt.amount||0;
+    return '<div class="fee-type-row" style="flex-direction:column;align-items:flex-start;gap:10px">' +
+      '<div style="display:flex;justify-content:space-between;width:100%;align-items:center">' +
+      '<div><div style="font-weight:700">FY '+fy+'</div><div style="font-size:12px;color:var(--text2)">'+(thisFt?thisFt.name+' — Min: '+fmtAmt(minAmt):'Not set')+'</div></div>' +
+      '<span class="badge '+(fee&&fee.paid?'badge-success':'badge-danger')+'">'+(fee&&fee.paid?'✅ Paid':'❌ Unpaid')+'</span></div>' +
+      (fee&&fee.paid ?
+        '<div style="background:var(--bg);border-radius:8px;padding:10px;width:100%;font-size:12px">' +
+        '<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px">' +
+        '<div><div style="color:var(--text2)">Amount</div><div style="font-weight:700;color:var(--success)">'+fmtAmt(fee.amount)+'</div></div>' +
+        '<div><div style="color:var(--text2)">Mode</div><div>'+fee.mode+'</div></div>' +
+        '<div><div style="color:var(--text2)">Date</div><div>'+fmtDate(fee.date)+'</div></div>' +
+        '<div><div style="color:var(--text2)">Receipt</div><div>'+fee.receipt+'</div></div></div></div>' +
+        '<div style="display:flex;gap:6px">' +
+        '<button class="btn btn-sm btn-secondary" onclick="printFeeReceipt(\''+id+'\',\''+fy+'\')">🖨️ Print</button>' +
+        '<button class="btn btn-sm btn-danger" onclick="unpayFee(\''+id+'\',\''+fy+'\')">↩ Undo</button></div>'
+        :
+        '<div style="background:var(--bg);border-radius:8px;padding:12px;width:100%">' +
+        '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px">' +
+        '<div class="form-group" style="margin:0"><label style="font-size:11px">Amount (Min '+fmtAmt(minAmt)+')</label>' +
+        '<input type="number" id="fee-amt-'+fy+'" min="'+minAmt+'" value="'+minAmt+'" style="padding:7px 10px;border:2px solid var(--border);border-radius:8px;width:100%;font-size:13px"></div>' +
+        '<div class="form-group" style="margin:0"><label style="font-size:11px">Payment Mode</label>' +
+        '<select id="fee-mode-'+fy+'" style="padding:7px 10px;border:2px solid var(--border);border-radius:8px;width:100%;font-size:13px"><option>Cash</option><option>UPI/Online</option><option>Cheque</option><option>Bank Transfer</option></select></div>' +
+        '<div class="form-group" style="margin:0"><label style="font-size:11px">Payment Date</label>' +
+        '<input type="date" id="fee-date-'+fy+'" value="'+new Date().toISOString().split('T')[0]+'" style="padding:7px 10px;border:2px solid var(--border);border-radius:8px;width:100%;font-size:13px"></div>' +
+        '<div class="form-group" style="margin:0"><label style="font-size:11px">Remarks</label>' +
+        '<input type="text" id="fee-remarks-'+fy+'" placeholder="Optional" style="padding:7px 10px;border:2px solid var(--border);border-radius:8px;width:100%;font-size:13px"></div></div>' +
+        '<button class="btn btn-primary btn-sm" onclick="markFeePaid(\''+id+'\',\''+fy+'\','+minAmt+')">✅ Mark as Paid</button></div>'
+      ) + '</div>';
+  }).join('');
+  openModal('modal-sabhashad-fee');
+}
+
+function markFeePaid(memberId, fy, minAmt) {
+  var amtEl = document.getElementById('fee-amt-'+fy);
+  var modeEl = document.getElementById('fee-mode-'+fy);
+  var dateEl = document.getElementById('fee-date-'+fy);
+  var remarksEl = document.getElementById('fee-remarks-'+fy);
+  var paidAmt = parseFloat(amtEl&&amtEl.value)||minAmt;
+  var mode = modeEl&&modeEl.value||'Cash';
+  var date = dateEl&&dateEl.value||new Date().toISOString().split('T')[0];
+  var remarks = remarksEl&&remarksEl.value||'';
+  if(paidAmt < minAmt && minAmt > 0) { showToast('Amount cannot be less than minimum '+fmtAmt(minAmt),'error'); return; }
+  var receipt = 'FEE-'+String(Date.now()).slice(-6);
+  var members = DB.get('sabhashad');
+  var i = members.findIndex(function(x){ return x.id===memberId; });
+  if(i<0) return;
+  if(!members[i].fees) members[i].fees = {};
+  var fee = {paid:true,date:date,receipt:receipt,amount:paidAmt,mode:mode,remarks:remarks,collectedBy:currentUser&&currentUser.name||'Admin'};
+  members[i].fees[fy] = fee;
+  DB.set('sabhashad',members); queueSync('sabhashad',members[i]);
+  autoPostFeeReceipt(members[i], fy, fee);
+  addAudit('Fee Paid',members[i].name+' FY '+fy+': '+fmtAmt(paidAmt)+' via '+mode);
+  showToast('Fee paid! Receipt: '+receipt,'success');
+  showFeeModal(memberId); renderSabhashad(); loadDashboard();
+}
+
+function unpayFee(memberId, fy) {
+  if(!confirm('Undo payment for FY '+fy+'? A reversal Journal entry will be posted.')) return;
+  var members = DB.get('sabhashad');
+  var i = members.findIndex(function(x){ return x.id===memberId; });
+  if(i>-1 && members[i].fees&&members[i].fees[fy]) {
+    reverseFeeReceipt(members[i], fy, members[i].fees[fy]);
+    delete members[i].fees[fy];
+  }
+  DB.set('sabhashad',members); queueSync('sabhashad',members[i]);
+  addAudit('Fee Undo','Reversed '+fy); showToast('Fee reversed','success');
+  showFeeModal(memberId); renderSabhashad(); loadDashboard();
+}
+
+function printFeeReceipt(memberId, fy) {
+  var m = DB.get('sabhashad').find(function(x){ return x.id===memberId; });
+  var fee = m.fees&&m.fees[fy]; if(!fee) return;
+  var mandal = DB.getObj('mandal');
+  document.getElementById('receipt-content').innerHTML = '<div class="receipt"><div class="receipt-header">' +
+    '<div style="font-size:10px;font-weight:700;text-transform:uppercase;color:var(--saffron)">Membership Fee Receipt</div>' +
+    '<div style="font-size:17px;font-weight:800;margin:3px 0">'+(mandal.name||'Mandal Manager')+'</div></div>' +
+    '<div class="receipt-row"><span>Receipt No.</span><strong>'+fee.receipt+'</strong></div>' +
+    '<div class="receipt-row"><span>Member</span><span>'+m.name+'</span></div>' +
+    '<div class="receipt-row"><span>Mobile</span><span>'+m.mobile+'</span></div>' +
+    '<div class="receipt-row"><span>Financial Year</span><span>'+fy+'</span></div>' +
+    '<div class="receipt-row"><span>Date</span><span>'+fmtDate(fee.date)+'</span></div>' +
+    '<div class="receipt-row"><span>Mode</span><span>'+fee.mode+'</span></div>' +
+    '<div class="receipt-row total"><span>Fee Paid</span><strong>'+fmtAmt(fee.amount)+'</strong></div>' +
+    '<div style="margin-top:22px;display:flex;justify-content:space-between;font-size:11px;color:var(--text2)"><span>Collected by: '+fee.collectedBy+'</span><span>Authorised Signature</span></div></div>';
+  closeModal('modal-sabhashad-fee'); openModal('modal-receipt');
+}
+
+// ============================================================
+// USERS
+// ============================================================
+function populateUserModal() {
+  var areas = DB.get('areas');
+  document.getElementById('usr-area').innerHTML = '<option value="">All Areas</option>' + areas.map(function(a){ return '<option value="'+a.id+'">'+a.name+'</option>'; }).join('');
+}
+
+function toggleUserRole(val) { document.getElementById('collector-area-field').style.display = val==='collector'?'block':'none'; }
+
+function saveUser() {
+  var name = document.getElementById('usr-name').value.trim();
+  var username = document.getElementById('usr-username').value.trim();
+  var password = document.getElementById('usr-password').value.trim();
+  var role = document.getElementById('usr-role').value;
+  if(!name||!username||!password) { showToast('Name, username and password required','error'); return; }
+  var exists = DB.get('users').find(function(u){ return u.username===username && u.id!==editingId; });
+  if(exists) { showToast('Username already exists','error'); return; }
+  var user = {id:editingId||uid(),name:name,username:username,password:password,role:role,
+    mobile:document.getElementById('usr-mobile').value,email:document.getElementById('usr-email').value,
+    area:document.getElementById('usr-area').value,status:'active',createdAt:now()};
+  if(editingId) DB.update('users',editingId,user); else DB.push('users',user);
+  queueSync('users',user); closeModal('modal-user'); renderUsers();
+  addAudit('Users',(editingId?'Updated':'Added')+' '+name); showToast('User saved!','success');
+}
+
+function renderUsers() {
+  populateUserModal();
+  var users = DB.get('users');
+  var roleLabels = {superadmin:'Super Admin',admin:'Admin',collector:'Collector',viewer:'Viewer'};
+  document.getElementById('users-table').innerHTML = users.map(function(u){
+    return '<tr><td><strong>'+u.name+'</strong></td><td>'+u.username+'</td>' +
+      '<td><span class="badge badge-info">'+(roleLabels[u.role]||u.role)+'</span></td>' +
+      '<td>'+(u.mobile||'—')+'</td>' +
+      '<td><span class="badge '+(u.status==='active'?'badge-success':'badge-danger')+'">'+u.status+'</span></td>' +
+      '<td><button class="btn btn-sm btn-secondary" onclick="editUser(\''+u.id+'\')">✏️</button> ' +
+      '<button class="btn btn-sm btn-warning" onclick="toggleUserStatus(\''+u.id+'\',\''+u.status+'\')">'+( u.status==='active'?'Deactivate':'Activate')+'</button>' +
+      (currentUser&&currentUser.role==='superadmin'&&u.id!==currentUser.id?' <button class="btn btn-sm btn-danger" onclick="deleteItem(\'users\',\''+u.id+'\',renderUsers)">🗑️</button>':'') + '</td></tr>';
+  }).join('');
+}
+
+function editUser(id) {
+  var u = DB.get('users').find(function(x){ return x.id===id; });
+  editingId = id;
+  document.getElementById('modal-user-title').textContent = 'Edit User';
+  openModal('modal-user');
+  setTimeout(function(){
+    populateUserModal();
+    document.getElementById('usr-name').value = u.name;
+    document.getElementById('usr-mobile').value = u.mobile||'';
+    document.getElementById('usr-email').value = u.email||'';
+    document.getElementById('usr-username').value = u.username;
+    document.getElementById('usr-password').value = u.password;
+    document.getElementById('usr-role').value = u.role;
+    document.getElementById('usr-area').value = u.area||'';
+    toggleUserRole(u.role);
+  }, 60);
+}
+
+function toggleUserStatus(id, status) { DB.update('users',id,{status:status==='active'?'inactive':'active'}); renderUsers(); showToast('Status updated'); }
+
+// ============================================================
+// AUDIT
+// ============================================================
+function renderAudit() {
+  var logs = DB.get('audit').slice().reverse().slice(0,100);
+  var el = document.getElementById('audit-log-list');
+  el.innerHTML = logs.length ? logs.map(function(l){
+    return '<div class="audit-item"><div class="audit-dot"></div><div><div><strong>'+l.action+'</strong> — '+l.detail+'</div><div style="color:var(--text2);font-size:11px">👤 '+l.user+' | 🕒 '+new Date(l.time).toLocaleString('en-IN')+'</div></div></div>';
+  }).join('') : '<div class="empty-state"><div class="icon">📝</div><h3>No Audit Logs</h3></div>';
+}
+
+// ============================================================
+// DASHBOARD
+// ============================================================
+function loadDashboard() {
+  var vouchers = DB.get('vouchers').filter(function(v){ return v.fy===currentFY; });
+  var sabhashad = DB.get('sabhashad');
+  var committee = DB.get('committee').filter(function(c){ return c.fy===currentFY; });
+  var events = DB.get('events').filter(function(e){ return e.fy===currentFY&&e.status==='Active'; });
+  var areas = DB.get('areas');
+  var vendors = DB.get('vendors');
+  var investments = DB.get('investments');
+  var totalDon=0, totalExp=0;
+  var ledgers = DB.get('ledgers').filter(function(l){ return l.type==='expense'&&l.fy===currentFY; });
+  var expNames = ledgers.map(function(l){ return l.name; });
+  vouchers.forEach(function(v){v.entries.forEach(function(e){
+    if(e.ledger==='Donation Income'&&e.type==='credit') totalDon+=Number(e.amount);
+    if(expNames.indexOf(e.ledger)>-1&&e.type==='debit') totalExp+=Number(e.amount);
+  });});
+  var totalOutstanding = vendors.reduce(function(s,v){ return s+getVendorOutstanding(v.name); },0);
+  var totalInvested = investments.reduce(function(s,i){ return s+Number(i.principal||0); },0);
+  document.getElementById('dash-total-donations').textContent = fmtAmt(totalDon);
+  document.getElementById('dash-sabhashad').textContent = sabhashad.length;
+  document.getElementById('dash-committee').textContent = committee.length;
+  document.getElementById('dash-events').textContent = events.length;
+  document.getElementById('dash-expenses').textContent = fmtAmt(totalExp);
+  document.getElementById('dash-outstanding').textContent = fmtAmt(totalOutstanding);
+  document.getElementById('dash-investments').textContent = fmtAmt(totalInvested);
+  var feePaid = sabhashad.filter(function(m){ return m.fees&&m.fees[currentFY]&&m.fees[currentFY].paid; }).length;
+  document.getElementById('dash-fee-paid').textContent = feePaid;
+  document.getElementById('dash-fee-total').textContent = sabhashad.length;
+  var donations = DB.get('donations').filter(function(d){ return d.fy===currentFY; });
+  var totalFlats=0, paidFlats=0;
+  var paidKeys = new Set(donations.filter(function(d){ return d.flatKey; }).map(function(d){ return d.flatKey; }));
+  areas.forEach(function(a){ var items=a.type==='building'?a.flats:a.rooms; totalFlats+=(items&&items.length||0); (items||[]).forEach(function(i){ if(paidKeys.has(i.key))paidFlats++; }); });
+  document.getElementById('dash-pending').textContent = totalFlats - paidFlats;
+  var allEvents = DB.get('events').filter(function(e){ return e.fy===currentFY; });
+  var barEl = document.getElementById('bar-chart'); var labelsEl = document.getElementById('bar-labels');
+  if(allEvents.length) {
+    var maxAmt = Math.max.apply(null, allEvents.map(function(e){ return donations.filter(function(d){ return d.eventId===e.id; }).reduce(function(s,d){ return s+Number(d.amount); },0); }).concat([1]));
+    barEl.innerHTML = allEvents.map(function(e){
+      var amt = donations.filter(function(d){ return d.eventId===e.id; }).reduce(function(s,d){ return s+Number(d.amount); },0);
+      var h = Math.max(4,(amt/maxAmt)*160);
+      return '<div class="chart-bar" style="height:'+h+'px"><div class="tip">'+e.name+': '+fmtAmt(amt)+'</div></div>';
+    }).join('');
+    labelsEl.innerHTML = allEvents.map(function(e){ return '<div class="chart-label">'+e.name.substring(0,8)+'</div>'; }).join('');
+  } else { barEl.innerHTML='<div style="color:var(--text2);font-size:13px;padding:20px;text-align:center;width:100%">No events yet</div>'; }
+  var paid2=paidFlats, pending2=totalFlats-paidFlats, total2=paid2+pending2||1;
+  var p1=(paid2/total2)*100, p2=(pending2/total2)*100;
+  document.getElementById('pie-chart').innerHTML =
+    '<circle r="15.9" cx="21" cy="21" fill="transparent" stroke="#2ECC71" stroke-width="10" stroke-dasharray="'+p1+' '+(100-p1)+'" stroke-dashoffset="25" transform="rotate(-90 21 21)"/>' +
+    '<circle r="15.9" cx="21" cy="21" fill="transparent" stroke="#E74C3C" stroke-width="10" stroke-dasharray="'+p2+' '+(100-p2)+'" stroke-dashoffset="'+(25-p1)+'" transform="rotate(-90 21 21)"/>';
+  document.getElementById('pie-legend').innerHTML =
+    '<div class="pie-legend-item"><div class="pie-dot" style="background:var(--success)"></div>Paid ('+paid2+')</div>' +
+    '<div class="pie-legend-item"><div class="pie-dot" style="background:var(--danger)"></div>Pending ('+pending2+')</div>';
+  var donorMap = {};
+  donations.forEach(function(d){ var k=d.donorName||'Unknown'; donorMap[k]=(donorMap[k]||0)+Number(d.amount||0); });
+  var topDonors = Object.entries(donorMap).sort(function(a,b){ return b[1]-a[1]; }).slice(0,5);
+  document.getElementById('top-donors-list').innerHTML = topDonors.length ? topDonors.map(function(item,i){
+    return '<div class="ledger-row"><div style="display:flex;align-items:center;gap:10px"><div style="width:26px;height:26px;border-radius:50%;background:var(--saffron);color:white;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:11px">'+(i+1)+'</div><span>'+item[0]+'</span></div><strong>'+fmtAmt(item[1])+'</strong></div>';
+  }).join('') : '<div style="color:var(--text2);text-align:center;padding:14px;font-size:13px">No donations yet</div>';
+}
+
+// ============================================================
+// GOOGLE SYNC
+// ============================================================
+var syncInProgress = false;
+var syncTimer = null;
+
+function getGasUrl() { var s=DB.getObj('settings'); return s.gasUrl||''; }
+
+function queueSync(sheetName, record) {
+  var q = DB.get('syncQueue');
+  q.push({id:uid(),sheet:sheetName,record:record,attempts:0,queuedAt:now()});
+  DB.set('syncQueue',q); updateSyncBadge(); scheduleSyncRun();
+}
+
+function scheduleSyncRun() { if(syncTimer) return; syncTimer=setTimeout(function(){ syncTimer=null; runSync(); },3000); }
+
+function updateSyncBadge() {
+  var q = DB.get('syncQueue').length;
+  var badge = document.getElementById('sync-badge');
+  if(!badge) return;
+  if(q>0){badge.style.display='inline-flex';badge.textContent=q;}else{badge.style.display='none';}
+}
+
+async function runSync() {
+  var url = getGasUrl();
+  if(!url){updateSyncBadge();return;}
+  if(syncInProgress) return;
+  syncInProgress = true; setSyncStatus('syncing');
+  try {
+    var queue = DB.get('syncQueue'); var remaining = [];
+    for(var i=0;i<queue.length;i++) {
+      var item = queue[i];
+      try {
+        var res = await fetch(url,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify({action:'upsertRow',sheet:item.sheet,record:item.record})});
+        var data = await res.json();
+        if(!data.ok){item.attempts++;if(item.attempts<5)remaining.push(item);}
+      } catch(e){item.attempts++;if(item.attempts<5)remaining.push(item);}
+    }
+    DB.set('syncQueue',remaining);
+    setSyncStatus(remaining.length>0?'partial':'synced');
+  } catch(e){setSyncStatus('error');}
+  syncInProgress=false; updateSyncBadge();
+  if(DB.get('syncQueue').length>0) scheduleSyncRun();
+}
+
+function setSyncStatus(status) {
+  var el=document.getElementById('sync-status-text'); if(!el) return;
+  var map={syncing:'🔄 Syncing...',synced:'✅ Synced to Google Sheets',partial:'⚠️ Partial sync, retrying...',error:'❌ Sync error',off:'⚪ Not connected'};
+  el.textContent=map[status]||status;
+}
+
+function saveGasUrl() {
+  var url=document.getElementById('gas-url-input').value.trim();
+  var s=DB.getObj('settings'); s.gasUrl=url; DB.set('settings',s);
+  showToast(url?'Connection saved!':'Connection removed','success');
+  setSyncStatus(url?'synced':'off'); if(url) runSync();
+}
+
+function testGasConnection() {
+  var url=getGasUrl(); if(!url){showToast('Enter the URL first','error');return;}
+  setSyncStatus('syncing');
+  fetch(url,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify({action:'ping'})})
+    .then(function(r){return r.json();})
+    .then(function(d){if(d.ok){showToast('Connected!','success');setSyncStatus('synced');}else{showToast('Failed: '+(d.error||'unknown'),'error');setSyncStatus('error');}})
+    .catch(function(e){showToast('Failed: '+e.message,'error');setSyncStatus('error');});
+}
+
+function forceSyncNow() {
+  showToast('Starting full sync...');
+  var colls=['mandal','users','committee','sabhashad','areas','events','donations','vouchers','vendors','investments','ledgers','meetings','audit'];
+  colls.forEach(function(coll){
+    var items=coll==='mandal'?[DB.getObj('mandal')]:DB.get(coll);
+    items.forEach(function(rec){if(rec&&(rec.id||coll==='mandal'))queueSync(coll,rec);});
+  });
+  runSync();
+}
+
+function renderSyncQueueList() {
+  var el=document.getElementById('sync-queue-list'); if(!el) return;
+  var dataQ=DB.get('syncQueue'); var url=getGasUrl();
+  document.getElementById('gas-url-input').value=url;
+  setSyncStatus(url?(dataQ.length>0?'partial':'synced'):'off');
+  if(!dataQ.length){el.innerHTML='<div class="alert alert-success">✅ Nothing pending. All synced.</div>';return;}
+  el.innerHTML='<div class="alert alert-warning">⏳ '+dataQ.length+' record(s) waiting.</div>' +
+    dataQ.slice(0,20).map(function(q){ return '<div class="ledger-row"><span>📄 '+q.sheet+' — '+(q.record&&(q.record.id||q.record.name)||'record')+'</span><span class="badge badge-warning">Attempt '+q.attempts+'</span></div>'; }).join('');
+}
+
+// ============================================================
+// BACKUP & RESTORE
+// ============================================================
+function exportBackup() {
+  var keys=['mandal','users','committee','sabhashad','areas','events','donations','vouchers','vendors','investments','meetings','ledgers','audit','settings'];
+  var data={_exportedAt:now(),_version:'3.0'};
+  keys.forEach(function(k){try{data[k]=JSON.parse(localStorage.getItem('mm_'+k));}catch(e){}});
+  var blob=new Blob([JSON.stringify(data,null,2)],{type:'application/json'});
+  var url=URL.createObjectURL(blob);
+  var a=document.createElement('a'); a.href=url; a.download='mandal-backup-'+new Date().toISOString().split('T')[0]+'.json'; a.click();
+  URL.revokeObjectURL(url); addAudit('Backup','Data exported'); showToast('Backup downloaded!','success');
+}
+
+function importBackup() {
+  var file=document.getElementById('restore-file').files[0];
+  if(!file){showToast('Select a file first','error');return;}
+  if(!confirm('This will REPLACE all data. Continue?'))return;
+  var r=new FileReader();
+  r.onload=function(e){
+    try{
+      var data=JSON.parse(e.target.result);
+      Object.entries(data).forEach(function(entry){ if(!entry[0].startsWith('_')) localStorage.setItem('mm_'+entry[0],JSON.stringify(entry[1])); });
+      addAudit('Restore','Data restored'); showToast('Restored! Refreshing...','success');
+      setTimeout(function(){location.reload();},1500);
+    }catch(e){showToast('Invalid file','error');}
+  };
+  r.readAsText(file);
+}
+
+function deleteItem(collection, id, callback) {
+  if(confirm('Delete this record?')){
+    DB.delete(collection,id); if(callback)callback(); showToast('Deleted');
+    addAudit('Delete','Removed from '+collection);
+  }
+}
+
+function filterTable(tableId, val) {
+  document.querySelectorAll('#'+tableId+' tr').forEach(function(r){
+    r.style.display=r.textContent.toLowerCase().indexOf(val.toLowerCase())>-1?'':'none';
+  });
+}
+
+function filterTableCol(tableId, colIdx, val) {
+  document.querySelectorAll('#'+tableId+' tr').forEach(function(r){
+    r.style.display=(!val||r.cells[colIdx]&&r.cells[colIdx].textContent.indexOf(val)>-1)?'':'none';
+  });
+}
+
+// ============================================================
+// START
+// ============================================================
+try {
+  initApp();
+} catch(e) {
+  console.error('initApp error:', e);
+  document.body.innerHTML = '<div style="padding:40px;font-family:sans-serif;max-width:600px;margin:40px auto;background:white;border-radius:16px;box-shadow:0 4px 20px rgba(0,0,0,0.1)">' +
+    '<h2 style="color:#E74C3C">⚠️ Startup Error</h2>' +
+    '<p style="color:#666;margin-top:10px">Error: <strong>' + e.message + '</strong></p>' +
+    '<p style="color:#666;margin-top:10px">Open browser DevTools (F12) → Console tab for details.</p>' +
+    '<p style="color:#666;margin-top:10px">Or try serving the file via a local server instead of opening directly.</p></div>';
+}
+
+document.addEventListener('DOMContentLoaded', function(){
+  var lu = document.getElementById('login-user'); if(lu) lu.focus();
+});
+</script>
+</body>
+</html>
