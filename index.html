@@ -1064,15 +1064,28 @@ function populateFYSelects() {
   // Term/FY selection removed — committee members now persist across all years
 }
   
-function doLogin() {
+async function doLogin() {
   var u = document.getElementById('login-user').value.trim().toLowerCase();
   var p = document.getElementById('login-pass').value.trim();
-  // Debug - remove after fixing
-  alert('User: [' + u + '] Pass: [' + p + '] Users: ' + JSON.stringify(DB.get('users').map(function(x){return {u:x.username,p:x.password,s:x.status};})));
   var errEl = document.getElementById('login-error');
+  errEl.style.display = 'none';
+
+  // Pull latest users from Sheets first, so password changes made
+  // on other devices are recognized immediately, not just after login.
+  if (getGasUrl()) {
+    try {
+      var res = await fetch(getGasUrl(), {
+        method: 'POST',
+        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        body: JSON.stringify({ action: 'getAll', since: null })
+      });
+      var resp = await res.json();
+      if (resp.ok && resp.data) { mergeRemoteData(resp.data); }
+    } catch (e) { /* offline or unreachable — fall back to local cache below */ }
+  }
+
   var user = DB.get('users').find(function(x){ return x.username===u && x.password===p && x.status==='active'; });
   if(!user) { errEl.style.display='block'; errEl.textContent='Invalid username or password.'; return; }
-  errEl.style.display = 'none';
   currentUser = user;
   document.getElementById('login-screen').style.display = 'none';
   document.getElementById('app').style.display = 'block';
@@ -1084,7 +1097,6 @@ function doLogin() {
   loadDashboard();
   addAudit('Login', 'User logged in');
   startLivePolling();
-
 }
 
 function doLogout() {
