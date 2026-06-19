@@ -205,6 +205,9 @@ body.offline-mode .sidebar{margin-top:38px}
     <div class="form-group"><label>Password</label><input type="password" id="login-pass" placeholder="Enter password" autocapitalize="off" autocorrect="off" spellcheck="false"></div>
     <button class="btn btn-primary btn-full" onclick="doLogin()">Sign In →</button>
     <p style="text-align:center;margin-top:14px;font-size:12px;color:var(--text2)">Default: admin / admin123</p>
+    <p style="text-align:center;margin-top:10px">
+      <a href="#" onclick="clearCacheFromLoginScreen();return false;" style="font-size:12px;color:var(--saffron);text-decoration:underline">🧹 Having trouble? Clear cached data on this device</a>
+    </p>
   </div>
 </div>
 
@@ -279,7 +282,10 @@ body.offline-mode .sidebar{margin-top:38px}
     <div class="card"><div class="card-header"><div class="card-title">Donations by Event</div></div><div class="chart-container" id="bar-chart"></div><div class="chart-labels" id="bar-labels"></div></div>
     <div class="card"><div class="card-header"><div class="card-title">Collection Status</div></div><div class="pie-container"><svg width="110" height="110" id="pie-chart" viewBox="0 0 42 42"></svg><div class="pie-legend" id="pie-legend"></div></div></div>
   </div>
-  <div class="card" style="margin-top:18px"><div class="card-header"><div class="card-title">🏆 Top Donors</div></div><div id="top-donors-list"></div></div>
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:18px;margin-top:18px" class="chart-grid">
+    <div class="card"><div class="card-header"><div class="card-title">🏆 Top Sabhashad (Fee Payers)</div></div><div id="top-sabhashad-list"></div></div>
+    <div class="card"><div class="card-header"><div class="card-title">💰 Top Event Donors</div></div><div id="top-event-donors-list"></div></div>
+  </div>
 </div>
 
 <!-- MANDAL PROFILE -->
@@ -596,6 +602,8 @@ body.offline-mode .sidebar{margin-top:38px}
   </div>
   <div class="card" id="superadmin-only-wipe-card">
     <div class="card-header"><div class="card-title">🧨 Wipe All Data &amp; Start Fresh</div></div>
+    <div class="alert alert-danger">⚠️ Permanently deletes ALL data — local, Google Sheets, and Drive files — for every user. Cannot be undone.</div>
+    <button class="btn btn-danger" onclick="wipeAllData()">🧨 Wipe All Data &amp; Start Fresh</button>
   </div>
 </div>
 
@@ -1025,7 +1033,29 @@ function uid() { return Date.now().toString(36) + Math.random().toString(36).sli
 function now() { return new Date().toISOString(); }
 function fmtDate(d) { if(!d) return '—'; try { return new Date(d).toLocaleDateString('en-IN'); } catch(e) { return d; } }
 function fmtAmt(n) { return '₹' + Number(n||0).toLocaleString('en-IN'); }
-function getFYList() { var s=2022, e=2032; var r=[]; for(var i=s;i<e;i++) r.push(i+'-'+(i+1).toString().slice(2)); return r; }
+function getFYList() {
+  var s = DB.getObj('settings');
+  var extra = s.extraFYs || []; // years added manually beyond the generated range
+  var start = 2026, end = 2036; // FY list now begins at 2026-27
+  var r = [];
+  for(var i = start; i < end; i++) r.push(i + '-' + (i + 1).toString().slice(2));
+  extra.forEach(function(fy){ if(r.indexOf(fy) === -1) r.push(fy); });
+  return r.sort();
+}
+
+function createNewFY() {
+  var fys = getFYList();
+  var lastYear = parseInt(fys[fys.length - 1].split('-')[0]);
+  var nextFY = (lastYear + 1) + '-' + (lastYear + 2).toString().slice(2);
+  if(fys.indexOf(nextFY) > -1) { showToast(nextFY + ' already exists', 'error'); return; }
+  var s = DB.getObj('settings');
+  if(!s.extraFYs) s.extraFYs = [];
+  s.extraFYs.push(nextFY);
+  DB.set('settings', s); queueSync('settings', s);
+  addAudit('FY Created', 'Added ' + nextFY + ' to FY list');
+  showToast(nextFY + ' added!', 'success');
+  showFYModal();
+}
 
 function parseLocalDate(dateStr) {
   var p = dateStr.split('-');
@@ -1057,16 +1087,6 @@ function fyDateError(dateStr) {
     '. Please change FY from top bar!',
     'error'
   );
-}
-  
-function fyDateError(dateStr) {
-  var d = new Date(dateStr);
-  var dYear = d.getFullYear();
-  var dMonth = d.getMonth();
-  var belongsToFY = dMonth >= 3
-    ? dYear + '-' + (dYear+1).toString().slice(2)
-    : (dYear-1) + '-' + dYear.toString().slice(2);
-  showToast('⚠️ Date belongs to FY ' + belongsToFY + '. Please change FY from top bar first!', 'error');
 }
   
 function showToast(msg, type) {
@@ -1317,7 +1337,7 @@ function showFYModal() {
     return '<div style="display:flex;align-items:center;justify-content:space-between;padding:9px 0;border-bottom:1px solid var(--border)">' +
       '<span style="font-weight:'+(f===currentFY?'700':'400')+'">'+ f + (f===currentFY?' ✓ Current':'') +'</span>' +
       '<button class="btn btn-sm '+(f===currentFY?'btn-primary':'btn-secondary')+'" onclick="selectFY(\''+f+'\')">Select</button></div>';
-  }).join('');
+  }).join('') + '<button class="btn btn-primary btn-full" style="margin-top:14px" onclick="createNewFY()">+ Create Next Financial Year</button>';
   openModal('modal-fy');
 }
 
@@ -1683,6 +1703,7 @@ function toggleSlumType(val) {
 async function saveArea() {
   if(!await guardAgainstStaleWipe()) return;
   var type = document.getElementById('area-type').value;
+  var name = document.getElementById('area-name').value.trim();
   if(!name) { showToast('Area name required','error'); return; }
   var isEditing = !!editingId;
   var area = {id:editingId||uid(),type:type,name:name,zone:document.getElementById('area-zone').value,createdAt:now()};
@@ -3127,12 +3148,23 @@ function loadDashboard() {
   document.getElementById('pie-legend').innerHTML =
     '<div class="pie-legend-item"><div class="pie-dot" style="background:var(--success)"></div>Paid ('+paid2+')</div>' +
     '<div class="pie-legend-item"><div class="pie-dot" style="background:var(--danger)"></div>Pending ('+pending2+')</div>';
-  var donorMap = {};
-  donations.forEach(function(d){ var k=d.donorName||'Unknown'; donorMap[k]=(donorMap[k]||0)+Number(d.amount||0); });
-  var topDonors = Object.entries(donorMap).sort(function(a,b){ return b[1]-a[1]; }).slice(0,5);
-  document.getElementById('top-donors-list').innerHTML = topDonors.length ? topDonors.map(function(item,i){
+  // Top Event Donors — donations recorded against an event/flat/direct donor
+  var eventDonorMap = {};
+  donations.forEach(function(d){ var k=d.donorName||'Unknown'; eventDonorMap[k]=(eventDonorMap[k]||0)+Number(d.amount||0); });
+  var topEventDonors = Object.entries(eventDonorMap).sort(function(a,b){ return b[1]-a[1]; }).slice(0,5);
+  document.getElementById('top-event-donors-list').innerHTML = topEventDonors.length ? topEventDonors.map(function(item,i){
     return '<div class="ledger-row"><div style="display:flex;align-items:center;gap:10px"><div style="width:26px;height:26px;border-radius:50%;background:var(--saffron);color:white;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:11px">'+(i+1)+'</div><span>'+item[0]+'</span></div><strong>'+fmtAmt(item[1])+'</strong></div>';
   }).join('') : '<div style="color:var(--text2);text-align:center;padding:14px;font-size:13px">No donations yet</div>';
+
+  // Top Sabhashad — ranked by their current-FY membership fee paid
+  var sabFeeRanked = sabhashad
+    .map(function(m){ var fee = m.fees && m.fees[currentFY]; return {name:m.name, amount: fee&&fee.paid ? Number(fee.amount||0) : 0}; })
+    .filter(function(x){ return x.amount > 0; })
+    .sort(function(a,b){ return b.amount-a.amount; })
+    .slice(0,5);
+  document.getElementById('top-sabhashad-list').innerHTML = sabFeeRanked.length ? sabFeeRanked.map(function(item,i){
+    return '<div class="ledger-row"><div style="display:flex;align-items:center;gap:10px"><div style="width:26px;height:26px;border-radius:50%;background:var(--info);color:white;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:11px">'+(i+1)+'</div><span>'+item.name+'</span></div><strong>'+fmtAmt(item.amount)+'</strong></div>';
+  }).join('') : '<div style="color:var(--text2);text-align:center;padding:14px;font-size:13px">No fees paid yet this FY</div>';
 }
 
 // ============================================================
@@ -3393,13 +3425,37 @@ function renderSyncQueueList() {
 // BACKUP & RESTORE
 // ============================================================
 function exportBackup() {
+  showToast('Preparing backup — this may take a moment...');
   var keys=['mandal','users','committee','sabhashad','areas','events','donations','vouchers','vendors','investments','meetings','ledgers','audit','settings','bankaccounts'];
-  var data={_exportedAt:now(),_version:'3.0'};
+  var data={_exportedAt:now(),_version:'3.1'};
   keys.forEach(function(k){try{data[k]=JSON.parse(localStorage.getItem('mm_'+k));}catch(e){}});
+
+  // Count files that only exist on Drive (no local dataUrl) so the user
+  // knows this JSON won't contain their actual bytes.
+  var driveOnlyCount = 0, localFileCount = 0;
+  function scanFiles(obj){
+    if(!obj) return;
+    if(Array.isArray(obj)){ obj.forEach(scanFiles); return; }
+    if(typeof obj === 'object'){
+      if(obj.driveLink && !obj.dataUrl) driveOnlyCount++;
+      else if(obj.dataUrl) localFileCount++;
+      Object.values(obj).forEach(scanFiles);
+    }
+  }
+  scanFiles(data.mandal && data.mandal.documents);
+  scanFiles(data.mandal && data.mandal.qrCode ? {qrCode:data.mandal.qrCode} : null);
+  scanFiles(data.vouchers);
+
   var blob=new Blob([JSON.stringify(data,null,2)],{type:'application/json'});
   var url=URL.createObjectURL(blob);
   var a=document.createElement('a'); a.href=url; a.download='mandal-backup-'+new Date().toISOString().split('T')[0]+'.json'; a.click();
-  URL.revokeObjectURL(url); addAudit('Backup','Data exported'); showToast('Backup downloaded!','success');
+  URL.revokeObjectURL(url);
+  addAudit('Backup','Data exported ('+localFileCount+' files embedded, '+driveOnlyCount+' on Drive only)');
+  if(driveOnlyCount > 0) {
+    showToast('Backup downloaded! Note: '+driveOnlyCount+' uploaded file(s) live on Google Drive only and are NOT inside this JSON — back up your Drive folder separately.','warning');
+  } else {
+    showToast('Backup downloaded! All '+localFileCount+' file(s) embedded.','success');
+  }
 }
 
 function importBackup() {
@@ -3536,6 +3592,16 @@ async function guardAgainstStaleWipe() {
   } catch(e) {
     return true; // network hiccup on the check itself — don't block on a flaky check
   }
+}
+
+function clearCacheFromLoginScreen() {
+  if(!confirm('Clear all data cached on THIS device (local copy only) and reload?\n\nThis does NOT touch Google Sheets/Drive. Use this if the device is showing old/wrong data or before handing it to someone else.')) return;
+  var keysToWipe = ['mandal','committee','sabhashad','areas','events','donations','vouchers',
+    'vendors','investments','ledgers','meetings','audit','settings','bankaccounts','syncQueue','wipeEpochSeen'];
+  keysToWipe.forEach(function(k){ localStorage.removeItem('mm_'+k); });
+  document.getElementById('login-error').style.display='none';
+  alert('Cache cleared. The page will now reload.');
+  location.reload();
 }
 
 function clearLocalCacheAndResync() {
