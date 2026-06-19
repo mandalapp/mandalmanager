@@ -156,6 +156,14 @@ tr:hover td{background:var(--saffron-light)}
 .page.active{display:block}
 .audit-item{display:flex;gap:10px;padding:10px 0;border-bottom:1px solid var(--border);font-size:12px}
 .audit-dot{width:7px;height:7px;border-radius:50%;background:var(--saffron);margin-top:4px;flex-shrink:0}
+.role-chip{display:inline-block;background:var(--saffron-light);color:var(--saffron);border:1px solid var(--saffron);border-radius:6px;padding:2px 8px;font-size:11px;font-weight:700;margin:2px 4px 2px 0}
+.role-checkbox-row{display:flex;align-items:center;gap:8px;padding:8px 10px;border:2px solid var(--border);border-radius:8px;margin-bottom:6px;cursor:pointer}
+.role-checkbox-row:hover{border-color:var(--saffron)}
+.role-checkbox-row input{width:16px;height:16px;accent-color:var(--saffron)}
+.stale-banner{position:fixed;top:0;left:0;right:0;background:var(--danger);color:white;text-align:center;padding:10px;font-size:13px;font-weight:700;z-index:99999;display:none}
+body.offline-mode .topbar{margin-top:38px}
+body.offline-mode .sidebar{margin-top:38px}
+@media(max-width:768px){.stale-banner{font-size:11px;padding:8px 6px}body.offline-mode .topbar{margin-top:50px}body.offline-mode .sidebar{margin-top:50px}}
 .chart-container{position:relative;height:180px;display:flex;align-items:flex-end;gap:6px;padding:0 4px}
 .chart-bar{flex:1;background:var(--saffron);border-radius:4px 4px 0 0;opacity:.8;min-height:4px;position:relative;cursor:pointer}
 .chart-bar:hover{opacity:1}
@@ -186,6 +194,7 @@ tr:hover td{background:var(--saffron-light)}
 </head>
 <body>
 <div class="toast" id="toast"></div>
+<div class="stale-banner" id="offline-banner">⚠️ You're offline — showing last-synced data, which may be outdated. Reconnect to see the latest.</div>
 
 <!-- LOGIN -->
 <div id="login-screen">
@@ -209,26 +218,26 @@ tr:hover td{background:var(--saffron-light)}
       <p id="mandal-sidebar-loc">Setup Mandal Profile</p>
       <div class="fy-badge" id="current-fy-badge">FY 2025-26</div>
     </div>
-    <div class="nav-section">Main</div>
-    <div class="nav-item active" onclick="showPage('dashboard')"><span class="icon">📊</span>Dashboard</div>
-    <div class="nav-section">Masters</div>
-    <div class="nav-item" onclick="showPage('mandal-profile')"><span class="icon">🏛️</span>Mandal Profile</div>
-    <div class="nav-item" onclick="showPage('committee')"><span class="icon">👥</span>Committee Members</div>
-    <div class="nav-item" onclick="showPage('sabhashad')"><span class="icon">👤</span>General Sabhashad</div>
-    <div class="nav-item" onclick="showPage('collection-area')"><span class="icon">🏘️</span>Collection Area</div>
-    <div class="nav-section">Operations</div>
-    <div class="nav-item" onclick="showPage('events')"><span class="icon">🎉</span>Events</div>
-    <div class="nav-item" onclick="showPage('donations')"><span class="icon">💰</span>Donation Collection</div>
-    <div class="nav-item" onclick="showPage('meetings')"><span class="icon">📋</span>Meetings</div>
-    <div class="nav-section">Accounting</div>
-    <div class="nav-item" onclick="showPage('accounts')"><span class="icon">📒</span>Account Master</div>
-    <div class="nav-item" onclick="showPage('vouchers')"><span class="icon">🧾</span>Vouchers</div>
-    <div class="nav-item" onclick="showPage('fy-management')"><span class="icon">📅</span>FY Management</div>
-    <div class="nav-item" onclick="showPage('financials')"><span class="icon">📈</span>Financial Reports</div>
-    <div class="nav-section">Admin</div>
-    <div class="nav-item" onclick="showPage('users')"><span class="icon">🔐</span>User Management</div>
-    <div class="nav-item" onclick="showPage('audit')"><span class="icon">📝</span>Audit Log</div>
-    <div class="nav-item" onclick="showPage('backup')"><span class="icon">💾</span>Backup &amp; Restore</div>
+    <div class="nav-section nav-sec" data-sec="main">Main</div>
+    <div class="nav-item active" data-page="dashboard" onclick="showPage('dashboard')"><span class="icon">📊</span>Dashboard</div>
+    <div class="nav-section nav-sec" data-sec="masters">Masters</div>
+    <div class="nav-item" data-page="mandal-profile" onclick="showPage('mandal-profile')"><span class="icon">🏛️</span>Mandal Profile</div>
+    <div class="nav-item" data-page="committee" onclick="showPage('committee')"><span class="icon">👥</span>Committee Members</div>
+    <div class="nav-item" data-page="sabhashad" onclick="showPage('sabhashad')"><span class="icon">👤</span>General Sabhashad</div>
+    <div class="nav-item" data-page="collection-area" onclick="showPage('collection-area')"><span class="icon">🏘️</span>Collection Area</div>
+    <div class="nav-section nav-sec" data-sec="operations">Operations</div>
+    <div class="nav-item" data-page="events" onclick="showPage('events')"><span class="icon">🎉</span>Events</div>
+    <div class="nav-item" data-page="donations" onclick="showPage('donations')"><span class="icon">💰</span>Donation Collection</div>
+    <div class="nav-item" data-page="meetings" onclick="showPage('meetings')"><span class="icon">📋</span>Meetings</div>
+    <div class="nav-section nav-sec" data-sec="accounting">Accounting</div>
+    <div class="nav-item" data-page="accounts" onclick="showPage('accounts')"><span class="icon">📒</span>Account Master</div>
+    <div class="nav-item" data-page="vouchers" onclick="showPage('vouchers')"><span class="icon">🧾</span>Vouchers</div>
+    <div class="nav-item" data-page="fy-management" onclick="showPage('fy-management')"><span class="icon">📅</span>FY Management</div>
+    <div class="nav-item" data-page="financials" onclick="showPage('financials')"><span class="icon">📈</span>Financial Reports</div>
+    <div class="nav-section nav-sec" data-sec="admin">Admin</div>
+    <div class="nav-item" data-page="users" onclick="showPage('users')"><span class="icon">🔐</span>User Management</div>
+    <div class="nav-item" data-page="audit" onclick="showPage('audit')"><span class="icon">📝</span>Audit Log</div>
+    <div class="nav-item" data-page="backup" onclick="showPage('backup')"><span class="icon">💾</span>Backup &amp; Restore</div>
     <div class="sidebar-footer">
       <div class="user-info">
         <div class="user-avatar" id="user-avatar">A</div>
@@ -512,7 +521,7 @@ tr:hover td{background:var(--saffron-light)}
 <!-- USERS -->
 <div class="page" id="page-users">
   <div class="card">
-    <div class="card-header"><div class="card-title">🔐 User Management</div><button class="btn btn-primary btn-sm" onclick="openModal('modal-user');editingId=null;resetForm('modal-user')">+ Add User</button></div>
+    <div class="card-header"><div class="card-title">🔐 User Management</div><button class="btn btn-primary btn-sm" onclick="openModal('modal-user');editingId=null;resetForm('modal-user');renderRoleCheckboxes([])">+ Add User</button></div>
     <div class="table-wrap"><table><thead><tr><th>Name</th><th>Username</th><th>Role</th><th>Mobile</th><th>Status</th><th>Actions</th></tr></thead><tbody id="users-table"></tbody></table></div>
   </div>
 </div>
@@ -581,10 +590,12 @@ tr:hover td{background:var(--saffron-light)}
     </div>
   </div>
   <div class="card">
+    <div class="card-header"><div class="card-title">🧹 Clear Local Cache (This Device Only)</div></div>
+    <div class="alert alert-info">💡 This does NOT touch Google Sheets/Drive. It only clears what's cached on THIS browser, then re-downloads fresh data from Google Sheets. Use this if this device is showing old/wrong data, or before handing a shared device to someone else.</div>
+    <button class="btn btn-secondary" onclick="clearLocalCacheAndResync()">🧹 Clear Local Cache &amp; Reload Fresh Data</button>
+  </div>
+  <div class="card" id="superadmin-only-wipe-card">
     <div class="card-header"><div class="card-title">🧨 Wipe All Data &amp; Start Fresh</div></div>
-    <div class="alert alert-danger">⚠️ This permanently deletes every record — local AND on Google Sheets/Drive — for ALL users. There is no undo unless you exported a backup first. Use this only when starting a brand-new Mandal year/setup from zero.</div>
-    <p style="font-size:13px;color:var(--text2);margin-bottom:14px">This clears: Mandal profile, Committee, Sabhashad, Areas, Events, Donations, Vouchers, Vendors, Investments, Ledgers, Meetings, Bank Accounts, Audit Log, and Settings (FY/opening balances). Your <strong>Users</strong> (logins) are kept so you don't get locked out — manage those separately in User Management if needed.</p>
-    <button class="btn btn-danger" onclick="wipeAllData()">🧨 Wipe All Data &amp; Start Fresh</button>
   </div>
 </div>
 
@@ -879,8 +890,12 @@ tr:hover td{background:var(--saffron-light)}
     <div class="form-row"><div class="form-group"><label class="mandatory">Full Name</label><input type="text" id="usr-name"></div><div class="form-group"><label class="mandatory">Mobile</label><input type="tel" id="usr-mobile"></div></div>
     <div class="form-group"><label>Email</label><input type="email" id="usr-email"></div>
     <div class="form-row"><div class="form-group"><label class="mandatory">Username</label><input type="text" id="usr-username"></div><div class="form-group"><label class="mandatory">Password</label><input type="password" id="usr-password"></div></div>
-    <div class="form-group"><label class="mandatory">Role</label><select id="usr-role" onchange="toggleUserRole(this.value)"><option value="superadmin">Super Admin</option><option value="admin">Admin</option><option value="collector">Collector</option><option value="viewer">Viewer</option></select></div>
-    <div id="collector-area-field" style="display:none"><div class="form-group"><label>Assigned Area</label><select id="usr-area"><option value="">All Areas</option></select></div></div>
+    <div class="form-group">
+      <label class="mandatory">Role(s) — select one or more</label>
+      <div id="usr-roles-list"></div>
+      <div class="form-hint">A user can hold multiple roles. Their menu will show everything any of their roles can access.</div>
+    </div>
+    <div id="collector-area-field" style="display:none"><div class="form-group"><label>Assigned Area (for Collector role)</label><select id="usr-area"><option value="">All Areas</option></select></div></div>
   </div>
   <div class="modal-footer"><button class="btn btn-secondary" onclick="closeModal('modal-user')">Cancel</button><button class="btn btn-primary" onclick="saveUser()">Save User</button></div></div>
 </div>
@@ -920,6 +935,91 @@ var currentUser = null;
 var currentFY = '2025-26';
 var editingId = null;
 var currentFlatKey = null;
+
+// ============================================================
+// ROLE PERMISSIONS
+// ============================================================
+// Each role maps to the set of pages + sidebar sections it can see.
+// 'all' = every page. A user can hold multiple roles (array); the
+// final allowed set is the UNION of all their roles' pages.
+var ROLE_DEFS = {
+  superadmin: { label:'Super Admin', pages:'all', sections:'all' },
+  admin:      { label:'Admin',       pages:'all', sections:'all' },
+  accountant: { label:'Accountant',  pages:['dashboard','vouchers'], sections:['main','accounting-vouchers-only'] },
+  collector:  { label:'Collector',   pages:['dashboard','donations'], sections:['main','operations-donations-only'] },
+  viewer:     { label:'Viewer',      pages:['dashboard'], sections:['main'] }
+};
+
+function getUserRoles(user) {
+  if(!user) return [];
+  if(Array.isArray(user.roles) && user.roles.length) return user.roles;
+  if(user.role) return [user.role]; // backward compatibility with old single-role users
+  return ['viewer'];
+}
+
+function userHasRole(user, roleKey) {
+  return getUserRoles(user).indexOf(roleKey) > -1;
+}
+
+function isSuperAdmin(user) { return userHasRole(user,'superadmin'); }
+
+function getAllowedPages(user) {
+  var roles = getUserRoles(user);
+  if(roles.indexOf('superadmin')>-1 || roles.indexOf('admin')>-1) return 'all';
+  var pages = {};
+  roles.forEach(function(r){
+    var def = ROLE_DEFS[r];
+    if(!def) return;
+    if(def.pages==='all') { pages = 'all'; return; }
+    def.pages.forEach(function(p){ if(pages!=='all') pages[p]=true; });
+  });
+  return pages;
+}
+
+function canAccessPage(user, page) {
+  var allowed = getAllowedPages(user);
+  if(allowed==='all') return true;
+  return !!allowed[page];
+}
+
+function roleLabelsForUser(user) {
+  return getUserRoles(user).map(function(r){ return (ROLE_DEFS[r]&&ROLE_DEFS[r].label)||r; });
+}
+
+function applySidebarPermissions() {
+  var allowed = getAllowedPages(currentUser);
+  document.querySelectorAll('.nav-item[data-page]').forEach(function(item){
+    var page = item.getAttribute('data-page');
+    var ok = (allowed==='all') || !!allowed[page];
+    item.style.display = ok ? '' : 'none';
+  });
+  // Hide section headers if every item under them is hidden
+  document.querySelectorAll('.nav-sec').forEach(function(sec){
+    var next = sec.nextElementSibling;
+    var anyVisible = false;
+    while(next && !next.classList.contains('nav-sec')) {
+      if(next.classList.contains('nav-item') && next.style.display !== 'none') anyVisible = true;
+      next = next.nextElementSibling;
+    }
+    sec.style.display = anyVisible ? '' : 'none';
+  });
+  // Vouchers page: restrict to manual-receipt + relevant tabs for accountant-only users
+  var voucherAddBtns = document.querySelectorAll('#page-vouchers .btn-primary');
+  // (accountants get full voucher access by design — no restriction needed beyond page visibility)
+
+  // Backup page: Wipe card only visible to Super Admin
+  var wipeCard = document.getElementById('superadmin-only-wipe-card');
+  if(wipeCard) wipeCard.style.display = isSuperAdmin(currentUser) ? '' : 'none';
+}
+
+function enforcePageGuard(page) {
+  if(!canAccessPage(currentUser, page)) {
+    showToast('You do not have access to this section','error');
+    showPage('dashboard');
+    return false;
+  }
+  return true;
+}
 
 function uid() { return Date.now().toString(36) + Math.random().toString(36).slice(2,6); }
 function now() { return new Date().toISOString(); }
@@ -975,6 +1075,25 @@ function showToast(msg, type) {
   t.className = 'toast show ' + (type||'');
   setTimeout(function(){ t.classList.remove('show'); }, 3000);
 }
+
+// ============================================================
+// OFFLINE DETECTION — warn that visible data may be stale
+// ============================================================
+function updateOfflineBanner() {
+  var banner = document.getElementById('offline-banner');
+  if(!banner) return;
+  if(!navigator.onLine) {
+    banner.style.display = 'block';
+    document.body.classList.add('offline-mode');
+  } else {
+    banner.style.display = 'none';
+    document.body.classList.remove('offline-mode');
+    // Coming back online — immediately check if anything changed while we were away
+    if(currentUser) { checkWipeEpochAndMaybeClear(); pullFromSheets(); }
+  }
+}
+window.addEventListener('online', updateOfflineBanner);
+window.addEventListener('offline', updateOfflineBanner);
 
 function addAudit(action, detail) {
   DB.push('audit', {id:uid(), action:action, detail:detail, user:(currentUser&&currentUser.name)||'System', time:now()});
@@ -1073,10 +1192,19 @@ async function doLogin() {
   document.getElementById('app').style.display = 'block';
   document.getElementById('user-avatar').textContent = user.name[0].toUpperCase();
   document.getElementById('user-display-name').textContent = user.name;
-  document.getElementById('user-display-role').textContent = user.role;
+  document.getElementById('user-display-role').textContent = roleLabelsForUser(user).join(', ');
   updateFYDisplay();
-  loadMandal();
-  loadDashboard();
+  applySidebarPermissions();
+  checkWipeEpochAndMaybeClear().then(function(){
+    loadMandal();
+    loadDashboard();
+    showPage(canAccessPage(user,'dashboard') ? 'dashboard' : (function(){
+      var allowed = getAllowedPages(user);
+      if(allowed==='all') return 'dashboard';
+      var firstPage = Object.keys(allowed)[0] || 'dashboard';
+      return firstPage;
+    })());
+  });
   addAudit('Login', 'User logged in');
   startLivePolling();
 }
@@ -1090,6 +1218,10 @@ function doLogout() {
 }
 
 function showPage(page) {
+  if(currentUser && !canAccessPage(currentUser, page)) {
+    showToast('You do not have access to this section','error');
+    page = 'dashboard';
+  }
   document.querySelectorAll('.page').forEach(function(p){ p.classList.remove('active'); });
   document.querySelectorAll('.nav-item').forEach(function(n){ n.classList.remove('active'); });
   var el = document.getElementById('page-'+page);
@@ -1156,6 +1288,7 @@ function closeModal(id) {
   if(!modal) return;
   modal.classList.remove('open');
   editingId = null;
+  if(id==='modal-user') { var rl = document.getElementById('usr-roles-list'); if(rl) rl.innerHTML=''; }
   modal.querySelectorAll('input:not([type=file])').forEach(function(inp){
     if(inp.type==='checkbox') inp.checked = false;
     else inp.value = '';
@@ -2129,7 +2262,7 @@ function renderVoucherList(type) {
   el.innerHTML = vouchers.map(function(v){
     var totalAmt = v.entries.filter(function(e){ return e.type==='debit'; }).reduce(function(s,e){ return s+Number(e.amount); },0);
     var adminBtns = '';
-if(currentUser && currentUser.role==='superadmin'){
+if(isSuperAdmin(currentUser)){
   adminBtns =
     '<div style="margin-top:8px;text-align:right">' +
     '<button class="btn btn-sm btn-danger" onclick="event.stopPropagation();deleteVoucher(\''+v.id+'\')">🗑️ Delete</button>' +
@@ -2165,7 +2298,7 @@ function viewVoucher(id) {
 }
 
 function deleteVoucher(id){
-  if(!currentUser || currentUser.role!=='superadmin'){
+  if(!isSuperAdmin(currentUser)){
     showToast('Only Super Admin can delete vouchers','error');
     return;
   }
@@ -2690,7 +2823,7 @@ function resetAllFees() {
 }
 
 function startNewFY() {
-  if(!currentUser||currentUser.role!=='superadmin') { showToast('Only Super Admin','error'); return; }
+  if(!isSuperAdmin(currentUser)) { showToast('Only Super Admin','error'); return; }
   var fys = getFYList(); var idx = fys.indexOf(currentFY);
   if(idx >= fys.length-1) { showToast('No next FY available','error'); return; }
   var nextFY = fys[idx+1]; var closing = calculateClosingBalance(currentFY);
@@ -2829,36 +2962,58 @@ function populateUserModal() {
   document.getElementById('usr-area').innerHTML = '<option value="">All Areas</option>' + areas.map(function(a){ return '<option value="'+a.id+'">'+a.name+'</option>'; }).join('');
 }
 
-function toggleUserRole(val) { document.getElementById('collector-area-field').style.display = val==='collector'?'block':'none'; }
+function renderRoleCheckboxes(selectedRoles) {
+  selectedRoles = selectedRoles || [];
+  var el = document.getElementById('usr-roles-list');
+  if(!el) return;
+  var order = ['superadmin','admin','accountant','collector','viewer'];
+  el.innerHTML = order.map(function(key){
+    var def = ROLE_DEFS[key];
+    var checked = selectedRoles.indexOf(key)>-1 ? 'checked' : '';
+    return '<label class="role-checkbox-row"><input type="checkbox" value="'+key+'" '+checked+' onchange="onRoleCheckboxChange()"><span><strong>'+def.label+'</strong></span></label>';
+  }).join('');
+  onRoleCheckboxChange();
+}
+
+function getCheckedRoles() {
+  return Array.from(document.querySelectorAll('#usr-roles-list input:checked')).map(function(c){ return c.value; });
+}
+
+function onRoleCheckboxChange() {
+  var roles = getCheckedRoles();
+  document.getElementById('collector-area-field').style.display = roles.indexOf('collector')>-1 ? 'block' : 'none';
+}
 
 function saveUser() {
   var name = document.getElementById('usr-name').value.trim();
   var username = document.getElementById('usr-username').value.trim();
   var password = document.getElementById('usr-password').value.trim();
-  var role = document.getElementById('usr-role').value;
+  var roles = getCheckedRoles();
   if(!name||!username||!password) { showToast('Name, username and password required','error'); return; }
+  if(!roles.length) { showToast('Select at least one role','error'); return; }
   var exists = DB.get('users').find(function(u){ return u.username===username && u.id!==editingId; });
   if(exists) { showToast('Username already exists','error'); return; }
-  var user = {id:editingId||uid(),name:name,username:username,password:password,role:role,
+  var user = {id:editingId||uid(),name:name,username:username,password:password,
+    roles:roles, role:roles[0], // 'role' kept for backward compatibility with older synced rows
     mobile:document.getElementById('usr-mobile').value,email:document.getElementById('usr-email').value,
     area:document.getElementById('usr-area').value,status:'active',createdAt:now()};
   if(editingId) DB.update('users',editingId,user); else DB.push('users',user);
   queueSync('users',user); closeModal('modal-user'); renderUsers();
-  addAudit('Users',(editingId?'Updated':'Added')+' '+name); showToast('User saved!','success');
+  addAudit('Users',(editingId?'Updated':'Added')+' '+name+' — roles: '+roles.join(', ')); showToast('User saved!','success');
 }
 
 function renderUsers() {
   populateUserModal();
   var users = DB.get('users');
-  var roleLabels = {superadmin:'Super Admin',admin:'Admin',collector:'Collector',viewer:'Viewer'};
   document.getElementById('users-table').innerHTML = users.map(function(u){
+    var chips = roleLabelsForUser(u).map(function(l){ return '<span class="role-chip">'+l+'</span>'; }).join('');
     return '<tr><td><strong>'+u.name+'</strong></td><td>'+u.username+'</td>' +
-      '<td><span class="badge badge-info">'+(roleLabels[u.role]||u.role)+'</span></td>' +
+      '<td>'+chips+'</td>' +
       '<td>'+(u.mobile||'—')+'</td>' +
       '<td><span class="badge '+(u.status==='active'?'badge-success':'badge-danger')+'">'+u.status+'</span></td>' +
       '<td><button class="btn btn-sm btn-secondary" onclick="editUser(\''+u.id+'\')">✏️</button> ' +
       '<button class="btn btn-sm btn-warning" onclick="toggleUserStatus(\''+u.id+'\',\''+u.status+'\')">'+( u.status==='active'?'Deactivate':'Activate')+'</button>' +
-      (currentUser&&currentUser.role==='superadmin'&&u.id!==currentUser.id?' <button class="btn btn-sm btn-danger" onclick="deleteItem(\'users\',\''+u.id+'\',renderUsers)">🗑️</button>':'') + '</td></tr>';
+      (isSuperAdmin(currentUser)&&u.id!==currentUser.id?' <button class="btn btn-sm btn-danger" onclick="deleteItem(\'users\',\''+u.id+'\',renderUsers)">🗑️</button>':'') + '</td></tr>';
   }).join('');
 }
 
@@ -2874,9 +3029,8 @@ function editUser(id) {
     document.getElementById('usr-email').value = u.email||'';
     document.getElementById('usr-username').value = u.username;
     document.getElementById('usr-password').value = u.password;
-    document.getElementById('usr-role').value = u.role;
     document.getElementById('usr-area').value = u.area||'';
-    toggleUserRole(u.role);
+    renderRoleCheckboxes(getUserRoles(u));
   }, 60);
 }
 
@@ -2886,11 +3040,18 @@ function toggleUserStatus(id, status) { DB.update('users',id,{status:status==='a
 // AUDIT
 // ============================================================
 function renderAudit() {
-  var logs = DB.get('audit').slice().reverse().slice(0,100);
+  var logs = DB.get('audit').slice().reverse();
+  if(!isSuperAdmin(currentUser)) {
+    logs = logs.filter(function(l){ return l.user === (currentUser && currentUser.name); });
+  }
+  logs = logs.slice(0,100);
   var el = document.getElementById('audit-log-list');
-  el.innerHTML = logs.length ? logs.map(function(l){
+  var scopeNote = isSuperAdmin(currentUser)
+    ? '<div class="alert alert-info">👁️ Showing logs for ALL users (Super Admin view)</div>'
+    : '<div class="alert alert-info">👁️ Showing only your own activity</div>';
+  el.innerHTML = scopeNote + (logs.length ? logs.map(function(l){
     return '<div class="audit-item"><div class="audit-dot"></div><div><div><strong>'+l.action+'</strong> — '+l.detail+'</div><div style="color:var(--text2);font-size:11px">👤 '+l.user+' | 🕒 '+new Date(l.time).toLocaleString('en-IN')+'</div></div></div>';
-  }).join('') : '<div class="empty-state"><div class="icon">📝</div><h3>No Audit Logs</h3></div>';
+  }).join('') : '<div class="empty-state"><div class="icon">📝</div><h3>No Audit Logs</h3></div>');
 }
 
 // ============================================================
@@ -3069,6 +3230,22 @@ async function pullFromSheets() {
     var resp = await res.json();
     if (!resp.ok) return;
     if (resp.unchanged) return;
+    // Detect a remote wipe even on an already-open, idle session.
+    if (resp.data && resp.data.settings && resp.data.settings[0]) {
+      var remoteEpoch = resp.data.settings[0].wipeEpoch;
+      var seenEpoch = localStorage.getItem('mm_wipeEpochSeen');
+      if (remoteEpoch && remoteEpoch !== seenEpoch) {
+        var keysToWipe = ['mandal','committee','sabhashad','areas','events','donations','vouchers',
+          'vendors','investments','ledgers','meetings','audit','settings','bankaccounts','syncQueue'];
+        keysToWipe.forEach(function(k){ localStorage.removeItem('mm_'+k); });
+        localStorage.setItem('mm_wipeEpochSeen', remoteEpoch);
+        lastPullStamp = resp.lastModified;
+        mergeRemoteData(resp.data);
+        showToast('🧹 Data was reset by Super Admin — showing fresh data','warning');
+        refreshCurrentPageView();
+        return;
+      }
+    }
     lastPullStamp = resp.lastModified;
     mergeRemoteData(resp.data);
     setSyncStatus('synced');
@@ -3167,7 +3344,9 @@ function refreshCurrentPageView() {
   else if (pageId === 'vouchers') renderVoucherList('Receipt');
   else if (pageId === 'financials') renderFinancials();
   else if (pageId === 'users') renderUsers();
+  else if (pageId === 'audit') renderAudit();
   else if (pageId === 'fy-management') { renderFYOverview(); }
+  applySidebarPermissions();
 }
 
 function renderSyncQueueList() {
@@ -3210,7 +3389,7 @@ function importBackup() {
 }
 
 async function wipeAllData() {
-  if(!currentUser || currentUser.role !== 'superadmin') { showToast('Only Super Admin can wipe data','error'); return; }
+  if(!isSuperAdmin(currentUser)) { showToast('Only Super Admin can wipe data','error'); return; }
   var confirm1 = prompt('Type WIPE in capital letters to confirm permanent deletion of ALL data for everyone (local + Google Sheets + Drive):');
   if(confirm1 === null) { showToast('Wipe cancelled','warning'); return; }
   if(confirm1.trim() !== 'WIPE') { showToast('Wipe cancelled — you typed "'+confirm1+'" instead of WIPE','error'); return; }
@@ -3267,9 +3446,59 @@ async function wipeAllData() {
     await runSync();
   }
 
+  // Stamp a fresh "wipe epoch" both locally and remotely. Every other browser
+  // compares this against its own last-seen epoch on its next login/poll —
+  // if it differs, that browser nukes its local cache before showing anything,
+  // so nobody ever sees stale pre-wipe data again.
+  var newEpoch = now();
+  var s2 = DB.getObj('settings'); s2.wipeEpoch = newEpoch; DB.set('settings', s2);
+  localStorage.setItem('mm_wipeEpochSeen', newEpoch);
+  if(url) { try { queueSync('settings', s2); await runSync(); } catch(e){} }
+
   addAudit('WIPE ALL DATA', 'Super Admin wiped all mandal data (local + remote) and started fresh');
   showToast('✅ All data wiped. Starting fresh!','success');
   setTimeout(function(){ location.reload(); }, 1500);
+}
+
+// ============================================================
+// CACHE FRESHNESS — auto-detect a wipe done elsewhere and self-clear
+// ============================================================
+function clearLocalCacheAndResync() {
+  if(!confirm('Clear all data cached on THIS device and re-download fresh data from Google Sheets/Drive?\n\nNothing on Google Sheets/Drive is affected.')) return;
+  var keysToWipe = ['mandal','committee','sabhashad','areas','events','donations','vouchers',
+    'vendors','investments','ledgers','meetings','audit','settings','bankaccounts','syncQueue'];
+  keysToWipe.forEach(function(k){ localStorage.removeItem('mm_'+k); });
+  lastPullStamp = null;
+  showToast('Local cache cleared. Reloading fresh data...','success');
+  setTimeout(function(){ location.reload(); }, 1000);
+}
+
+async function checkWipeEpochAndMaybeClear() {
+  var url = getGasUrl();
+  if(!url) return;
+  try {
+    var res = await fetch(url, {
+      method:'POST',
+      headers:{'Content-Type':'text/plain;charset=utf-8'},
+      body: JSON.stringify({action:'getAll', since:null})
+    });
+    var resp = await res.json();
+    if(!resp.ok || !resp.data || !resp.data.settings || !resp.data.settings[0]) return;
+    var remoteEpoch = resp.data.settings[0].wipeEpoch;
+    var seenEpoch = localStorage.getItem('mm_wipeEpochSeen');
+    if(remoteEpoch && remoteEpoch !== seenEpoch) {
+      // A wipe happened on another device since we last checked — clear our
+      // local cache silently and pull the clean post-wipe data fresh.
+      var users = DB.get('users'); // preserve logins so nobody gets locked out
+      var keysToWipe = ['mandal','committee','sabhashad','areas','events','donations','vouchers',
+        'vendors','investments','ledgers','meetings','audit','settings','bankaccounts','syncQueue'];
+      keysToWipe.forEach(function(k){ localStorage.removeItem('mm_'+k); });
+      localStorage.setItem('mm_wipeEpochSeen', remoteEpoch);
+      mergeRemoteData(resp.data);
+      lastPullStamp = resp.lastModified;
+      showToast('🧹 Data was reset by Super Admin — showing fresh data','warning');
+    }
+  } catch(e) { /* silent — normal polling will catch up later */ }
 }
 
 function deleteItem(collection, id, callback) {
@@ -3460,6 +3689,7 @@ try {
 
 document.addEventListener('DOMContentLoaded', function(){
   var lu = document.getElementById('login-user'); if(lu) lu.focus();
+  updateOfflineBanner();
 });
 </script>
 </body>
