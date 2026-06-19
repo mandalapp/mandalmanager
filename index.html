@@ -1080,8 +1080,18 @@ async function doLogin() {
         body: JSON.stringify({ action: 'getAll', since: null })
       });
       var resp = await res.json();
-      if (resp.ok && resp.data) { mergeRemoteData(resp.data); }
-    } catch (e) { /* offline or unreachable — fall back to local cache below */ }
+      if (resp.ok && resp.data) {
+        mergeRemoteData(resp.data);
+        var freshUsers = DB.get('users');
+        alert('DEBUG: Pull succeeded. Users now in local DB: ' + JSON.stringify(freshUsers.map(function(x){return {u:x.username,p:x.password};})));
+      } else {
+        alert('DEBUG: Pull responded but not ok. Response: ' + JSON.stringify(resp));
+      }
+    } catch (e) {
+      alert('DEBUG: Pull FAILED with error: ' + e.message);
+    }
+  } else {
+    alert('DEBUG: getGasUrl() returned empty — no URL configured!');
   }
 
   var user = DB.get('users').find(function(x){ return x.username===u && x.password===p && x.status==='active'; });
