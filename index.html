@@ -2956,7 +2956,7 @@ function loadDashboard() {
 var syncInProgress = false;
 var syncTimer = null;
 
-var DEFAULT_GAS_URL = 'https://script.google.com/macros/s/AKfycbz1ttwhJ3g4ZpePxb4qPAMNpGfB3Kf8AZn19weLIHzYxx70DhxWwvT7BweL76ll5tcv/exec';
+var DEFAULT_GAS_URL = 'https://script.google.com/macros/s/AKfycby0gIxMoVUxxP0nmvJSmWpUuns1Sf4gFIRANtzaeicESOljj5hOR11-XjLPwuijRgjt/exec';
 
 function getGasUrl() {
   var s=DB.getObj('settings');
@@ -3168,34 +3168,60 @@ function importBackup() {
 async function wipeAllData() {
   if(!currentUser || currentUser.role !== 'superadmin') { showToast('Only Super Admin can wipe data','error'); return; }
   var confirm1 = prompt('Type WIPE in capital letters to confirm permanent deletion of ALL data for everyone (local + Google Sheets + Drive):');
-  if(confirm1 !== 'WIPE') { showToast('Wipe cancelled','warning'); return; }
+  if(confirm1 === null) { showToast('Wipe cancelled','warning'); return; }
+  if(confirm1.trim() !== 'WIPE') { showToast('Wipe cancelled — you typed "'+confirm1+'" instead of WIPE','error'); return; }
   if(!confirm('Final confirmation: this cannot be undone. Proceed?')) { showToast('Wipe cancelled','warning'); return; }
+
+  // STOP live polling immediately — otherwise an in-flight or scheduled pull
+  // can re-merge old remote data back into localStorage before/after reload.
+  stopLivePolling();
+  if (syncTimer) { clearTimeout(syncTimer); syncTimer = null; }
 
   showToast('Wiping data everywhere... please wait','warning');
 
   var keysToWipe = ['mandal','committee','sabhashad','areas','events','donations','vouchers',
     'vendors','investments','ledgers','meetings','audit','settings','bankaccounts','syncQueue'];
 
-  // 1. Wipe remote (Google Sheet tabs) first, while we still have the data to know IDs
+  // 1. Wipe remote (Google Sheet tabs + Drive files) FIRST, and actually confirm it worked.
   var url = getGasUrl();
+  var remoteWiped = false;
   if(url) {
     try {
-      await fetch(url, {
+      var res = await fetch(url, {
         method:'POST',
         headers:{'Content-Type':'text/plain;charset=utf-8'},
         body: JSON.stringify({action:'wipeAll'})
       });
+      var resp = await res.json();
+      remoteWiped = !!(resp && resp.ok);
+      if(!remoteWiped) {
+        console.error('Remote wipe response:', resp);
+      }
     } catch(e) {
-      console.warn('Remote wipe failed, continuing with local wipe:', e.message);
+      console.error('Remote wipe failed:', e.message);
     }
+  }
+
+  if(url && !remoteWiped) {
+    showToast('⚠️ Remote (Google Sheet) wipe FAILED — local data cleared, but Sheet still has old data and will re-sync it back. Check Apps Script deployment.','error');
+    // Do NOT reload — reloading now would just pull the un-wiped remote data straight back in.
+    return;
   }
 
   // 2. Wipe local storage (keep users so admin isn't locked out)
   keysToWipe.forEach(function(k){ localStorage.removeItem('mm_'+k); });
+  lastPullStamp = null;
 
   // 3. Reseed defaults so app doesn't break (default ledgers, default bank account)
   seedDefaultLedgers();
   seedDefaultBankAccount();
+  if (url) {
+    // push the freshly reseeded defaults back up so the Sheet isn't empty
+    // of the bare essentials when other users next load the app
+    var seededLedgers = DB.get('ledgers'); seededLedgers.forEach(function(l){ queueSync('ledgers', l); });
+    var seededBank = DB.get('bankaccounts'); seededBank.forEach(function(b){ queueSync('bankaccounts', b); });
+    await runSync();
+  }
 
   addAudit('WIPE ALL DATA', 'Super Admin wiped all mandal data (local + remote) and started fresh');
   showToast('✅ All data wiped. Starting fresh!','success');
