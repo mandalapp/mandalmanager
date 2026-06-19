@@ -168,6 +168,8 @@ tr:hover td{background:var(--saffron-light)}
 .pie-legend-item{display:flex;align-items:center;gap:7px;font-size:12px}
 .pie-dot{width:11px;height:11px;border-radius:50%}
 .fee-type-row{display:flex;align-items:center;gap:8px;padding:10px 0;border-bottom:1px solid var(--border)}
+@keyframes mm-spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}
+.mm-syncing{display:inline-block;animation:mm-spin 0.8s linear infinite}
 @media(max-width:768px){
   .sidebar{transform:translateX(-100%)}
   .sidebar.open{transform:translateX(0)}
@@ -243,6 +245,9 @@ tr:hover td{background:var(--saffron-light)}
         <h1 id="page-title">Dashboard</h1>
       </div>
       <div class="topbar-actions">
+        <button class="btn btn-secondary btn-sm" id="manual-sync-btn" onclick="manualSyncNow()" title="Pull latest data from everyone right now">
+          <span id="manual-sync-icon">🔄</span> <span id="manual-sync-label">Sync Now</span>
+        </button>
         <div class="fy-selector" onclick="showFYModal()">📅 <span id="fy-display">FY 2025-26</span> ▾</div>
       </div>
     </div>
@@ -3072,6 +3077,44 @@ async function pullFromSheets() {
   }
 }
 
+async function manualSyncNow() {
+  var btn = document.getElementById('manual-sync-btn');
+  var icon = document.getElementById('manual-sync-icon');
+  var label = document.getElementById('manual-sync-label');
+  var url = getGasUrl();
+  if (!url) { showToast('No sync connection configured','error'); return; }
+  if (btn) btn.disabled = true;
+  if (icon) icon.className = 'mm-syncing';
+  if (label) label.textContent = 'Syncing...';
+  try {
+    // push anything queued locally first, then pull the latest from everyone
+    if (DB.get('syncQueue').length > 0) {
+      await runSync();
+    }
+    lastPullStamp = null; // force a full fresh pull regardless of last-known timestamp
+    var res = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify({ action: 'getAll', since: null })
+    });
+    var resp = await res.json();
+    if (resp.ok && resp.data) {
+      lastPullStamp = resp.lastModified;
+      mergeRemoteData(resp.data);
+      setSyncStatus('synced');
+      showToast('✅ Synced — showing latest data','success');
+    } else {
+      showToast('Sync failed: '+(resp.error||'unknown error'),'error');
+    }
+  } catch (e) {
+    showToast('Sync failed: '+e.message,'error');
+  } finally {
+    if (btn) btn.disabled = false;
+    if (icon) icon.className = '';
+    if (label) label.textContent = 'Sync Now';
+  }
+}
+
 function mergeRemoteData(remote) {
   var changed = false;
   Object.keys(remote).forEach(function (sheetName) {
@@ -3108,10 +3151,11 @@ function mergeRemoteData(remote) {
 }
 
 function refreshCurrentPageView() {
+  loadDashboard(); // dashboard numbers should always be fresh once merged
   var activePage = document.querySelector('.page.active');
   if (!activePage) return;
   var pageId = activePage.id.replace('page-', '');
-  if (pageId === 'dashboard') loadDashboard();
+  if (pageId === 'dashboard') { /* already refreshed above */ }
   else if (pageId === 'mandal-profile') { loadMandal(); renderMandalDocuments(); }
   else if (pageId === 'committee') renderCommittee();
   else if (pageId === 'sabhashad') renderSabhashad();
