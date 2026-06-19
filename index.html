@@ -226,7 +226,6 @@ tr:hover td{background:var(--saffron-light)}
     <div class="nav-section">Admin</div>
     <div class="nav-item" onclick="showPage('users')"><span class="icon">🔐</span>User Management</div>
     <div class="nav-item" onclick="showPage('audit')"><span class="icon">📝</span>Audit Log</div>
-    <div class="nav-item" onclick="showPage('sync-settings')"><span class="icon">☁️</span>Google Sync <span id="sync-badge" style="display:none;background:var(--danger);color:white;border-radius:10px;padding:1px 6px;font-size:10px;margin-left:4px"></span></div>
     <div class="nav-item" onclick="showPage('backup')"><span class="icon">💾</span>Backup &amp; Restore</div>
     <div class="sidebar-footer">
       <div class="user-info">
@@ -557,38 +556,6 @@ tr:hover td{background:var(--saffron-light)}
   </div>
 </div>
 
-<!-- GOOGLE SYNC -->
-<div class="page" id="page-sync-settings">
-  <div class="card">
-    <div class="card-header"><div class="card-title">☁️ Google Sheets &amp; Drive Sync</div></div>
-    <div class="alert alert-info">💡 Data always saved locally first (works offline). When connected, saves also push to your Google Sheet and Drive.</div>
-    <div class="form-group">
-      <label>Google Apps Script Web App URL</label>
-      <input type="text" id="gas-url-input" placeholder="https://script.google.com/macros/s/AKfycbyAtCoH-Oti6cCIOyVjn0jtOBabqkC8gocrSBa3YfeY8iGUuJh92IH3FNU-MKsRug1A/exec">
-    </div>
-    <div style="display:flex;gap:10px;margin-bottom:16px">
-      <button class="btn btn-primary" onclick="saveGasUrl()">💾 Save Connection</button>
-      <button class="btn btn-secondary" onclick="testGasConnection()">🔌 Test Connection</button>
-      <button class="btn btn-secondary" onclick="forceSyncNow()">🔄 Force Full Sync</button>
-    </div>
-    <div class="alert alert-success">Status: <strong id="sync-status-text">⚪ Not connected</strong></div>
-    <div class="tabs">
-      <button class="tab active" onclick="switchTab(this,'sync-queue')">Sync Queue</button>
-      <button class="tab" onclick="switchTab(this,'sync-help')">Setup Help</button>
-    </div>
-    <div class="tab-content active" id="tab-sync-queue"><div id="sync-queue-list"></div></div>
-    <div class="tab-content" id="tab-sync-help">
-      <ol style="padding-left:20px;font-size:14px;line-height:1.9">
-        <li>Open Google Drive → create a new <strong>Google Sheet</strong>.</li>
-        <li>In the Sheet, go to <strong>Extensions → Apps Script</strong>. Paste the contents of <code>google-apps-script.gs</code>.</li>
-        <li>Create a folder in Google Drive. Copy its Folder ID into <code>DRIVE_FOLDER_ID</code> in the script.</li>
-        <li>Click <strong>Deploy → New deployment → Web app</strong>. Set "Execute as: Me" and "Who has access: Anyone".</li>
-        <li>Copy the Web App URL and paste it above, then click Save &amp; Test.</li>
-      </ol>
-    </div>
-  </div>
-</div>
-
 <!-- BACKUP -->
 <div class="page" id="page-backup">
   <div class="card">
@@ -607,6 +574,12 @@ tr:hover td{background:var(--saffron-light)}
         <button class="btn btn-danger" onclick="importBackup()">📤 Restore Data</button>
       </div>
     </div>
+  </div>
+  <div class="card">
+    <div class="card-header"><div class="card-title">🧨 Wipe All Data &amp; Start Fresh</div></div>
+    <div class="alert alert-danger">⚠️ This permanently deletes every record — local AND on Google Sheets/Drive — for ALL users. There is no undo unless you exported a backup first. Use this only when starting a brand-new Mandal year/setup from zero.</div>
+    <p style="font-size:13px;color:var(--text2);margin-bottom:14px">This clears: Mandal profile, Committee, Sabhashad, Areas, Events, Donations, Vouchers, Vendors, Investments, Ledgers, Meetings, Bank Accounts, Audit Log, and Settings (FY/opening balances). Your <strong>Users</strong> (logins) are kept so you don't get locked out — manage those separately in User Management if needed.</p>
+    <button class="btn btn-danger" onclick="wipeAllData()">🧨 Wipe All Data &amp; Start Fresh</button>
   </div>
 </div>
 
@@ -1082,16 +1055,10 @@ async function doLogin() {
       var resp = await res.json();
       if (resp.ok && resp.data) {
         mergeRemoteData(resp.data);
-        var freshUsers = DB.get('users');
-        alert('DEBUG: Pull succeeded. Users now in local DB: ' + JSON.stringify(freshUsers.map(function(x){return {u:x.username,p:x.password};})));
-      } else {
-        alert('DEBUG: Pull responded but not ok. Response: ' + JSON.stringify(resp));
       }
     } catch (e) {
-      alert('DEBUG: Pull FAILED with error: ' + e.message);
+      console.warn('Pre-login sync pull failed:', e.message);
     }
-  } else {
-    alert('DEBUG: getGasUrl() returned empty — no URL configured!');
   }
 
   var user = DB.get('users').find(function(x){ return x.username===u && x.password===p && x.status==='active'; });
@@ -1127,7 +1094,7 @@ function showPage(page) {
     sabhashad:'General Sabhashad','collection-area':'Collection Area Master',events:'Events',
     donations:'Donation Collection',meetings:'Meetings',accounts:'Account Master',vouchers:'Vouchers',
     financials:'Financial Reports',users:'User Management',audit:'Audit Log',
-    'fy-management':'FY Management','sync-settings':'Google Sheets & Drive Sync',backup:'Backup & Restore'
+    'fy-management':'FY Management',backup:'Backup & Restore'
   };
   document.getElementById('page-title').textContent = titles[page] || page;
   document.querySelectorAll('.nav-item').forEach(function(n){
@@ -1149,7 +1116,6 @@ function showPage(page) {
   else if(page==='users') renderUsers();
   else if(page==='audit') renderAudit();
   else if(page==='fy-management') { renderFYOverview(); loadOpeningBalance(); }
-  else if(page==='sync-settings') renderSyncQueueList();
 }
 
 function toggleSidebar() { document.getElementById('sidebar').classList.toggle('open'); document.getElementById('sidebar-overlay').classList.toggle('open'); }
@@ -2990,7 +2956,7 @@ function loadDashboard() {
 var syncInProgress = false;
 var syncTimer = null;
 
-var DEFAULT_GAS_URL = 'https://script.google.com/macros/s/AKfycbxwnO3R3QLOlwoG2W5VhotjjO4gB7idvM9LdIzlTnu5ZVQxgZQdQJB5p_o8ED4o7Tqd/exec';
+var DEFAULT_GAS_URL = 'https://script.google.com/macros/s/AKfycbz1ttwhJ3g4ZpePxb4qPAMNpGfB3Kf8AZn19weLIHzYxx70DhxWwvT7BweL76ll5tcv/exec';
 
 function getGasUrl() {
   var s=DB.getObj('settings');
@@ -3197,6 +3163,43 @@ function importBackup() {
     }catch(e){showToast('Invalid file','error');}
   };
   r.readAsText(file);
+}
+
+async function wipeAllData() {
+  if(!currentUser || currentUser.role !== 'superadmin') { showToast('Only Super Admin can wipe data','error'); return; }
+  var confirm1 = prompt('Type WIPE in capital letters to confirm permanent deletion of ALL data for everyone (local + Google Sheets + Drive):');
+  if(confirm1 !== 'WIPE') { showToast('Wipe cancelled','warning'); return; }
+  if(!confirm('Final confirmation: this cannot be undone. Proceed?')) { showToast('Wipe cancelled','warning'); return; }
+
+  showToast('Wiping data everywhere... please wait','warning');
+
+  var keysToWipe = ['mandal','committee','sabhashad','areas','events','donations','vouchers',
+    'vendors','investments','ledgers','meetings','audit','settings','bankaccounts','syncQueue'];
+
+  // 1. Wipe remote (Google Sheet tabs) first, while we still have the data to know IDs
+  var url = getGasUrl();
+  if(url) {
+    try {
+      await fetch(url, {
+        method:'POST',
+        headers:{'Content-Type':'text/plain;charset=utf-8'},
+        body: JSON.stringify({action:'wipeAll'})
+      });
+    } catch(e) {
+      console.warn('Remote wipe failed, continuing with local wipe:', e.message);
+    }
+  }
+
+  // 2. Wipe local storage (keep users so admin isn't locked out)
+  keysToWipe.forEach(function(k){ localStorage.removeItem('mm_'+k); });
+
+  // 3. Reseed defaults so app doesn't break (default ledgers, default bank account)
+  seedDefaultLedgers();
+  seedDefaultBankAccount();
+
+  addAudit('WIPE ALL DATA', 'Super Admin wiped all mandal data (local + remote) and started fresh');
+  showToast('✅ All data wiped. Starting fresh!','success');
+  setTimeout(function(){ location.reload(); }, 1500);
 }
 
 function deleteItem(collection, id, callback) {
