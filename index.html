@@ -1347,7 +1347,8 @@ function loadMandal() {
   renderOpeningBankFields('ob-bank-accounts-list', currentFY);
 }
 
-function saveMandal() {
+async function saveMandal() {
+  if(!await guardAgainstStaleWipe()) return;
   var m = DB.getObj('mandal');
   ['name','id','reg-no','reg-date','address','city','state','pin','contact-name','contact-phone','email','facebook','instagram','website'].forEach(function(k){
     var el = document.getElementById('m-'+k); if(el) m[k] = el.value;
@@ -1375,7 +1376,8 @@ function previewQR(input) {
   r.readAsDataURL(input.files[0]);
 }
 
-function addFeeType() {
+async function addFeeType() {
+  if(!await guardAgainstStaleWipe()) return;
   var name = document.getElementById('new-fee-type-name').value.trim();
   var amt = parseFloat(document.getElementById('new-fee-type-amount').value)||0;
   if(!name||!amt) { showToast('Name and amount required','error'); return; }
@@ -1530,7 +1532,8 @@ function populateCommitteeModal() {
 
 function toggleCustomRole(sel) { document.getElementById('cm-custom-role-group').style.display = sel.value==='custom'?'block':'none'; }
 
-function saveCommitteeMember() {
+async function saveCommitteeMember() {
+  if(!await guardAgainstStaleWipe()) return;
   var name = document.getElementById('cm-name').value.trim();
   var mobile = document.getElementById('cm-mobile').value.trim();
   var role = document.getElementById('cm-role').value;
@@ -1602,7 +1605,8 @@ function populateSabhashadModal() {
     feeTypes.map(function(ft){ return '<option value="'+ft.id+'">'+ft.name+' ('+fmtAmt(ft.amount)+')</option>'; }).join('');
 }
 
-function saveSabhashad() {
+async function saveSabhashad() {
+  if(!await guardAgainstStaleWipe()) return;
   var name = document.getElementById('sb-name').value.trim();
   var mobile = document.getElementById('sb-mobile').value.trim();
   if(!name||!mobile) { showToast('Name and mobile required','error'); return; }
@@ -1676,9 +1680,9 @@ function toggleSlumType(val) {
   document.getElementById('slum-manual-field').style.display = val==='manual'?'block':'none';
 }
 
-function saveArea() {
+async function saveArea() {
+  if(!await guardAgainstStaleWipe()) return;
   var type = document.getElementById('area-type').value;
-  var name = document.getElementById('area-name').value.trim();
   if(!name) { showToast('Area name required','error'); return; }
   var isEditing = !!editingId;
   var area = {id:editingId||uid(),type:type,name:name,zone:document.getElementById('area-zone').value,createdAt:now()};
@@ -1747,7 +1751,8 @@ function populateEventSelects() {
   });
 }
 
-function saveEvent() {
+async function saveEvent() {
+  if(!await guardAgainstStaleWipe()) return;
   var name = document.getElementById('ev-name').value.trim();
   var date = document.getElementById('ev-date').value;
   if(!name||!date) { showToast('Name and date required','error'); return; }
@@ -1875,7 +1880,8 @@ function openFlatDonation(flatKey, areaName, flatLabel, eventId) {
   openModal('modal-flat-donation');
 }
 
-function saveFlatDonation() {
+async function saveFlatDonation() {
+  if(!await guardAgainstStaleWipe()) return;
   var amt = parseFloat(document.getElementById('fd-amount').value);
   if(!amt||amt<=0) { showToast('Enter valid amount','error'); return; }
   var existing = DB.get('donations').find(function(d){ return d.flatKey===currentFlatKey.flatKey && d.eventId===currentFlatKey.eventId; });
@@ -1895,7 +1901,8 @@ function saveFlatDonation() {
   addAudit('Donation','Flat '+currentFlatKey.flatKey+': '+fmtAmt(amt)); showToast('Recorded! '+receipt,'success');
 }
 
-function addDirectDonor() {
+async function addDirectDonor() {
+  if(!await guardAgainstStaleWipe()) return;
   var eventId = document.getElementById('donation-event-select').value;
   if(!eventId) { showToast('Select an event first','error'); return; }
   var name = document.getElementById('dd-name').value.trim();
@@ -1958,7 +1965,8 @@ function populateMeetingAttendance() {
   }).join('') : '<div style="color:var(--text2);font-size:13px">No committee members.</div>';
 }
 
-function saveMeeting() {
+async function saveMeeting() {
+  if(!await guardAgainstStaleWipe()) return;
   var date = document.getElementById('mt-date').value;
   var venue = document.getElementById('mt-venue').value.trim();
   if(!date||!venue) { showToast('Date and venue required','error'); return; }
@@ -2144,7 +2152,8 @@ function loadVendorOutstandingHint() {
   if(vendor) hint.innerHTML = 'Current outstanding: <strong>'+fmtAmt(getVendorOutstanding(vendor.name))+'</strong>';
 }
 
-function savePaymentVoucher() {
+async function savePaymentVoucher() {
+  if(!await guardAgainstStaleWipe()) return;
   var date = document.getElementById('pv-date').value;
   var fromLedger = document.getElementById('pv-from').value;
   var toSel = document.getElementById('pv-to').value;
@@ -2180,7 +2189,8 @@ function previewPurchaseInvoice(input) {
   }
 }
 
-function savePurchaseVoucher() {
+async function savePurchaseVoucher() {
+  if(!await guardAgainstStaleWipe()) return;
   var date = document.getElementById('pu-date').value;
   var vendorId = document.getElementById('pu-vendor').value;
   var ledgerName = document.getElementById('pu-ledger').value;
@@ -2221,7 +2231,8 @@ function savePurchaseVoucher() {
   } else { doSave(null); }
 }
   
-function saveContraVoucher() {
+async function saveContraVoucher() {
+  if(!await guardAgainstStaleWipe()) return;
   var date = document.getElementById('cv-date').value;
   var fromLedger = document.getElementById('cv-from').value;
   var toLedger = document.getElementById('cv-to').value;
@@ -2236,7 +2247,8 @@ function saveContraVoucher() {
   addAudit('Contra Voucher',fmtAmt(amount)+' from '+fromLedger+' to '+toLedger); showToast('Contra voucher saved!','success');
 }
   
-function saveJournalVoucher() {
+async function saveJournalVoucher() {
+  if(!await guardAgainstStaleWipe()) return;
   var date = document.getElementById('jv-date').value;
   var debit = document.getElementById('jv-debit').value;
   var credit = document.getElementById('jv-credit').value;
@@ -2408,7 +2420,8 @@ function switchToLedgerView(ledgerName) {
 // ============================================================
 // VENDOR / INVESTMENT
 // ============================================================
-function saveVendor() {
+async function saveVendor() {
+  if(!await guardAgainstStaleWipe()) return;
   var name = document.getElementById('vnd-name').value.trim();
   if(!name) { showToast('Vendor name required','error'); return; }
   var v = {id:editingId||uid(),name:name,group:'Sundry Creditors',category:document.getElementById('vnd-cat').value,
@@ -2455,7 +2468,8 @@ function openInvestmentModal() {
   openModal('modal-investment');
 }
 
-function saveInvestment() {
+async function saveInvestment() {
+  if(!await guardAgainstStaleWipe()) return;
   var name = document.getElementById('inv-name').value.trim();
   var principal = parseFloat(document.getElementById('inv-principal').value);
   var date = document.getElementById('inv-date').value;
@@ -2513,7 +2527,8 @@ function renderAssetBankCash() {
     }).join('') : '<div style="color:var(--text2);font-size:13px;padding:8px 0">No bank accounts yet. Click "+ Add Bank Account".</div>');
 }
 
-function saveBankAccount() {
+async function saveBankAccount() {
+  if(!await guardAgainstStaleWipe()) return;
   var name = document.getElementById('bk-name').value.trim();
   if(!name) { showToast('Account name required','error'); return; }
   var dup = DB.get('bankaccounts').find(function(b){ return b.name===name && b.id!==editingId; });
@@ -2548,7 +2563,8 @@ function editBankAccount(id) {
 // ============================================================
 // LEDGER MASTER
 // ============================================================
-function saveLedger() {
+async function saveLedger() {
+  if(!await guardAgainstStaleWipe()) return;
   var group = document.getElementById('ledger-group').value.trim();
   var name = document.getElementById('ledger-name').value.trim();
   var type = document.getElementById('ledger-type').value;
@@ -2896,7 +2912,8 @@ function showFeeModal(id) {
   openModal('modal-sabhashad-fee');
 }
 
-function markFeePaid(memberId, fy, minAmt) {
+async function markFeePaid(memberId, fy, minAmt) {
+  if(!await guardAgainstStaleWipe()) return;
   var amtEl = document.getElementById('fee-amt-'+fy);
   var modeEl = document.getElementById('fee-mode-'+fy);
   var dateEl = document.getElementById('fee-date-'+fy);
@@ -2923,8 +2940,9 @@ function markFeePaid(memberId, fy, minAmt) {
   showFeeModal(memberId); renderSabhashad(); loadDashboard();
 }
 
-function unpayFee(memberId, fy) {
+async function unpayFee(memberId, fy) {
   if(!confirm('Undo payment for FY '+fy+'? A reversal Journal entry will be posted.')) return;
+  if(!await guardAgainstStaleWipe()) return;
   var members = DB.get('sabhashad');
   var i = members.findIndex(function(x){ return x.id===memberId; });
   if(i>-1 && members[i].fees&&members[i].fees[fy]) {
@@ -2984,7 +3002,8 @@ function onRoleCheckboxChange() {
   document.getElementById('collector-area-field').style.display = roles.indexOf('collector')>-1 ? 'block' : 'none';
 }
 
-function saveUser() {
+async function saveUser() {
+  if(!await guardAgainstStaleWipe()) return;
   var name = document.getElementById('usr-name').value.trim();
   var username = document.getElementById('usr-username').value.trim();
   var password = document.getElementById('usr-password').value.trim();
@@ -3122,7 +3141,7 @@ function loadDashboard() {
 var syncInProgress = false;
 var syncTimer = null;
 
-var DEFAULT_GAS_URL = 'https://script.google.com/macros/s/AKfycbyoWvEvV1rfuhf_wE6upGkSxgf1-Kt87Xj5qM_QqBU78Lvp3QKsD-riH_HqGHbAKbDH/exec';
+var DEFAULT_GAS_URL = 'https://script.google.com/macros/s/AKfycbyEiz4FRCshkWq1bqcVtLVZbQ_-7KHFWkFc1w6e9oiDfNWUAySnFVKAHEnFLXFvKlf1/exec';
 
 function getGasUrl() {
   var s=DB.getObj('settings');
@@ -3150,6 +3169,7 @@ async function runSync() {
   if(!url){updateSyncBadge();return;}
   if(syncInProgress) return;
   syncInProgress = true; setSyncStatus('syncing');
+  var anyStaleRejected = false;
   try {
     var queue = DB.get('syncQueue'); var remaining = [];
     for(var i=0;i<queue.length;i++) {
@@ -3157,6 +3177,13 @@ async function runSync() {
       try {
         var res = await fetch(url,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify({action:'upsertRow',sheet:item.sheet,record:item.record})});
         var data = await res.json();
+        if(data.staleRejected) {
+          // Server confirms this record predates the last wipe — discard it
+          // permanently instead of retrying. Retrying would just keep
+          // hammering the server with data that can never be accepted.
+          anyStaleRejected = true;
+          continue;
+        }
         if(!data.ok){item.attempts++;if(item.attempts<5)remaining.push(item);}
       } catch(e){item.attempts++;if(item.attempts<5)remaining.push(item);}
     }
@@ -3164,6 +3191,9 @@ async function runSync() {
     setSyncStatus(remaining.length>0?'partial':'synced');
   } catch(e){setSyncStatus('error');}
   syncInProgress=false; updateSyncBadge();
+  if(anyStaleRejected) {
+    showToast('🧹 Some local entries predated the last data wipe and were discarded','warning');
+  }
   if(DB.get('syncQueue').length>0) scheduleSyncRun();
 }
 
@@ -3231,8 +3261,8 @@ async function pullFromSheets() {
     if (!resp.ok) return;
     if (resp.unchanged) return;
     // Detect a remote wipe even on an already-open, idle session.
-    if (resp.data && resp.data.settings && resp.data.settings[0]) {
-      var remoteEpoch = resp.data.settings[0].wipeEpoch;
+    if (resp.wipeEpoch) {
+      var remoteEpoch = resp.wipeEpoch;
       var seenEpoch = localStorage.getItem('mm_wipeEpochSeen');
       if (remoteEpoch && remoteEpoch !== seenEpoch) {
         var keysToWipe = ['mandal','committee','sabhashad','areas','events','donations','vouchers',
@@ -3446,14 +3476,13 @@ async function wipeAllData() {
     await runSync();
   }
 
-  // Stamp a fresh "wipe epoch" both locally and remotely. Every other browser
-  // compares this against its own last-seen epoch on its next login/poll —
-  // if it differs, that browser nukes its local cache before showing anything,
-  // so nobody ever sees stale pre-wipe data again.
-  var newEpoch = now();
-  var s2 = DB.getObj('settings'); s2.wipeEpoch = newEpoch; DB.set('settings', s2);
-  localStorage.setItem('mm_wipeEpochSeen', newEpoch);
-  if(url) { try { queueSync('settings', s2); await runSync(); } catch(e){} }
+  // The server's wipeAll already stamped its own authoritative wipeEpoch
+  // (see Apps Script Fix G2) and returned it in `resp.wipeEpoch` from the
+  // wipeAllSheets() call above. Record that we've "seen" it so this device
+  // doesn't immediately treat itself as stale on its next poll.
+  if(remoteWiped && resp && resp.wipeEpoch) {
+    localStorage.setItem('mm_wipeEpochSeen', resp.wipeEpoch);
+  }
 
   addAudit('WIPE ALL DATA', 'Super Admin wiped all mandal data (local + remote) and started fresh');
   showToast('✅ All data wiped. Starting fresh!','success');
@@ -3463,6 +3492,52 @@ async function wipeAllData() {
 // ============================================================
 // CACHE FRESHNESS — auto-detect a wipe done elsewhere and self-clear
 // ============================================================
+/**
+ * Call this at the START of every function that saves/creates data.
+ * Returns a Promise<boolean> — true = safe to proceed, false = blocked.
+ * If blocked, it has already cleared local cache, pulled fresh data,
+ * refreshed the current screen, and told the user to re-check their form.
+ */
+async function guardAgainstStaleWipe() {
+  var url = getGasUrl();
+  if(!url) return true; // no sync configured — nothing to be stale against
+  try {
+    var res = await fetch(url, {
+      method:'POST',
+      headers:{'Content-Type':'text/plain;charset=utf-8'},
+      body: JSON.stringify({action:'ping'})
+    });
+    var resp = await res.json();
+    if(!resp.ok) return true; // can't reach server — allow save, will be caught by upsertRow's own check on actual sync
+    var remoteEpoch = resp.wipeEpoch;
+    var seenEpoch = localStorage.getItem('mm_wipeEpochSeen');
+    if(remoteEpoch && remoteEpoch !== seenEpoch) {
+      // We are behind the latest wipe. Block this save, clear our cache,
+      // pull fresh, and make the user redo their entry against current data.
+      var keysToWipe = ['mandal','committee','sabhashad','areas','events','donations','vouchers',
+        'vendors','investments','ledgers','meetings','audit','settings','bankaccounts','syncQueue'];
+      keysToWipe.forEach(function(k){ localStorage.removeItem('mm_'+k); });
+      localStorage.setItem('mm_wipeEpochSeen', remoteEpoch);
+      var pullRes = await fetch(url, {
+        method:'POST',
+        headers:{'Content-Type':'text/plain;charset=utf-8'},
+        body: JSON.stringify({action:'getAll', since:null})
+      });
+      var pullResp = await pullRes.json();
+      if(pullResp.ok && pullResp.data) {
+        mergeRemoteData(pullResp.data);
+        lastPullStamp = pullResp.lastModified;
+      }
+      refreshCurrentPageView();
+      showToast('🧹 Data was reset by Super Admin since you last synced. Your screen now shows current data — please re-check and re-enter this.','error');
+      return false;
+    }
+    return true;
+  } catch(e) {
+    return true; // network hiccup on the check itself — don't block on a flaky check
+  }
+}
+
 function clearLocalCacheAndResync() {
   if(!confirm('Clear all data cached on THIS device and re-download fresh data from Google Sheets/Drive?\n\nNothing on Google Sheets/Drive is affected.')) return;
   var keysToWipe = ['mandal','committee','sabhashad','areas','events','donations','vouchers',
@@ -3483,13 +3558,14 @@ async function checkWipeEpochAndMaybeClear() {
       body: JSON.stringify({action:'getAll', since:null})
     });
     var resp = await res.json();
-    if(!resp.ok || !resp.data || !resp.data.settings || !resp.data.settings[0]) return;
-    var remoteEpoch = resp.data.settings[0].wipeEpoch;
+    if(!resp.ok || !resp.data) return;
+    var remoteEpoch = resp.wipeEpoch; // now comes straight from the server's script property, not a sheet row
     var seenEpoch = localStorage.getItem('mm_wipeEpochSeen');
     if(remoteEpoch && remoteEpoch !== seenEpoch) {
       // A wipe happened on another device since we last checked — clear our
-      // local cache silently and pull the clean post-wipe data fresh.
-      var users = DB.get('users'); // preserve logins so nobody gets locked out
+      // local cache silently (including anything still queued to push,
+      // since the server will reject it anyway) and pull the clean
+      // post-wipe data fresh.
       var keysToWipe = ['mandal','committee','sabhashad','areas','events','donations','vouchers',
         'vendors','investments','ledgers','meetings','audit','settings','bankaccounts','syncQueue'];
       keysToWipe.forEach(function(k){ localStorage.removeItem('mm_'+k); });
@@ -3573,7 +3649,8 @@ function toggleManualReceiptBank(mode) {
   if(grp) grp.style.display = (mode==='Cash') ? 'none' : 'block';
 }
 
-function saveManualReceipt() {
+async function saveManualReceipt() {
+  if(!await guardAgainstStaleWipe()) return;
   var date = document.getElementById('mr-date').value;
   var amount = parseFloat(document.getElementById('mr-amount').value);
   var fromName = document.getElementById('mr-from-name').value.trim();
