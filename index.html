@@ -1083,10 +1083,13 @@ function doLogin() {
   loadMandal();
   loadDashboard();
   addAudit('Login', 'User logged in');
+  startLivePolling();
+
 }
 
 function doLogout() {
   addAudit('Logout','User logged out');
+  stopLivePolling();
   currentUser = null;
   document.getElementById('app').style.display = 'none';
   document.getElementById('login-screen').style.display = 'flex';
@@ -1235,6 +1238,13 @@ function previewQR(input) {
   r.onload = function(e) {
     document.getElementById('qr-preview').innerHTML = '<img src="'+e.target.result+'" style="max-width:180px;border-radius:8px">';
     var m = DB.getObj('mandal'); m.qrCode = e.target.result; DB.set('mandal', m);
+    uploadFileToDrive('mandal_qr_code', {name:'payment-qr.png', dataUrl:e.target.result}).then(function(uploaded){
+      if (uploaded.uploaded) {
+        var m2 = DB.getObj('mandal');
+        m2.qrCodeDriveLink = uploaded.driveLink;
+        DB.set('mandal', m2); queueSync('mandal', m2);
+      }
+    });
   };
   r.readAsDataURL(input.files[0]);
 }
@@ -1287,17 +1297,48 @@ function readFilesAsRecords(fileList) {
   }));
 }
 
+function uploadFileToDrive(folderTag, fileRecord) {
+  var url = getGasUrl();
+  if (!url) return Promise.resolve(fileRecord);
+  return fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+    body: JSON.stringify({
+      action: 'uploadFile',
+      folderTag: folderTag,
+      file: { name: fileRecord.name, dataUrl: fileRecord.dataUrl }
+    })
+  }).then(function(res){ return res.json(); })
+    .then(function(resp){
+      if (resp.ok) {
+        fileRecord.driveLink = resp.driveLink;
+        fileRecord.driveFileId = resp.fileId;
+        fileRecord.uploaded = true;
+        fileRecord.dataUrl = ''; // drop heavy base64 once it's safely in Drive
+      }
+      return fileRecord;
+    })
+    .catch(function(){ return fileRecord; });
+}
+
 function addMandalDocuments(category) {
   var input = document.getElementById('doc-upload-'+category);
   if(!input || !input.files.length) { showToast('Choose file(s) first','error'); return; }
+  showToast('Uploading...');
   readFilesAsRecords(input.files).then(function(files){
+    return Promise.all(files.map(function(f){
+      return uploadFileToDrive('mandal_docs_'+category, f);
+    }));
+  }).then(function(files){
     var m = DB.getObj('mandal');
     if(!m.documents) m.documents = {};
     if(!m.documents[category]) m.documents[category] = [];
     m.documents[category].push.apply(m.documents[category], files);
     DB.set('mandal', m); queueSync('mandal', m);
     input.value = ''; renderMandalDocuments();
-    showToast(files.length+' file(s) added','success');
+    var failedCount = files.filter(function(f){ return !f.uploaded; }).length;
+    if (failedCount) showToast(failedCount+' file(s) saved locally only — Drive upload failed','error');
+    else showToast(files.length+' file(s) uploaded to Drive!','success');
   });
 }
 
@@ -2044,7 +2085,12 @@ function savePurchaseVoucher() {
   }
   if(invoiceFile) {
     var r = new FileReader();
-    r.onload = function(e){ doSave({name:invoiceFile.name, type:invoiceFile.type, dataUrl:e.target.result}); };
+    r.onload = function(e){
+      var fileRec = {name:invoiceFile.name, type:invoiceFile.type, dataUrl:e.target.result};
+      uploadFileToDrive('vouchers_purchase_invoices', fileRec).then(function(uploaded){
+        doSave(uploaded);
+      });
+    };
     r.readAsDataURL(invoiceFile);
   } else { doSave(null); }
 }
@@ -2922,9 +2968,15 @@ function loadDashboard() {
 var syncInProgress = false;
 var syncTimer = null;
 
-function getGasUrl() { var s=DB.getObj('settings'); return s.gasUrl||''; }
+var DEFAULT_GAS_URL = 'https://script.google.com/macros/s/AKfycbysPCsblKg5uD2KPmA6oOjX4lRMHaO-5HDrY9z5X_byT6gt-NJq5f8j_LXXu5wDlNQ/exec';
+
+function getGasUrl() {
+  var s=DB.getObj('settings');
+  return s.gasUrl || DEFAULT_GAS_URL || '';
+}
 
 function queueSync(sheetName, record) {
+  if (record && typeof record === 'object') { record._updatedAt = now(); }
   var q = DB.get('syncQueue');
   q.push({id:uid(),sheet:sheetName,record:record,attempts:0,queuedAt:now()});
   DB.set('syncQueue',q); updateSyncBadge(); scheduleSyncRun();
@@ -2971,7 +3023,9 @@ function saveGasUrl() {
   var url=document.getElementById('gas-url-input').value.trim();
   var s=DB.getObj('settings'); s.gasUrl=url; DB.set('settings',s);
   showToast(url?'Connection saved!':'Connection removed','success');
-  setSyncStatus(url?'synced':'off'); if(url) runSync();
+  setSyncStatus(url?'synced':'off');
+  stopLivePolling();
+  if(url) { runSync(); startLivePolling(); }
 }
 
 function testGasConnection() {
@@ -2991,6 +3045,97 @@ function forceSyncNow() {
     items.forEach(function(rec){if(rec&&(rec.id||coll==='mandal'))queueSync(coll,rec);});
   });
   runSync();
+}
+
+// ============================================================
+// PULL FROM SHEETS (live sync — makes other users' changes appear)
+// ============================================================
+var pullTimer = null;
+var lastPullStamp = null;
+
+function startLivePolling() {
+  if (pullTimer) return;
+  if (!getGasUrl()) return;
+  pullFromSheets();
+  pullTimer = setInterval(pullFromSheets, 8000);
+}
+
+function stopLivePolling() {
+  if (pullTimer) { clearInterval(pullTimer); pullTimer = null; }
+}
+
+async function pullFromSheets() {
+  var url = getGasUrl();
+  if (!url || syncInProgress) return;
+  try {
+    var res = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify({ action: 'getAll', since: lastPullStamp })
+    });
+    var resp = await res.json();
+    if (!resp.ok) return;
+    if (resp.unchanged) return;
+    lastPullStamp = resp.lastModified;
+    mergeRemoteData(resp.data);
+    setSyncStatus('synced');
+  } catch (e) {
+    // silent fail on poll — will retry on next interval
+  }
+}
+
+function mergeRemoteData(remote) {
+  var changed = false;
+  Object.keys(remote).forEach(function (sheetName) {
+    var remoteRows = remote[sheetName] || [];
+    if (sheetName === 'mandal' || sheetName === 'settings') {
+      var single = remoteRows[0];
+      if (single) {
+        var localObj = DB.getObj(sheetName);
+        if (!localObj._updatedAt || (single._updatedAt && single._updatedAt > localObj._updatedAt)) {
+          DB.set(sheetName, single);
+          changed = true;
+        }
+      }
+      return;
+    }
+    var localRows = DB.get(sheetName);
+    var localById = {};
+    localRows.forEach(function (r) { if (r && r.id) localById[r.id] = r; });
+    remoteRows.forEach(function (rRow) {
+      var rid = rRow.id || rRow.username;
+      if (!rid) return;
+      var lRow = localById[rid];
+      if (!lRow || !lRow._updatedAt || (rRow._updatedAt && rRow._updatedAt > lRow._updatedAt)) {
+        localById[rid] = rRow;
+        changed = true;
+      }
+    });
+    DB.set(sheetName, Object.values(localById));
+  });
+  if (changed) {
+    refreshCurrentPageView();
+    showToast('🔄 Updated from sync', 'success');
+  }
+}
+
+function refreshCurrentPageView() {
+  var activePage = document.querySelector('.page.active');
+  if (!activePage) return;
+  var pageId = activePage.id.replace('page-', '');
+  if (pageId === 'dashboard') loadDashboard();
+  else if (pageId === 'mandal-profile') { loadMandal(); renderMandalDocuments(); }
+  else if (pageId === 'committee') renderCommittee();
+  else if (pageId === 'sabhashad') renderSabhashad();
+  else if (pageId === 'collection-area') renderAreas();
+  else if (pageId === 'events') { renderEvents(); populateEventSelects(); }
+  else if (pageId === 'donations') loadDonationPage();
+  else if (pageId === 'meetings') renderMeetings();
+  else if (pageId === 'accounts') { renderLedgers(); renderCreditorLedgers(); renderInvestments(); renderAssetBankCash(); }
+  else if (pageId === 'vouchers') renderVoucherList('Receipt');
+  else if (pageId === 'financials') renderFinancials();
+  else if (pageId === 'users') renderUsers();
+  else if (pageId === 'fy-management') { renderFYOverview(); }
 }
 
 function renderSyncQueueList() {
@@ -3036,7 +3181,22 @@ function deleteItem(collection, id, callback) {
   if(confirm('Delete this record?')){
     DB.delete(collection,id); if(callback)callback(); showToast('Deleted');
     addAudit('Delete','Removed from '+collection);
+    queueDelete(collection, id);
   }
+}
+
+function queueDelete(sheetName, id) {
+  var url = getGasUrl();
+  if(!url) return;
+  fetch(url, {
+    method:'POST',
+    headers:{'Content-Type':'text/plain;charset=utf-8'},
+    body: JSON.stringify({action:'deleteRow', sheet:sheetName, id:id})
+  }).then(function(){ touchLastPullStampReset(); }).catch(function(){});
+}
+
+function touchLastPullStampReset() {
+  lastPullStamp = null; // forces next poll to treat sheet as changed
 }
 
 function filterTable(tableId, val) {
