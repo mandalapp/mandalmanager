@@ -220,7 +220,7 @@ body.offline-mode .sidebar{margin-top:38px}
       <div class="om">🕉️</div>
       <h2 id="mandal-sidebar-name">Mandal Manager</h2>
       <p id="mandal-sidebar-loc">Setup Mandal Profile</p>
-      <div class="fy-badge" id="current-fy-badge">FY 2025-26</div>
+      <div class="fy-badge" id="current-fy-badge">FY 2026-27</div>
     </div>
     <div class="nav-section nav-sec" data-sec="main">Main</div>
     <div class="nav-item active" data-page="dashboard" onclick="showPage('dashboard')"><span class="icon">📊</span>Dashboard</div>
@@ -261,7 +261,7 @@ body.offline-mode .sidebar{margin-top:38px}
         <button class="btn btn-secondary btn-sm" id="manual-sync-btn" onclick="manualSyncNow()" title="Pull latest data from everyone right now">
           <span id="manual-sync-icon">🔄</span> <span id="manual-sync-label">Sync Now</span>
         </button>
-        <div class="fy-selector" onclick="showFYModal()">📅 <span id="fy-display">FY 2025-26</span> ▾</div>
+        <div class="fy-selector" onclick="showFYModal()">📅 <span id="fy-display">FY 2026-27</span> ▾</div>
       </div>
     </div>
     <div class="content">
@@ -321,7 +321,7 @@ body.offline-mode .sidebar{margin-top:38px}
       <div class="form-group"><label>Website</label><input type="url" id="m-website"></div>
     </div>
     <div class="tab-content" id="tab-mandal-finance">
-      <div class="section-label">Annual Membership Fee Types — FY <span id="finance-fy-label">2025-26</span></div>
+      <div class="section-label">Annual Membership Fee Types — FY <span id="finance-fy-label">2026-27</span></div>
       <div class="alert alert-info">💡 Create fee types (e.g. General ₹500, Life Member ₹5000). Each Sabhashad is assigned a fee type.</div>
       <div id="fee-types-list" style="margin-bottom:14px"></div>
       <div class="card" style="box-shadow:none;border:1px solid var(--border)">
@@ -333,7 +333,7 @@ body.offline-mode .sidebar{margin-top:38px}
         <button class="btn btn-primary btn-sm" onclick="addFeeType()">+ Add Fee Type</button>
       </div>
       <hr class="divider">
-      <div class="section-label">Opening Balance — FY <span id="ob-fy-label">2025-26</span></div>
+      <div class="section-label">Opening Balance — FY <span id="ob-fy-label">2026-27</span></div>
       <div class="alert alert-info">💡 Set opening balance for Cash and each Bank Account separately for FY <span id="ob-fy-label-sub"></span></div>
       <div class="form-group">
         <label>Opening Cash Balance (₹)</label>
@@ -564,7 +564,7 @@ body.offline-mode .sidebar{margin-top:38px}
       <button class="btn btn-warning" style="margin-top:8px" onclick="resetAllFees()">🔄 Reset All Member Fees for Current FY</button>
     </div>
     <div class="tab-content" id="tab-fy-opening">
-      <div class="section-label">Opening Balance — FY <span id="ob-fy-label2">2025-26</span></div>
+      <div class="section-label">Opening Balance — FY <span id="ob-fy-label2">2026-27</span></div>
       <div id="prev-fy-closing-info"></div>
       <div class="form-group">
         <label>Opening Cash Balance (₹)</label>
@@ -894,7 +894,7 @@ body.offline-mode .sidebar{margin-top:38px}
   <div class="modal-body">
     <div class="form-group"><label class="mandatory">Account / Ledger Name</label><input type="text" id="bk-name" placeholder="e.g. SBI Savings, HDFC Current"></div>
     <div class="form-row"><div class="form-group"><label>Bank Name</label><input type="text" id="bk-bank"></div><div class="form-group"><label>Account Number</label><input type="text" id="bk-accno"></div></div>
-    <div class="form-group"><label>Opening Balance (₹) — FY <span id="bk-fy-label">2025-26</span></label><input type="number" id="bk-opening" value="0"></div>
+    <div class="form-group"><label>Opening Balance (₹) — FY <span id="bk-fy-label">2026-27</span></label><input type="number" id="bk-opening" value="0"></div>
   </div>
   <div class="modal-footer"><button class="btn btn-secondary" onclick="closeModal('modal-bankaccount')">Cancel</button><button class="btn btn-primary" onclick="saveBankAccount()">Save Bank Account</button></div></div>
 </div>
@@ -940,14 +940,17 @@ body.offline-mode .sidebar{margin-top:38px}
 // SAFE localStorage WRAPPER (prevents crash if blocked)
 // ============================================================
 var DB = (function() {
+  // In-memory store only — no localStorage
+  var _mem = {};
+
   function safeGet(k) {
-    try { return JSON.parse(localStorage.getItem('mm_' + k)) || []; } catch(e) { return []; }
+    return _mem[k] ? JSON.parse(JSON.stringify(_mem[k])) : [];
   }
   function safeGetObj(k) {
-    try { return JSON.parse(localStorage.getItem('mm_' + k)) || {}; } catch(e) { return {}; }
+    return _mem[k] ? JSON.parse(JSON.stringify(_mem[k])) : {};
   }
   function safeSet(k, v) {
-    try { localStorage.setItem('mm_' + k, JSON.stringify(v)); } catch(e) { console.warn('Storage write failed:', k); }
+    _mem[k] = JSON.parse(JSON.stringify(v));
   }
   return {
     get: safeGet,
@@ -1185,14 +1188,6 @@ function resetForm(modalId) {
 // INIT
 // ============================================================
 function initApp() {
-  try {
-    localStorage.setItem('mm_test', '1');
-    localStorage.removeItem('mm_test');
-  } catch(e) {
-    document.getElementById('login-error').textContent = 'Warning: localStorage not available. Data will not persist.';
-    document.getElementById('login-error').style.display = 'block';
-  }
-
   // Pre-fill Supabase UI fields if tokens already saved
   setTimeout(function(){
     var supaUrlEl = document.getElementById('supa-url');
@@ -1201,12 +1196,30 @@ function initApp() {
     if(supaKeyEl) supaKeyEl.value = getSupabaseKey();
   }, 300);
 
-  var users = DB.get('users');
-  if(!users.length) {
-    DB.push('users', {id:uid(), name:'Admin', username:'admin', password:'admin123', role:'superadmin', mobile:'', email:'', status:'active', createdAt:now()});
+  // Load all data from Supabase before doing anything else
+  if (getSupabase()) {
+    pullFromSupabase().then(function() {
+      var users = DB.get('users');
+      if(!users.length) {
+        var adminUser = {id:uid(), name:'Admin', username:'admin', password:'admin123', role:'superadmin', roles:['superadmin'], mobile:'', email:'', status:'active', createdAt:now()};
+        DB.push('users', adminUser);
+        supabaseUpsert('users', adminUser);
+      }
+      var settings = DB.getObj('settings');
+      currentFY = settings.currentFY || '2026-27';
+      seedDefaultLedgers();
+      seedDefaultBankAccount();
+      updateSyncBadge();
+      updateFYDisplay();
+    });
+  } else {
+    // No Supabase yet — just show login with empty state
+    currentFY = '2026-27';
+    updateFYDisplay();
   }
+
   var settings = DB.getObj('settings');
-  currentFY = settings.currentFY || '2025-26';
+  currentFY = settings.currentFY || '2026-27';
   populateFYSelects();
   seedDefaultLedgers();
   seedDefaultBankAccount();
@@ -3308,22 +3321,19 @@ async function pullFromSupabase() {
   var tables = ['mandal','users','committee','sabhashad','areas','events','donations',
     'vouchers','vendors','investments','ledgers','meetings','audit','bankaccounts','settings'];
   try {
-    var remote = {};
     for (var i = 0; i < tables.length; i++) {
       var t = tables[i];
-      var query = sb.from(t).select('id, data, updated_at');
-      if (lastPullStamp) query = query.gt('updated_at', lastPullStamp);
-      var { data, error } = await query;
+      var { data, error } = await sb.from(t).select('id, data, updated_at');
       if (error) { console.warn('Pull error ['+t+']:', error.message); continue; }
-      if (data && data.length) {
-        remote[t] = data.map(function(row) { return row.data; });
+      if (!data || !data.length) continue;
+      if (t === 'mandal' || t === 'settings') {
+        DB.set(t, data[0].data || {});
+      } else {
+        DB.set(t, data.map(function(row) { return row.data; }));
       }
     }
-    if (Object.keys(remote).length) {
-      lastPullStamp = new Date().toISOString();
-      mergeRemoteData(remote);
-      setSyncStatus('synced');
-    }
+    lastPullStamp = new Date().toISOString();
+    setSyncStatus('synced');
   } catch(e) {
     console.warn('Supabase pull error:', e.message);
   }
@@ -3353,38 +3363,7 @@ async function manualSyncNow() {
 }
 
 function mergeRemoteData(remote) {
-  var changed = false;
-  Object.keys(remote).forEach(function (sheetName) {
-    var remoteRows = remote[sheetName] || [];
-    if (sheetName === 'mandal' || sheetName === 'settings') {
-      var single = remoteRows[0];
-      if (single) {
-        var localObj = DB.getObj(sheetName);
-        if (!localObj._updatedAt || (single._updatedAt && single._updatedAt > localObj._updatedAt)) {
-          DB.set(sheetName, single);
-          changed = true;
-        }
-      }
-      return;
-    }
-    var localRows = DB.get(sheetName);
-    var localById = {};
-    localRows.forEach(function (r) { if (r && r.id) localById[r.id] = r; });
-    remoteRows.forEach(function (rRow) {
-      var rid = rRow.id || rRow.username;
-      if (!rid) return;
-      var lRow = localById[rid];
-      if (!lRow || !lRow._updatedAt || (rRow._updatedAt && rRow._updatedAt > lRow._updatedAt)) {
-        localById[rid] = rRow;
-        changed = true;
-      }
-    });
-    DB.set(sheetName, Object.values(localById));
-  });
-  if (changed) {
-    refreshCurrentPageView();
-    showToast('🔄 Updated from sync', 'success');
-  }
+  // no-op — pullFromSupabase now writes directly to DB
 }
 
 function refreshCurrentPageView() {
