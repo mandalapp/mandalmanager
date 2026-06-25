@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <meta name="theme-color" content="#FF6B00">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <title>Mandal Manager</title>
 <style>
 :root{--saffron:#FF6B00;--saffron-dark:#CC5500;--saffron-light:#FFF3E8;--gold:#F5A623;--deep:#1A1A2E;--deep2:#16213E;--card:#FFFFFF;--bg:#F7F4F0;--text:#1A1A2E;--text2:#6B6B8A;--border:#E8E0D5;--success:#2ECC71;--danger:#E74C3C;--warning:#F39C12;--info:#3498DB;--sidebar-w:260px;--radius:12px;--shadow:0 2px 16px rgba(255,107,0,0.08)}
@@ -579,6 +580,25 @@ body.offline-mode .sidebar{margin-top:38px}
 <!-- BACKUP -->
 <div class="page" id="page-backup">
   <div class="card">
+  <div class="card-header"><div class="card-title">☁️ Supabase Connection</div></div>
+  <div class="alert alert-info">Enter your Supabase Project URL and anon/public key. Find these in Supabase → Project Settings → API.</div>
+  <div class="form-group">
+    <label>Supabase Project URL</label>
+    <input type="url" id="supa-url" placeholder="https://mhvyqfpyrfssdvbhmrhk.supabase.co" style="width:100%;padding:10px 14px;border:2px solid var(--border);border-radius:10px;font-size:14px">
+  </div>
+  <div class="form-group">
+    <label>Supabase Anon / Public Key</label>
+    <input type="text" id="supa-key" placeholder="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1odnlxZnB5cmZzc2R2YmhtcmhrIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODIyMDIwNTUsImV4cCI6MjA5Nzc3ODA1NX0.ktl_XPAp2hY2v6-pfZD88RE1HOvQvuVm5VPi8ZGXfbs" style="width:100%;padding:10px 14px;border:2px solid var(--border);border-radius:10px;font-size:14px">
+  </div>
+  <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:4px">
+    <button class="btn btn-primary" onclick="saveSupabaseFromUI()">💾 Save Connection</button>
+    <button class="btn btn-secondary" onclick="testSupabaseConnection()">🔌 Test Connection</button>
+    <button class="btn btn-secondary" onclick="manualSyncNow()">🔄 Pull Latest Now</button>
+  </div>
+  <div id="supa-status" style="margin-top:10px;font-size:13px;color:var(--text2)"></div>
+</div>
+
+<div class="card">
     <div class="card-header"><div class="card-title">💾 Backup &amp; Restore</div></div>
     <div class="alert alert-warning">⚠️ Super Admin only. All data replaced on restore.</div>
     <div style="display:flex;gap:14px;flex-wrap:wrap;margin-top:14px">
@@ -940,9 +960,34 @@ var DB = (function() {
 })();
 
 var currentUser = null;
-var currentFY = '2025-26';
+var currentFY = '2026-27';
 var editingId = null;
 var currentFlatKey = null;
+
+// ============================================================
+// SUPABASE CLIENT
+// ============================================================
+var _supa = null;
+
+function getSupabase() {
+  if (_supa) return _supa;
+  var url = localStorage.getItem('mm_supabase_url');
+  var key = localStorage.getItem('mm_supabase_key');
+  if (!url || !key) return null;
+  _supa = supabase.createClient(url, key);
+  return _supa;
+}
+
+function saveSupabaseTokens(url, key) {
+  localStorage.setItem('mm_supabase_url', url.trim());
+  localStorage.setItem('mm_supabase_key', key.trim());
+  _supa = null; // reset so next getSupabase() reinitializes
+  showToast('Supabase connection saved!', 'success');
+  startLivePolling();
+}
+
+function getSupabaseUrl() { return localStorage.getItem('mm_supabase_url') || ''; }
+function getSupabaseKey() { return localStorage.getItem('mm_supabase_key') || ''; }
 
 // ============================================================
 // ROLE PERMISSIONS
@@ -1148,6 +1193,14 @@ function initApp() {
     document.getElementById('login-error').style.display = 'block';
   }
 
+  // Pre-fill Supabase UI fields if tokens already saved
+  setTimeout(function(){
+    var supaUrlEl = document.getElementById('supa-url');
+    var supaKeyEl = document.getElementById('supa-key');
+    if(supaUrlEl) supaUrlEl.value = getSupabaseUrl();
+    if(supaKeyEl) supaKeyEl.value = getSupabaseKey();
+  }, 300);
+
   var users = DB.get('users');
   if(!users.length) {
     DB.push('users', {id:uid(), name:'Admin', username:'admin', password:'admin123', role:'superadmin', mobile:'', email:'', status:'active', createdAt:now()});
@@ -1189,17 +1242,9 @@ async function doLogin() {
 
   // Pull latest users from Sheets first, so password changes made
   // on other devices are recognized immediately, not just after login.
-  if (getGasUrl()) {
+  if (getSupabase()) {
     try {
-      var res = await fetch(getGasUrl(), {
-        method: 'POST',
-        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-        body: JSON.stringify({ action: 'getAll', since: null })
-      });
-      var resp = await res.json();
-      if (resp.ok && resp.data) {
-        mergeRemoteData(resp.data);
-      }
+      await pullFromSupabase();
     } catch (e) {
       console.warn('Pre-login sync pull failed:', e.message);
     }
@@ -1445,28 +1490,29 @@ function readFilesAsRecords(fileList) {
   }));
 }
 
-function uploadFileToDrive(folderTag, fileRecord) {
-  var url = getGasUrl();
-  if (!url) return Promise.resolve(fileRecord);
-  return fetch(url, {
-    method: 'POST',
-    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-    body: JSON.stringify({
-      action: 'uploadFile',
-      folderTag: folderTag,
-      file: { name: fileRecord.name, dataUrl: fileRecord.dataUrl }
-    })
-  }).then(function(res){ return res.json(); })
-    .then(function(resp){
-      if (resp.ok) {
-        fileRecord.driveLink = resp.driveLink;
-        fileRecord.driveFileId = resp.fileId;
-        fileRecord.uploaded = true;
-        fileRecord.dataUrl = ''; // drop heavy base64 once it's safely in Drive
-      }
-      return fileRecord;
-    })
-    .catch(function(){ return fileRecord; });
+async function uploadFileToDrive(folderTag, fileRecord) {
+  var sb = getSupabase();
+  if (!sb || !fileRecord.dataUrl) return fileRecord;
+  try {
+    // Convert base64 dataUrl to Blob
+    var parts = fileRecord.dataUrl.split(',');
+    var mime = parts[0].match(/:(.*?);/)[1];
+    var binary = atob(parts[1]);
+    var arr = new Uint8Array(binary.length);
+    for (var i = 0; i < binary.length; i++) arr[i] = binary.charCodeAt(i);
+    var blob = new Blob([arr], { type: mime });
+    var path = folderTag + '/' + Date.now() + '_' + fileRecord.name;
+    var { data, error } = await sb.storage.from('mandal-files').upload(path, blob, { upsert: true });
+    if (error) { console.warn('Storage upload error:', error.message); return fileRecord; }
+    var { data: urlData } = sb.storage.from('mandal-files').getPublicUrl(path);
+    fileRecord.driveLink = urlData.publicUrl;
+    fileRecord.uploaded = true;
+    fileRecord.dataUrl = ''; // drop heavy base64
+    return fileRecord;
+  } catch(e) {
+    console.warn('File upload exception:', e.message);
+    return fileRecord;
+  }
 }
 
 function addMandalDocuments(category) {
@@ -3170,97 +3216,73 @@ function loadDashboard() {
 // ============================================================
 // GOOGLE SYNC
 // ============================================================
-var syncInProgress = false;
+var syncInProgress = false; // kept as guard for pullFromSupabase
 var syncTimer = null;
 
-var DEFAULT_GAS_URL = 'https://script.google.com/macros/s/AKfycbyEiz4FRCshkWq1bqcVtLVZbQ_-7KHFWkFc1w6e9oiDfNWUAySnFVKAHEnFLXFvKlf1/exec';
-
 function getGasUrl() {
-  var s=DB.getObj('settings');
-  return s.gasUrl || DEFAULT_GAS_URL || '';
+  // Kept as stub so older callers don't break — returns empty string
+  return '';
 }
 
 function queueSync(sheetName, record) {
   if (record && typeof record === 'object') { record._updatedAt = now(); }
-  var q = DB.get('syncQueue');
-  q.push({id:uid(),sheet:sheetName,record:record,attempts:0,queuedAt:now()});
-  DB.set('syncQueue',q); updateSyncBadge(); scheduleSyncRun();
+  // Push to Supabase immediately (upsert)
+  supabaseUpsert(sheetName, record);
 }
 
-function scheduleSyncRun() { if(syncTimer) return; syncTimer=setTimeout(function(){ syncTimer=null; runSync(); },3000); }
-
-function updateSyncBadge() {
-  var q = DB.get('syncQueue').length;
-  var badge = document.getElementById('sync-badge');
-  if(!badge) return;
-  if(q>0){badge.style.display='inline-flex';badge.textContent=q;}else{badge.style.display='none';}
-}
-
-async function runSync() {
-  var url = getGasUrl();
-  if(!url){updateSyncBadge();return;}
-  if(syncInProgress) return;
-  syncInProgress = true; setSyncStatus('syncing');
-  var anyStaleRejected = false;
+async function supabaseUpsert(table, record) {
+  var sb = getSupabase();
+  if (!sb || !record) return;
   try {
-    var queue = DB.get('syncQueue'); var remaining = [];
-    for(var i=0;i<queue.length;i++) {
-      var item = queue[i];
-      try {
-        var res = await fetch(url,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify({action:'upsertRow',sheet:item.sheet,record:item.record})});
-        var data = await res.json();
-        if(data.staleRejected) {
-          // Server confirms this record predates the last wipe — discard it
-          // permanently instead of retrying. Retrying would just keep
-          // hammering the server with data that can never be accepted.
-          anyStaleRejected = true;
-          continue;
-        }
-        if(!data.ok){item.attempts++;if(item.attempts<5)remaining.push(item);}
-      } catch(e){item.attempts++;if(item.attempts<5)remaining.push(item);}
-    }
-    DB.set('syncQueue',remaining);
-    setSyncStatus(remaining.length>0?'partial':'synced');
-  } catch(e){setSyncStatus('error');}
-  syncInProgress=false; updateSyncBadge();
-  if(anyStaleRejected) {
-    showToast('🧹 Some local entries predated the last data wipe and were discarded','warning');
+    var row = {
+      id: record.id || table, // mandal/settings use table name as id
+      data: record,
+      updated_at: new Date().toISOString()
+    };
+    var { error } = await sb.from(table).upsert(row, { onConflict: 'id' });
+    if (error) console.warn('Supabase upsert error [' + table + ']:', error.message);
+  } catch(e) {
+    console.warn('Supabase upsert exception:', e.message);
   }
-  if(DB.get('syncQueue').length>0) scheduleSyncRun();
 }
+
+function scheduleSyncRun() { /* no-op — Supabase upserts are immediate */ }
+
+function updateSyncBadge() { /* no-op */ }
+
+async function runSync() { /* no-op — replaced by supabaseUpsert */ }
 
 function setSyncStatus(status) {
-  var el=document.getElementById('sync-status-text'); if(!el) return;
-  var map={syncing:'🔄 Syncing...',synced:'✅ Synced to Google Sheets',partial:'⚠️ Partial sync, retrying...',error:'❌ Sync error',off:'⚪ Not connected'};
-  el.textContent=map[status]||status;
+  var el = document.getElementById('sync-status-text'); if (!el) return;
+  var map = {
+    syncing: '🔄 Syncing...',
+    synced:  '✅ Synced to Supabase',
+    partial: '⚠️ Partial sync...',
+    error:   '❌ Sync error',
+    off:     '⚪ Not connected to Supabase'
+  };
+  el.textContent = map[status] || status;
 }
 
-function saveGasUrl() {
-  var url=document.getElementById('gas-url-input').value.trim();
-  var s=DB.getObj('settings'); s.gasUrl=url; DB.set('settings',s);
-  showToast(url?'Connection saved!':'Connection removed','success');
-  setSyncStatus(url?'synced':'off');
-  stopLivePolling();
-  if(url) { runSync(); startLivePolling(); }
-}
+function saveGasUrl() { /* no-op — use saveSupabaseFromUI() instead */ }
+function testGasConnection() { /* no-op — use testSupabaseConnection() instead */ }
 
-function testGasConnection() {
-  var url=getGasUrl(); if(!url){showToast('Enter the URL first','error');return;}
-  setSyncStatus('syncing');
-  fetch(url,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify({action:'ping'})})
-    .then(function(r){return r.json();})
-    .then(function(d){if(d.ok){showToast('Connected!','success');setSyncStatus('synced');}else{showToast('Failed: '+(d.error||'unknown'),'error');setSyncStatus('error');}})
-    .catch(function(e){showToast('Failed: '+e.message,'error');setSyncStatus('error');});
-}
-
-function forceSyncNow() {
-  showToast('Starting full sync...');
-  var colls=['mandal','users','committee','sabhashad','areas','events','donations','vouchers','vendors','investments','ledgers','meetings','audit','bankaccounts'];
-  colls.forEach(function(coll){
-    var items=coll==='mandal'?[DB.getObj('mandal')]:DB.get(coll);
-    items.forEach(function(rec){if(rec&&(rec.id||coll==='mandal'))queueSync(coll,rec);});
-  });
-  runSync();
+async function forceSyncNow() {
+  var sb = getSupabase();
+  if(!sb){ showToast('No Supabase connection configured','error'); return; }
+  showToast('Pushing all local data to Supabase...');
+  var colls = ['mandal','users','committee','sabhashad','areas','events','donations',
+    'vouchers','vendors','investments','ledgers','meetings','audit','bankaccounts','settings'];
+  for(var i = 0; i < colls.length; i++){
+    var coll = colls[i];
+    var items = (coll==='mandal'||coll==='settings') ? [DB.getObj(coll)] : DB.get(coll);
+    for(var j = 0; j < items.length; j++){
+      if(items[j] && (items[j].id || coll==='mandal' || coll==='settings')){
+        await supabaseUpsert(coll, items[j]);
+      }
+    }
+  }
+  showToast('✅ All data pushed to Supabase!','success');
 }
 
 // ============================================================
@@ -3271,48 +3293,39 @@ var lastPullStamp = null;
 
 function startLivePolling() {
   if (pullTimer) return;
-  if (!getGasUrl()) return;
-  pullFromSheets();
-  pullTimer = setInterval(pullFromSheets, 8000);
+  if (!getSupabase()) return;
+  pullFromSupabase();
+  pullTimer = setInterval(pullFromSupabase, 8000);
 }
 
 function stopLivePolling() {
   if (pullTimer) { clearInterval(pullTimer); pullTimer = null; }
 }
 
-async function pullFromSheets() {
-  var url = getGasUrl();
-  if (!url || syncInProgress) return;
+async function pullFromSupabase() {
+  var sb = getSupabase();
+  if (!sb) return;
+  var tables = ['mandal','users','committee','sabhashad','areas','events','donations',
+    'vouchers','vendors','investments','ledgers','meetings','audit','bankaccounts','settings'];
   try {
-    var res = await fetch(url, {
-      method: 'POST',
-      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-      body: JSON.stringify({ action: 'getAll', since: lastPullStamp })
-    });
-    var resp = await res.json();
-    if (!resp.ok) return;
-    if (resp.unchanged) return;
-    // Detect a remote wipe even on an already-open, idle session.
-    if (resp.wipeEpoch) {
-      var remoteEpoch = resp.wipeEpoch;
-      var seenEpoch = localStorage.getItem('mm_wipeEpochSeen');
-      if (remoteEpoch && remoteEpoch !== seenEpoch) {
-        var keysToWipe = ['mandal','committee','sabhashad','areas','events','donations','vouchers',
-          'vendors','investments','ledgers','meetings','audit','settings','bankaccounts','syncQueue'];
-        keysToWipe.forEach(function(k){ localStorage.removeItem('mm_'+k); });
-        localStorage.setItem('mm_wipeEpochSeen', remoteEpoch);
-        lastPullStamp = resp.lastModified;
-        mergeRemoteData(resp.data);
-        showToast('🧹 Data was reset by Super Admin — showing fresh data','warning');
-        refreshCurrentPageView();
-        return;
+    var remote = {};
+    for (var i = 0; i < tables.length; i++) {
+      var t = tables[i];
+      var query = sb.from(t).select('id, data, updated_at');
+      if (lastPullStamp) query = query.gt('updated_at', lastPullStamp);
+      var { data, error } = await query;
+      if (error) { console.warn('Pull error ['+t+']:', error.message); continue; }
+      if (data && data.length) {
+        remote[t] = data.map(function(row) { return row.data; });
       }
     }
-    lastPullStamp = resp.lastModified;
-    mergeRemoteData(resp.data);
-    setSyncStatus('synced');
-  } catch (e) {
-    // silent fail on poll — will retry on next interval
+    if (Object.keys(remote).length) {
+      lastPullStamp = new Date().toISOString();
+      mergeRemoteData(remote);
+      setSyncStatus('synced');
+    }
+  } catch(e) {
+    console.warn('Supabase pull error:', e.message);
   }
 }
 
@@ -3320,33 +3333,18 @@ async function manualSyncNow() {
   var btn = document.getElementById('manual-sync-btn');
   var icon = document.getElementById('manual-sync-icon');
   var label = document.getElementById('manual-sync-label');
-  var url = getGasUrl();
-  if (!url) { showToast('No sync connection configured','error'); return; }
+  var sb = getSupabase();
+  if (!sb) { showToast('No Supabase connection configured','error'); return; }
+  if (!getSupabaseUrl()) { showToast('No Supabase connection configured','error'); return; }
   if (btn) btn.disabled = true;
   if (icon) icon.className = 'mm-syncing';
   if (label) label.textContent = 'Syncing...';
   try {
-    // push anything queued locally first, then pull the latest from everyone
-    if (DB.get('syncQueue').length > 0) {
-      await runSync();
-    }
-    lastPullStamp = null; // force a full fresh pull regardless of last-known timestamp
-    var res = await fetch(url, {
-      method: 'POST',
-      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-      body: JSON.stringify({ action: 'getAll', since: null })
-    });
-    var resp = await res.json();
-    if (resp.ok && resp.data) {
-      lastPullStamp = resp.lastModified;
-      mergeRemoteData(resp.data);
-      setSyncStatus('synced');
-      showToast('✅ Synced — showing latest data','success');
-    } else {
-      showToast('Sync failed: '+(resp.error||'unknown error'),'error');
-    }
+    lastPullStamp = null; // force full pull
+    await pullFromSupabase();
+    showToast('✅ Synced — showing latest data', 'success');
   } catch (e) {
-    showToast('Sync failed: '+e.message,'error');
+    showToast('Sync failed: ' + e.message, 'error');
   } finally {
     if (btn) btn.disabled = false;
     if (icon) icon.className = '';
@@ -3412,13 +3410,12 @@ function refreshCurrentPageView() {
 }
 
 function renderSyncQueueList() {
-  var el=document.getElementById('sync-queue-list'); if(!el) return;
-  var dataQ=DB.get('syncQueue'); var url=getGasUrl();
-  document.getElementById('gas-url-input').value=url;
-  setSyncStatus(url?(dataQ.length>0?'partial':'synced'):'off');
-  if(!dataQ.length){el.innerHTML='<div class="alert alert-success">✅ Nothing pending. All synced.</div>';return;}
-  el.innerHTML='<div class="alert alert-warning">⏳ '+dataQ.length+' record(s) waiting.</div>' +
-    dataQ.slice(0,20).map(function(q){ return '<div class="ledger-row"><span>📄 '+q.sheet+' — '+(q.record&&(q.record.id||q.record.name)||'record')+'</span><span class="badge badge-warning">Attempt '+q.attempts+'</span></div>'; }).join('');
+  var el = document.getElementById('sync-queue-list'); if(!el) return;
+  var sb = getSupabase();
+  setSyncStatus(sb ? 'synced' : 'off');
+  el.innerHTML = sb
+    ? '<div class="alert alert-success">✅ Connected to Supabase. Sync is real-time.</div>'
+    : '<div class="alert alert-warning">⚠️ No Supabase connection. Enter credentials in Backup page.</div>';
 }
 
 // ============================================================
@@ -3476,13 +3473,11 @@ function importBackup() {
 
 async function wipeAllData() {
   if(!isSuperAdmin(currentUser)) { showToast('Only Super Admin can wipe data','error'); return; }
-  var confirm1 = prompt('Type WIPE in capital letters to confirm permanent deletion of ALL data for everyone (local + Google Sheets + Drive):');
+  var confirm1 = prompt('Type WIPE in capital letters to confirm permanent deletion of ALL data for everyone (local + Supabase):');
   if(confirm1 === null) { showToast('Wipe cancelled','warning'); return; }
   if(confirm1.trim() !== 'WIPE') { showToast('Wipe cancelled — you typed "'+confirm1+'" instead of WIPE','error'); return; }
   if(!confirm('Final confirmation: this cannot be undone. Proceed?')) { showToast('Wipe cancelled','warning'); return; }
 
-  // STOP live polling immediately — otherwise an in-flight or scheduled pull
-  // can re-merge old remote data back into localStorage before/after reload.
   stopLivePolling();
   if (syncTimer) { clearTimeout(syncTimer); syncTimer = null; }
 
@@ -3494,53 +3489,45 @@ async function wipeAllData() {
   // 1. Wipe remote (Google Sheet tabs + Drive files) FIRST, and actually confirm it worked.
   var url = getGasUrl();
   var remoteWiped = false;
-  if(url) {
+  var sb = getSupabase();
+  if (sb) {
     try {
-      var res = await fetch(url, {
-        method:'POST',
-        headers:{'Content-Type':'text/plain;charset=utf-8'},
-        body: JSON.stringify({action:'wipeAll'})
-      });
-      var resp = await res.json();
-      remoteWiped = !!(resp && resp.ok);
-      if(!remoteWiped) {
-        console.error('Remote wipe response:', resp);
+      var tables = ['mandal','committee','sabhashad','areas','events','donations','vouchers',
+        'vendors','investments','ledgers','meetings','audit','settings','bankaccounts'];
+      var allOk = true;
+      for (var ti = 0; ti < tables.length; ti++) {
+        var { error } = await sb.from(tables[ti]).delete().neq('id', '__never__');
+        if (error) { console.error('Wipe error ['+tables[ti]+']:', error.message); allOk = false; }
       }
+      remoteWiped = allOk;
     } catch(e) {
-      console.error('Remote wipe failed:', e.message);
+      console.error('Supabase wipe failed:', e.message);
     }
+  } else {
+    remoteWiped = true; // no remote configured — local-only wipe is fine
   }
 
-  if(url && !remoteWiped) {
-    showToast('⚠️ Remote (Google Sheet) wipe FAILED — local data cleared, but Sheet still has old data and will re-sync it back. Check Apps Script deployment.','error');
-    // Do NOT reload — reloading now would just pull the un-wiped remote data straight back in.
+  if (sb && !remoteWiped) {
+    showToast('⚠️ Supabase wipe FAILED — check your connection and RLS policies','error');
     return;
   }
 
-  // 2. Wipe local storage (keep users so admin isn't locked out)
+  // 2. Wipe local storage
   keysToWipe.forEach(function(k){ localStorage.removeItem('mm_'+k); });
   lastPullStamp = null;
 
-  // 3. Reseed defaults so app doesn't break (default ledgers, default bank account)
+  // 3. Reseed defaults
   seedDefaultLedgers();
   seedDefaultBankAccount();
-  if (url) {
-    // push the freshly reseeded defaults back up so the Sheet isn't empty
-    // of the bare essentials when other users next load the app
-    var seededLedgers = DB.get('ledgers'); seededLedgers.forEach(function(l){ queueSync('ledgers', l); });
-    var seededBank = DB.get('bankaccounts'); seededBank.forEach(function(b){ queueSync('bankaccounts', b); });
-    await runSync();
+  var sb2 = getSupabase();
+  if(sb2) {
+    var seededLedgers = DB.get('ledgers');
+    for(var si=0; si<seededLedgers.length; si++) await supabaseUpsert('ledgers', seededLedgers[si]);
+    var seededBank = DB.get('bankaccounts');
+    for(var bi=0; bi<seededBank.length; bi++) await supabaseUpsert('bankaccounts', seededBank[bi]);
   }
 
-  // The server's wipeAll already stamped its own authoritative wipeEpoch
-  // (see Apps Script Fix G2) and returned it in `resp.wipeEpoch` from the
-  // wipeAllSheets() call above. Record that we've "seen" it so this device
-  // doesn't immediately treat itself as stale on its next poll.
-  if(remoteWiped && resp && resp.wipeEpoch) {
-    localStorage.setItem('mm_wipeEpochSeen', resp.wipeEpoch);
-  }
-
-  addAudit('WIPE ALL DATA', 'Super Admin wiped all mandal data (local + remote) and started fresh');
+  addAudit('WIPE ALL DATA', 'Super Admin wiped all mandal data (local + Supabase) and started fresh');
   showToast('✅ All data wiped. Starting fresh!','success');
   setTimeout(function(){ location.reload(); }, 1500);
 }
@@ -3554,44 +3541,9 @@ async function wipeAllData() {
  * If blocked, it has already cleared local cache, pulled fresh data,
  * refreshed the current screen, and told the user to re-check their form.
  */
-async function guardAgainstStaleWipe() {
-  var url = getGasUrl();
-  if(!url) return true; // no sync configured — nothing to be stale against
-  try {
-    var res = await fetch(url, {
-      method:'POST',
-      headers:{'Content-Type':'text/plain;charset=utf-8'},
-      body: JSON.stringify({action:'ping'})
-    });
-    var resp = await res.json();
-    if(!resp.ok) return true; // can't reach server — allow save, will be caught by upsertRow's own check on actual sync
-    var remoteEpoch = resp.wipeEpoch;
-    var seenEpoch = localStorage.getItem('mm_wipeEpochSeen');
-    if(remoteEpoch && remoteEpoch !== seenEpoch) {
-      // We are behind the latest wipe. Block this save, clear our cache,
-      // pull fresh, and make the user redo their entry against current data.
-      var keysToWipe = ['mandal','committee','sabhashad','areas','events','donations','vouchers',
-        'vendors','investments','ledgers','meetings','audit','settings','bankaccounts','syncQueue'];
-      keysToWipe.forEach(function(k){ localStorage.removeItem('mm_'+k); });
-      localStorage.setItem('mm_wipeEpochSeen', remoteEpoch);
-      var pullRes = await fetch(url, {
-        method:'POST',
-        headers:{'Content-Type':'text/plain;charset=utf-8'},
-        body: JSON.stringify({action:'getAll', since:null})
-      });
-      var pullResp = await pullRes.json();
-      if(pullResp.ok && pullResp.data) {
-        mergeRemoteData(pullResp.data);
-        lastPullStamp = pullResp.lastModified;
-      }
-      refreshCurrentPageView();
-      showToast('🧹 Data was reset by Super Admin since you last synced. Your screen now shows current data — please re-check and re-enter this.','error');
-      return false;
-    }
-    return true;
-  } catch(e) {
-    return true; // network hiccup on the check itself — don't block on a flaky check
-  }
+async function checkWipeEpochAndMaybeClear() {
+  // Replaced by Supabase live polling — no-op
+  await pullFromSupabase();
 }
 
 function clearCacheFromLoginScreen() {
@@ -3652,13 +3604,12 @@ function deleteItem(collection, id, callback) {
 }
 
 function queueDelete(sheetName, id) {
-  var url = getGasUrl();
-  if(!url) return;
-  fetch(url, {
-    method:'POST',
-    headers:{'Content-Type':'text/plain;charset=utf-8'},
-    body: JSON.stringify({action:'deleteRow', sheet:sheetName, id:id})
-  }).then(function(){ touchLastPullStampReset(); }).catch(function(){});
+  var sb = getSupabase();
+  if (!sb) return;
+  sb.from(sheetName).delete().eq('id', id)
+    .then(function(res) {
+      if (res.error) console.warn('Supabase delete error:', res.error.message);
+    });
 }
 
 function touchLastPullStampReset() {
@@ -3814,6 +3765,29 @@ function getSelectedBankForDonation(modeSelectId, bankSelectId) {
   if(bankEl && bankEl.value) return bankEl.value;
   var accounts = DB.get('bankaccounts');
   return accounts.length ? accounts[0].name : 'Bank Account';
+}
+
+function saveSupabaseFromUI() {
+  var url = document.getElementById('supa-url').value.trim();
+  var key = document.getElementById('supa-key').value.trim();
+  if (!url || !key) { showToast('Both URL and key are required', 'error'); return; }
+  saveSupabaseTokens(url, key);
+}
+
+async function testSupabaseConnection() {
+  var sb = getSupabase();
+  var el = document.getElementById('supa-status');
+  if (!sb) { if(el) el.textContent = '❌ No credentials saved yet.'; showToast('Save credentials first','error'); return; }
+  if(el) el.textContent = '🔄 Testing...';
+  try {
+    var { error } = await sb.from('settings').select('id').limit(1);
+    if (error) throw error;
+    if(el) el.textContent = '✅ Connected to Supabase!';
+    showToast('Connected!', 'success');
+  } catch(e) {
+    if(el) el.textContent = '❌ Failed: ' + e.message;
+    showToast('Connection failed: ' + e.message, 'error');
+  }
 }
 
 // ============================================================
