@@ -684,11 +684,49 @@ body.offline-mode .sidebar{margin-top:38px}
       <div class="form-group"><label>Structure</label><select id="building-type" onchange="toggleWings(this.value)"><option value="wing">Building → Wings → Floors → Flats</option><option value="no-wing">Building → Floors → Flats (no wings)</option></select></div>
       <div id="wings-section"><div class="form-row"><div class="form-group"><label>Number of Wings</label><input type="number" id="num-wings" min="1" value="1"></div><div class="form-group"><label>Wing Names (comma sep.)</label><input type="text" id="wing-names" placeholder="A,B,C"></div></div></div>
       <div class="form-row"><div class="form-group"><label class="mandatory">Total Floors</label><input type="number" id="num-floors" min="1" value="4"></div><div class="form-group"><label class="mandatory">Flats per Floor</label><input type="number" id="flats-per-floor" min="1" value="4"></div></div>
+      <hr style="border:none;border-top:1px solid var(--border);margin:12px 0">
+      <div class="form-group">
+        <label style="display:flex;align-items:center;gap:8px;cursor:pointer">
+          <input type="checkbox" id="has-shops-building" onchange="toggleShopSection('building-shop-section',this.checked)" style="width:16px;height:16px;accent-color:var(--saffron)">
+          <span style="font-weight:600">🏪 This building also has Shops</span>
+        </label>
+      </div>
+      <div id="building-shop-section" style="display:none;background:var(--saffron-light);border:1px solid var(--saffron);border-radius:10px;padding:14px;margin-top:6px">
+        <div class="section-label">Shop Details</div>
+        <div class="form-group"><label>Shop Entry Type</label>
+          <select id="building-shop-type" onchange="toggleBuildingShopEntry(this.value)">
+            <option value="auto">Auto Number (total shops)</option>
+            <option value="manual">Manual Shop Numbers</option>
+          </select>
+        </div>
+        <div class="form-group" id="building-shop-auto-field"><label>Total Shops</label><input type="number" id="building-total-shops" min="1" value="5"></div>
+        <div class="form-group" id="building-shop-manual-field" style="display:none"><label>Shop Numbers (comma sep.)</label><input type="text" id="building-shop-numbers" placeholder="S-1,S-2,S-3"></div>
+        <div class="form-group"><label>Shop Location in Building</label><input type="text" id="building-shop-location" placeholder="e.g. Ground Floor, Basement"></div>
+      </div>
     </div>
     <div id="slum-fields" style="display:none">
       <div class="form-group"><label>Room Entry Type</label><select id="slum-type" onchange="toggleSlumType(this.value)"><option value="auto">Auto Number (total rooms)</option><option value="manual">Manual Room Numbers</option></select></div>
       <div class="form-group" id="slum-auto-field"><label class="mandatory">Total Rooms</label><input type="number" id="total-rooms" min="1" value="10"></div>
       <div class="form-group" id="slum-manual-field" style="display:none"><label class="mandatory">Room Numbers (comma sep.)</label><input type="text" id="room-numbers" placeholder="1,2,3,4A,5B"></div>
+      <hr style="border:none;border-top:1px solid var(--border);margin:12px 0">
+      <div class="form-group">
+        <label style="display:flex;align-items:center;gap:8px;cursor:pointer">
+          <input type="checkbox" id="has-shops-slum" onchange="toggleShopSection('slum-shop-section',this.checked)" style="width:16px;height:16px;accent-color:var(--saffron)">
+          <span style="font-weight:600">🏪 This area also has Shops</span>
+        </label>
+      </div>
+      <div id="slum-shop-section" style="display:none;background:var(--saffron-light);border:1px solid var(--saffron);border-radius:10px;padding:14px;margin-top:6px">
+        <div class="section-label">Shop Details</div>
+        <div class="form-group"><label>Shop Entry Type</label>
+          <select id="slum-shop-type" onchange="toggleSlumShopEntry(this.value)">
+            <option value="auto">Auto Number (total shops)</option>
+            <option value="manual">Manual Shop Numbers</option>
+          </select>
+        </div>
+        <div class="form-group" id="slum-shop-auto-field"><label>Total Shops</label><input type="number" id="slum-total-shops" min="1" value="5"></div>
+        <div class="form-group" id="slum-shop-manual-field" style="display:none"><label>Shop Numbers (comma sep.)</label><input type="text" id="slum-shop-numbers" placeholder="S-1,S-2,S-3"></div>
+        <div class="form-group"><label>Shop Location</label><input type="text" id="slum-shop-location" placeholder="e.g. Main Road Side, Entry Gate"></div>
+      </div>
     </div>
   </div>
   <div class="modal-footer"><button class="btn btn-secondary" onclick="closeModal('modal-area')">Cancel</button><button class="btn btn-primary" onclick="saveArea()">Save Area</button></div></div>
@@ -1824,6 +1862,20 @@ function toggleSlumType(val) {
   document.getElementById('slum-manual-field').style.display = val==='manual'?'block':'none';
 }
 
+function toggleShopSection(sectionId, show) {
+  document.getElementById(sectionId).style.display = show ? 'block' : 'none';
+}
+
+function toggleBuildingShopEntry(val) {
+  document.getElementById('building-shop-auto-field').style.display = val==='auto'?'block':'none';
+  document.getElementById('building-shop-manual-field').style.display = val==='manual'?'block':'none';
+}
+
+function toggleSlumShopEntry(val) {
+  document.getElementById('slum-shop-auto-field').style.display = val==='auto'?'block':'none';
+  document.getElementById('slum-shop-manual-field').style.display = val==='manual'?'block':'none';
+}
+
 async function saveArea() {
   if(!await guardAgainstStaleWipe()) return;
   var type = document.getElementById('area-type').value;
@@ -1843,11 +1895,41 @@ async function saveArea() {
     } else {
       for(var f2=1;f2<=floors;f2++){for(var fl2=1;fl2<=fpf;fl2++){var fn2=f2+'0'+fl2;area.flats.push({key:area.id+'_'+fn2,floor:f2,flat:fn2,label:'Floor '+f2+' — '+fn2});}}
     }
+    // building shops
+    var hasBuildingShops = document.getElementById('has-shops-building').checked;
+    area.hasShops = hasBuildingShops;
+    area.shops = [];
+    if(hasBuildingShops) {
+      area.shopLocation = document.getElementById('building-shop-location').value;
+      var bstype = document.getElementById('building-shop-type').value;
+      if(bstype==='auto'){
+        var totalBS = parseInt(document.getElementById('building-total-shops').value)||5;
+        for(var s=1;s<=totalBS;s++) area.shops.push({key:area.id+'_S'+s,label:'Shop '+s});
+      } else {
+        var bsns = document.getElementById('building-shop-numbers').value.split(',').map(function(x){return x.trim();}).filter(Boolean);
+        bsns.forEach(function(s){ area.shops.push({key:area.id+'_S'+s,label:'Shop '+s}); });
+      }
+    }
   } else {
     area.rooms = [];
     var stype = document.getElementById('slum-type').value;
     if(stype==='auto'){var total=parseInt(document.getElementById('total-rooms').value)||10;for(var r=1;r<=total;r++)area.rooms.push({key:area.id+'_R'+r,label:String(r)});}
     else{var rns=document.getElementById('room-numbers').value.split(',').map(function(r){return r.trim();}).filter(Boolean);rns.forEach(function(r){area.rooms.push({key:area.id+'_R'+r,label:r});});}
+    // slum shops
+    var hasSlumShops = document.getElementById('has-shops-slum').checked;
+    area.hasShops = hasSlumShops;
+    area.shops = [];
+    if(hasSlumShops) {
+      area.shopLocation = document.getElementById('slum-shop-location').value;
+      var sstype = document.getElementById('slum-shop-type').value;
+      if(sstype==='auto'){
+        var totalSS = parseInt(document.getElementById('slum-total-shops').value)||5;
+        for(var ss=1;ss<=totalSS;ss++) area.shops.push({key:area.id+'_S'+ss,label:'Shop '+ss});
+      } else {
+        var ssns = document.getElementById('slum-shop-numbers').value.split(',').map(function(x){return x.trim();}).filter(Boolean);
+        ssns.forEach(function(s){ area.shops.push({key:area.id+'_S'+s,label:'Shop '+s}); });
+      }
+    }
   }
   if(isEditing) DB.update('areas',editingId,area); else DB.push('areas',area);
   queueSync('areas', area);
@@ -1861,10 +1943,11 @@ function renderAreas() {
   if(!areas.length) { el.innerHTML='<div class="empty-state"><div class="icon">🏘️</div><h3>No Areas</h3><p>Add buildings or slum areas</p></div>'; return; }
   el.innerHTML = areas.map(function(a){
     var total = a.type==='building' ? (a.flats&&a.flats.length||0) : (a.rooms&&a.rooms.length||0);
+    var shopCount = (a.shops&&a.shops.length)||0;
     return '<div class="card" style="box-shadow:none;border:1px solid var(--border);margin-bottom:10px">' +
       '<div style="display:flex;align-items:center;justify-content:space-between">' +
       '<div><div style="font-weight:700;font-size:15px">'+a.name+'</div>' +
-      '<div style="font-size:12px;color:var(--text2);margin-top:4px"><span class="badge badge-info">'+(a.type==='building'?'Building':'Slum')+'</span>'+(a.zone?' <span style="margin-left:8px">📍 '+a.zone+'</span>':'')+'<span style="margin-left:8px">'+total+' '+(a.type==='building'?'Flats':'Rooms')+'</span></div></div>' +
+      '<div style="font-size:12px;color:var(--text2);margin-top:4px"><span class="badge badge-info">'+(a.type==='building'?'Building':'Slum')+'</span>'+(a.zone?' <span style="margin-left:8px">📍 '+a.zone+'</span>':'')+'<span style="margin-left:8px">'+total+' '+(a.type==='building'?'Flats':'Rooms')+'</span>'+(shopCount?' <span class="badge badge-warning" style="margin-left:8px">🏪 '+shopCount+' Shops</span>':'')+'</div></div>' +
       '<div style="display:flex;gap:6px">' +
       '<button class="btn btn-sm btn-secondary" onclick="editArea(\''+a.id+'\')">✏️ Edit</button>' +
       '<button class="btn btn-sm btn-danger" onclick="deleteItem(\'areas\',\''+a.id+'\',renderAreas)">🗑️</button></div></div></div>';
@@ -2007,8 +2090,19 @@ function renderCollectionNavigator(eventId) {
         return '<div class="flat-item '+(paid?'paid':'pending')+' fi-'+a.id+'" data-status="'+(paid?'paid':'pending')+'" onclick="'+(paid?'showReceiptById(\''+don.id+'\')':'openFlatDonation(\''+item.key+'\',\''+a.name.replace(/'/g,"\\'")+'\',\''+item.label.replace(/'/g,"\\'")+'\',\''+eventId+'\')' )+'" title="'+(paid?'Paid: '+fmtAmt(don&&don.amount):'Click to record')+'">'+item.label.split('—').pop().trim()+(paid?'<br><span style="font-size:10px">✅</span>':'')+'</div>';
       }).join('')+'</div>';
     }
+    // render shop grid if area has shops
+    var shopGridHtml = '';
+    if(a.shops && a.shops.length) {
+      var shopPaidKeys = new Set(donations.filter(function(d){ return d.flatKey && d.flatKey.indexOf(a.id+'_S')>-1; }).map(function(d){ return d.flatKey; }));
+      shopGridHtml = '<div style="margin-top:12px"><div class="section-label">🏪 Shops'+(a.shopLocation?' — '+a.shopLocation:'')+'</div>' +
+        '<div class="flat-grid">'+a.shops.map(function(shop){
+          var paid = shopPaidKeys.has(shop.key);
+          var don = donations.find(function(d){ return d.flatKey===shop.key; });
+          return '<div class="flat-item '+(paid?'paid':'pending')+' fi-'+a.id+'" data-status="'+(paid?'paid':'pending')+'" onclick="'+(paid?'showReceiptById(\''+don.id+'\')':'openFlatDonation(\''+shop.key+'\',\''+a.name.replace(/'/g,"\\'")+'\',\''+shop.label.replace(/'/g,"\\'")+'\',\''+eventId+'\')')+'" title="'+(paid?'Paid: '+fmtAmt(don&&don.amount):'Click to record')+'">'+shop.label.replace('Shop ','')+(paid?'<br><span style="font-size:10px">✅</span>':'')+'</div>';
+        }).join('')+'</div></div>';
+    }
     return '<div class="card" style="box-shadow:none;border:1px solid var(--border);margin-bottom:14px">' +
-      '<div class="card-header"><strong>'+a.name+'</strong> <span class="badge badge-info">'+(a.type==='building'?'Building':'Slum')+'</span></div>' +
+      '<div class="card-header"><strong>'+a.name+'</strong> <span class="badge badge-info">'+(a.type==='building'?'Building':'Slum')+'</span>'+(a.shops&&a.shops.length?' <span class="badge badge-warning">🏪 '+a.shops.length+' Shops</span>':'')+'</div>' +
       '<div class="collection-summary">' +
       '<div class="collection-stat"><div class="num">'+items.length+'</div><div class="lbl">Total</div></div>' +
       '<div class="collection-stat" style="background:#E8F8F0"><div class="num" style="color:var(--success)">'+paidCount+'</div><div class="lbl">Paid</div></div>' +
@@ -2017,7 +2111,7 @@ function renderCollectionNavigator(eventId) {
       '<button class="btn btn-sm btn-secondary" onclick="filterFlats(\''+a.id+'\',\'all\')">All</button>' +
       '<button class="btn btn-sm btn-secondary" onclick="filterFlats(\''+a.id+'\',\'paid\')">✅ Paid</button>' +
       '<button class="btn btn-sm btn-secondary" onclick="filterFlats(\''+a.id+'\',\'pending\')">⏳ Pending</button></div>' +
-      '<div id="fg-'+a.id+'">'+flatGridHtml+'</div></div>';
+      '<div id="fg-'+a.id+'">'+flatGridHtml+shopGridHtml+'</div></div>';
   }).join('');
 }
 
@@ -3881,10 +3975,33 @@ function populateBankSelects() {
 
 function previewMandalLogo(input) {
   if(!input.files[0]) return;
+  var file = input.files[0];
+  if(file.size > 1048576) { showToast('Logo file too large — max 1MB','error'); input.value=''; return; }
   var r = new FileReader();
   r.onload = function(e) {
     document.getElementById('mandal-logo-preview').innerHTML = '<img src="'+e.target.result+'" style="max-width:140px;border-radius:8px">';
-    var m = DB.getObj('mandal'); m.logo = e.target.result; DB.set('mandal', m); queueSync('mandal', m);
+    var m = DB.getObj('mandal');
+    m.logo = e.target.result;
+    DB.set('mandal', m);
+    showToast('Uploading logo to Supabase...','');
+    uploadFileToDrive('mandal_logo', {name:'mandal-logo.png', dataUrl:e.target.result})
+      .then(function(uploaded){
+        var m2 = DB.getObj('mandal');
+        m2.logo = e.target.result;
+        if(uploaded && uploaded.driveLink) {
+          m2.logoDriveLink = uploaded.driveLink;
+        }
+        DB.set('mandal', m2);
+        queueSync('mandal', m2);
+        showToast('✅ Logo uploaded and synced!','success');
+      })
+      .catch(function(err){
+        var m2 = DB.getObj('mandal');
+        m2.logo = e.target.result;
+        DB.set('mandal', m2);
+        queueSync('mandal', m2);
+        showToast('Logo saved locally — Supabase upload failed','error');
+      });
   };
   r.readAsDataURL(input.files[0]);
 }  
