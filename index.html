@@ -299,7 +299,6 @@ body.offline-mode .sidebar{margin-top:38px}
       <button class="tab" onclick="switchTab(this,'mandal-docs')">Documents</button>
       <button class="tab" onclick="switchTab(this,'mandal-social')">Contact &amp; Social</button>
       <button class="tab" onclick="switchTab(this,'mandal-finance');renderFeeTypes()">Fee Settings</button>
-      <button class="tab" onclick="switchTab(this,'mandal-qr')">Payment QR</button>
     </div>
     <div class="tab-content active" id="tab-mandal-basic">
       <div class="form-group"><label>Mandal Logo</label><input type="file" id="m-logo" accept="image/*" onchange="previewMandalLogo(this)">
@@ -338,12 +337,6 @@ body.offline-mode .sidebar{margin-top:38px}
       </div>
       <hr class="divider">
       <div class="alert alert-info">💡 Opening Balance is now managed only from <strong>FY Management → Opening Balance</strong> tab.</div>
-    </div>
-    <div class="tab-content" id="tab-mandal-qr">
-      <div class="section-label">Payment QR Code</div>
-      <div class="alert alert-info">📱 Upload UPI/Bank QR. Displayed during donation collection.</div>
-      <div class="form-group"><label>Upload QR Code Image</label><input type="file" id="m-qr-code" accept="image/*" onchange="previewQR(this)"></div>
-      <div class="qr-display" id="qr-preview"><div style="color:var(--text2);font-size:13px">📲 QR Code will appear here</div></div>
     </div>
   </div>
 </div>
@@ -494,10 +487,10 @@ body.offline-mode .sidebar{margin-top:38px}
         </div>
         <div class="form-group" id="dd-bank-group" style="display:none">
           <label>💳 Received In Bank Account</label>
-          <select id="dd-bank-account" style="border:2px solid var(--info)" onchange="showBankQR('dd-bank-account','donation-qr-show')"></select>
+          <select id="dd-bank-account" style="border:2px solid var(--info)" onchange="toggleDirectDonorQR(this.value)"></select>
           <div class="form-hint">Select the bank account where this payment was received</div>
         </div>
-        <div id="dd-qr-section" style="display:none;margin-bottom:14px"><div class="section-label">Scan QR to Pay</div><div class="qr-display" id="donation-qr-show"></div></div>
+        <div id="dd-qr-section" style="display:none;margin-bottom:14px"><div class="section-label">Scan QR to Pay</div><div class="qr-display" id="donation-qr-show"><div style="color:var(--text2);font-size:12px">📲 QR will appear here</div></div></div>
         <button class="btn btn-primary" onclick="addDirectDonor()">💰 Record Donation</button>
       </div>
       <div class="card" style="margin-top:14px;box-shadow:none;border:1px solid var(--border)">
@@ -1968,8 +1961,7 @@ function loadDonationPage() {
   document.getElementById('dd-sabhashad').innerHTML = '<option value="">— Not a member —</option>' + sabs.map(function(s){ return '<option value="'+s.id+'">'+s.name+' ('+s.mobile+')</option>'; }).join('');
   document.getElementById('dd-date').value = new Date().toISOString().split('T')[0];
   document.getElementById('fd-date').value = new Date().toISOString().split('T')[0];
-  var mandal = DB.getObj('mandal');
-  if(mandal.qrCode) { document.getElementById('dd-qr-section').style.display='block'; document.getElementById('donation-qr-show').innerHTML='<img src="'+mandal.qrCode+'" style="max-width:160px">'; }
+  document.getElementById('dd-qr-section').style.display = 'none';
 }
 
 function loadDonationArea() {
@@ -2095,7 +2087,7 @@ function showReceipt(don) {
   var mandal = DB.getObj('mandal');
   var event = DB.get('events').find(function(e){ return e.id===don.eventId; });
   document.getElementById('receipt-content').innerHTML = '<div class="receipt">' +
-    '<div class="receipt-header">' + (event&&event.logo?'<img src="'+event.logo+'" style="width:55px;height:55px;float:right;border-radius:6px">':(mandal.logo?'<img src="'+mandal.logo+'" style="width:55px;height:55px;float:right;border-radius:6px">':'')) +
+    '<div class="receipt-header">' + (event&&event.logo?'<img src="'+event.logo+'" style="width:55px;height:55px;float:right;border-radius:6px">':(mandal.logo?'<img src="'+mandal.logo+'" style="width:60px;height:60px;margin:0 auto 8px;display:block;border-radius:8px">':'')) +
     '<div style="font-size:10px;font-weight:700;text-transform:uppercase;color:var(--saffron)">Official Receipt</div>' +
     '<div style="font-size:17px;font-weight:800;margin:3px 0">'+(mandal.name||'Mandal Manager')+'</div>' +
     (mandal.address?'<div style="font-size:11px;color:var(--text2)">'+mandal.address+'</div>':'') + '</div>' +
@@ -3331,9 +3323,9 @@ function getGasUrl() {
 }
 
 function queueSync(sheetName, record) {
-  if (record && typeof record === 'object') { record._updatedAt = now(); }
-  // Push to Supabase immediately (upsert)
-  supabaseUpsert(sheetName, record);
+  if (!record) return;
+  var toSync = Object.assign({}, record, {_updatedAt: now()});
+  supabaseUpsert(sheetName, toSync);
 }
 
 async function supabaseUpsert(table, record) {
@@ -3709,9 +3701,12 @@ function clearLocalCacheAndResync() {
 
 function deleteItem(collection, id, callback) {
   if(confirm('Delete this record?')){
-    DB.delete(collection,id); if(callback)callback(); showToast('Deleted');
+    DB.delete(collection,id);
     addAudit('Delete','Removed from '+collection);
     queueDelete(collection, id);
+    if(callback)callback();
+    showToast('Deleted','success');
+    loadDashboard();
   }
 }
 
@@ -3720,7 +3715,12 @@ function queueDelete(sheetName, id) {
   if (!sb) return;
   sb.from(sheetName).delete().eq('id', id)
     .then(function(res) {
-      if (res.error) console.warn('Supabase delete error:', res.error.message);
+      if (res.error) {
+        console.warn('Supabase delete error:', res.error.message);
+        showToast('Delete synced locally but Supabase failed: '+res.error.message,'error');
+      } else {
+        console.log('Supabase delete OK:', sheetName, id);
+      }
     });
 }
 
@@ -3897,6 +3897,26 @@ function toggleFlatBankSelect(mode) {
 function toggleDirectBankSelect(mode) {
   var grp = document.getElementById('dd-bank-group');
   if(grp) { grp.style.display = (mode==='Cash') ? 'none' : 'block'; populateBankSelects(); }
+  var qrSection = document.getElementById('dd-qr-section');
+  if(qrSection) qrSection.style.display = 'none';
+}
+
+function toggleDirectDonorQR(bankName) {
+  var acct = DB.get('bankaccounts').find(function(b){ return b.name===bankName; });
+  var qrSection = document.getElementById('dd-qr-section');
+  var qrDisplay = document.getElementById('donation-qr-show');
+  if(acct && acct.qrCode) {
+    qrDisplay.innerHTML = '<img src="'+acct.qrCode+'" style="max-width:160px;border-radius:8px">';
+    qrSection.style.display = 'block';
+  } else {
+    var mandal = DB.getObj('mandal');
+    if(mandal.qrCode) {
+      qrDisplay.innerHTML = '<img src="'+mandal.qrCode+'" style="max-width:160px;border-radius:8px">';
+      qrSection.style.display = 'block';
+    } else {
+      qrSection.style.display = 'none';
+    }
+  }
 }
 
 function toggleFeeBankSelect(sel, fy) {
