@@ -1217,9 +1217,6 @@ function initApp() {
     currentFY = '2026-27';
     updateFYDisplay();
   }
-
-  var settings = DB.getObj('settings');
-  currentFY = settings.currentFY || '2026-27';
   populateFYSelects();
   seedDefaultLedgers();
   seedDefaultBankAccount();
@@ -1253,15 +1250,34 @@ async function doLogin() {
   var errEl = document.getElementById('login-error');
   errEl.style.display = 'none';
 
-  // Pull latest users from Sheets first, so password changes made
-  // on other devices are recognized immediately, not just after login.
-  if (getSupabase()) {
-    try {
-      await pullFromSupabase();
-    } catch (e) {
-      console.warn('Pre-login sync pull failed:', e.message);
-    }
+  if (!getSupabase()) {
+    errEl.style.display = 'block';
+    errEl.textContent = 'No Supabase connection. Enter credentials in Backup & Restore page first.';
+    return;
   }
+
+  // Show loading state
+  errEl.style.display = 'block';
+  errEl.style.background = '#EBF5FB';
+  errEl.style.color = '#3498DB';
+  errEl.style.borderColor = '#AED6F1';
+  errEl.textContent = '🔄 Connecting to database...';
+
+  try {
+    await pullFromSupabase();
+  } catch (e) {
+    errEl.style.background = '';
+    errEl.style.color = '';
+    errEl.style.borderColor = '';
+    errEl.style.display = 'block';
+    errEl.textContent = 'Connection failed: ' + e.message;
+    return;
+  }
+
+  errEl.style.display = 'none';
+  errEl.style.background = '';
+  errEl.style.color = '';
+  errEl.style.borderColor = '';
 
   var user = DB.get('users').find(function(x){ return x.username===u && x.password===p && x.status==='active'; });
   if(!user) { errEl.style.display='block'; errEl.textContent='Invalid username or password.'; return; }
