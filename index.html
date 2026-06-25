@@ -305,8 +305,8 @@ body.offline-mode .sidebar{margin-top:38px}
       <div class="form-group"><label>Mandal Logo</label><input type="file" id="m-logo" accept="image/*" onchange="previewMandalLogo(this)">
         <div class="qr-display" id="mandal-logo-preview" style="margin-top:8px;max-width:140px"><div style="color:var(--text2);font-size:12px">🖼️ Logo will appear here</div></div>
       </div>
-      <div class="form-row"><div class="form-group"><label class="mandatory">Mandal Name</label><input type="text" id="m-name"></div>
-      <div class="form-row"><div class="form-group"><label>Registration Number</label><input type="text" id="m-reg-no"></div><div class="form-group"><label>Registration Date</label><input type="date" id="m-reg-date"></div></div>
+      <div class="form-row"><div class="form-group"><label class="mandatory">Mandal Name</label><input type="text" id="m-name"></div></div>
+      <div class="form-row"><div class="form-group"><label>Registration Number</label>ation Date</label><input type="date" id="m-reg-date"></div></div>
       <div class="form-group"><label>Address</label><textarea id="m-address" rows="2"></textarea></div>
       <div class="form-row-3"><div class="form-group"><label>City</label><input type="text" id="m-city"></div><div class="form-group"><label>State</label><input type="text" id="m-state" value="Maharashtra"></div><div class="form-group"><label>Pincode</label><input type="text" id="m-pin"></div></div>
     </div>
@@ -980,7 +980,9 @@ var DB = (function() {
 var currentUser = null;
 var currentFY = '2026-27';
 var editingId = null;
-var currentFlatKey = null;
+var _suppressPullUntil = 0;
+var _tempBankQR = '';
+var _tempEventLogo = '';
 
 // ============================================================
 // SUPABASE CLIENT
@@ -1625,8 +1627,7 @@ function populateCommitteeModal() {
 
 function toggleCustomRole(sel) { document.getElementById('cm-custom-role-group').style.display = sel.value==='custom'?'block':'none'; }
 
-async function saveCommitteeMember() {
-  var BULK_TEMPLATES = {
+var BULK_TEMPLATES = {
   committee: ['Name','Mobile','Role','Email','DOB(YYYY-MM-DD)','Address'],
   sabhashad: ['Name','Mobile','TShirt(S/M/L/XL/XXL/XXXL)','FeeTypeName','FlatLabel']
 };
@@ -1645,7 +1646,7 @@ function bulkUpload(kind, input) {
   var r = new FileReader();
   r.onload = function(e) {
     var lines = e.target.result.split(/\r?\n/).filter(function(l){ return l.trim(); });
-    lines.shift(); // remove header row
+    lines.shift();
     var count = 0;
     for(var i=0;i<lines.length;i++){
       var cols = lines[i].split(',').map(function(c){ return c.trim(); });
@@ -1672,6 +1673,8 @@ function bulkUpload(kind, input) {
   };
   r.readAsText(file);
 }
+
+async function saveCommitteeMember() {
   if(!await guardAgainstStaleWipe()) return;
   var name = document.getElementById('cm-name').value.trim();
   var mobile = document.getElementById('cm-mobile').value.trim();
@@ -1943,7 +1946,7 @@ function editEvent(id) {
     _tempEventLogo = ev.logo||'';
   }, 50);
 }
-  var _tempEventLogo = '';
+
 function previewEventLogo(input) {
   if(!input.files[0]) return;
   var r = new FileReader();
@@ -2682,8 +2685,6 @@ function renderAssetBankCash() {
     }).join('') : '<div style="color:var(--text2);font-size:13px;padding:8px 0">No bank accounts yet. Click "+ Add Bank Account".</div>');
 }
 
-async function saveBankAccount() {
-  var _tempBankQR = '';
 function previewBankQR(input) {
   if(!input.files[0]) return;
   var r = new FileReader();
@@ -2693,6 +2694,8 @@ function previewBankQR(input) {
   };
   r.readAsDataURL(input.files[0]);
 }
+
+async function saveBankAccount() {
   if(!await guardAgainstStaleWipe()) return;
   var name = document.getElementById('bk-name').value.trim();
   if(!name) { showToast('Account name required','error'); return; }
