@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <meta name="theme-color" content="#FF6B00">
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
 <title>Mandal Manager</title>
 <style>
 :root{--saffron:#FF6B00;--saffron-dark:#CC5500;--saffron-light:#FFF3E8;--gold:#F5A623;--deep:#1A1A2E;--deep2:#16213E;--card:#FFFFFF;--bg:#F7F4F0;--text:#1A1A2E;--text2:#6B6B8A;--border:#E8E0D5;--success:#2ECC71;--danger:#E74C3C;--warning:#F39C12;--info:#3498DB;--sidebar-w:260px;--radius:12px;--shadow:0 2px 16px rgba(255,107,0,0.08)}
@@ -1154,7 +1154,7 @@ function updateOfflineBanner() {
     banner.style.display = 'none';
     document.body.classList.remove('offline-mode');
     // Coming back online — immediately check if anything changed while we were away
-    if(currentUser) { checkWipeEpochAndMaybeClear(); pullFromSheets(); }
+    if(currentUser) { checkWipeEpochAndMaybeClear(); pullFromSupabase(); }
   }
 }
 window.addEventListener('online', updateOfflineBanner);
@@ -3486,8 +3486,6 @@ async function wipeAllData() {
   var keysToWipe = ['mandal','committee','sabhashad','areas','events','donations','vouchers',
     'vendors','investments','ledgers','meetings','audit','settings','bankaccounts','syncQueue'];
 
-  // 1. Wipe remote (Google Sheet tabs + Drive files) FIRST, and actually confirm it worked.
-  var url = getGasUrl();
   var remoteWiped = false;
   var sb = getSupabase();
   if (sb) {
@@ -3541,8 +3539,11 @@ async function wipeAllData() {
  * If blocked, it has already cleared local cache, pulled fresh data,
  * refreshed the current screen, and told the user to re-check their form.
  */
+async function guardAgainstStaleWipe() {
+  return true;
+}
+
 async function checkWipeEpochAndMaybeClear() {
-  // Replaced by Supabase live polling — no-op
   await pullFromSupabase();
 }
 
@@ -3566,34 +3567,7 @@ function clearLocalCacheAndResync() {
   setTimeout(function(){ location.reload(); }, 1000);
 }
 
-async function checkWipeEpochAndMaybeClear() {
-  var url = getGasUrl();
-  if(!url) return;
-  try {
-    var res = await fetch(url, {
-      method:'POST',
-      headers:{'Content-Type':'text/plain;charset=utf-8'},
-      body: JSON.stringify({action:'getAll', since:null})
-    });
-    var resp = await res.json();
-    if(!resp.ok || !resp.data) return;
-    var remoteEpoch = resp.wipeEpoch; // now comes straight from the server's script property, not a sheet row
-    var seenEpoch = localStorage.getItem('mm_wipeEpochSeen');
-    if(remoteEpoch && remoteEpoch !== seenEpoch) {
-      // A wipe happened on another device since we last checked — clear our
-      // local cache silently (including anything still queued to push,
-      // since the server will reject it anyway) and pull the clean
-      // post-wipe data fresh.
-      var keysToWipe = ['mandal','committee','sabhashad','areas','events','donations','vouchers',
-        'vendors','investments','ledgers','meetings','audit','settings','bankaccounts','syncQueue'];
-      keysToWipe.forEach(function(k){ localStorage.removeItem('mm_'+k); });
-      localStorage.setItem('mm_wipeEpochSeen', remoteEpoch);
-      mergeRemoteData(resp.data);
-      lastPullStamp = resp.lastModified;
-      showToast('🧹 Data was reset by Super Admin — showing fresh data','warning');
-    }
-  } catch(e) { /* silent — normal polling will catch up later */ }
-}
+// removed duplicate — Supabase version above handles this
 
 function deleteItem(collection, id, callback) {
   if(confirm('Delete this record?')){
