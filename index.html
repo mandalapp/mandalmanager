@@ -3775,7 +3775,148 @@ try {
 document.addEventListener('DOMContentLoaded', function(){
   var lu = document.getElementById('login-user'); if(lu) lu.focus();
   updateOfflineBanner();
+  initVoiceInput();
 });
+
+// ============================================================
+// VOICE INPUT — adds 🎤 button to every text/number/textarea
+// ============================================================
+function initVoiceInput() {
+  var SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (!SpeechRecognition) {
+    console.log('Voice input not supported in this browser');
+    return;
+  }
+
+  // Add mic button style
+  var style = document.createElement('style');
+  style.textContent = `
+    .voice-btn {
+      position:absolute; right:8px; top:50%; transform:translateY(-50%);
+      background:none; border:none; cursor:pointer; font-size:16px;
+      color:var(--text2); padding:4px; border-radius:6px; transition:all .2s;
+      line-height:1; z-index:5;
+    }
+    .voice-btn:hover { color:var(--saffron); background:var(--saffron-light); }
+    .voice-btn.listening { color:var(--danger); animation:mic-pulse 1s infinite; }
+    .voice-wrap { position:relative; display:block; }
+    .voice-wrap input, .voice-wrap textarea, .voice-wrap select { padding-right:34px !important; }
+    textarea.voice-wrap { display:block; }
+    @keyframes mic-pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
+  `;
+  document.head.appendChild(style);
+
+  var recognition = new SpeechRecognition();
+  recognition.lang = 'en-IN';
+  recognition.interimResults = false;
+  recognition.maxAlternatives = 1;
+  var activeBtn = null;
+  var activeField = null;
+
+  recognition.onresult = function(e) {
+    var transcript = e.results[0][0].transcript;
+    if (activeField) {
+      // For number fields, extract digits only
+      if (activeField.type === 'number') {
+        var num = transcript.replace(/[^0-9.]/g, '');
+        activeField.value = num;
+      } else {
+        activeField.value = activeField.value
+          ? activeField.value + ' ' + transcript
+          : transcript;
+      }
+      activeField.dispatchEvent(new Event('input', {bubbles:true}));
+      activeField.dispatchEvent(new Event('change', {bubbles:true}));
+    }
+    if (activeBtn) {
+      activeBtn.textContent = '🎤';
+      activeBtn.classList.remove('listening');
+      activeBtn = null;
+    }
+  };
+
+  recognition.onerror = function(e) {
+    showToast('Voice error: ' + e.error, 'error');
+    if (activeBtn) {
+      activeBtn.textContent = '🎤';
+      activeBtn.classList.remove('listening');
+      activeBtn = null;
+    }
+  };
+
+  recognition.onend = function() {
+    if (activeBtn) {
+      activeBtn.textContent = '🎤';
+      activeBtn.classList.remove('listening');
+      activeBtn = null;
+    }
+  };
+
+  function addMicToField(field) {
+    // Skip if already has mic, or is a select/file/date/time/checkbox/radio
+    if (field._hasMic) return;
+    if (['select','file','checkbox','radio'].indexOf(field.type) > -1) return;
+    if (field.type === 'date' || field.type === 'time') return;
+    if (field.readOnly || field.disabled) return;
+
+    field._hasMic = true;
+
+    // Wrap field
+    var parent = field.parentNode;
+    var wrap = document.createElement('div');
+    wrap.className = 'voice-wrap';
+    parent.insertBefore(wrap, field);
+    wrap.appendChild(field);
+
+    var btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'voice-btn';
+    btn.textContent = '🎤';
+    btn.title = 'Speak to fill this field';
+
+    // For textarea, position differently
+    if (field.tagName === 'TEXTAREA') {
+      btn.style.top = '10px';
+      btn.style.transform = 'none';
+    }
+
+    btn.addEventListener('click', function(e) {
+      e.preventDefault();
+      e.stopPropagation();
+      if (activeBtn && activeBtn !== btn) {
+        activeBtn.textContent = '🎤';
+        activeBtn.classList.remove('listening');
+        recognition.stop();
+      }
+      if (activeBtn === btn) {
+        recognition.stop();
+        activeBtn = null;
+        return;
+      }
+      activeField = field;
+      activeBtn = btn;
+      btn.textContent = '🔴';
+      btn.classList.add('listening');
+      showToast('🎤 Listening... speak now', 'success');
+      try { recognition.start(); } catch(err) { recognition.stop(); setTimeout(function(){ recognition.start(); }, 200); }
+    });
+
+    wrap.appendChild(btn);
+  }
+
+  // Attach to all current fields
+  function attachToAll() {
+    document.querySelectorAll('input:not([type=file]):not([type=date]):not([type=time]):not([type=checkbox]):not([type=radio]), textarea').forEach(addMicToField);
+  }
+
+  attachToAll();
+
+  // Watch for new fields added dynamically (modals opening etc.)
+  var observer = new MutationObserver(function() {
+    attachToAll();
+  });
+  observer.observe(document.body, { childList: true, subtree: true });
+}
 </script>
 </body>
 </html>
