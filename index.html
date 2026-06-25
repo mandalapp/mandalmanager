@@ -972,10 +972,14 @@ var currentFlatKey = null;
 // ============================================================
 var _supa = null;
 
+// ⬇️ HARDCODED — works on every device without setup
+var SUPA_URL = 'https://mhvyqfpyrfssdvbhmrhk.supabase.co';
+var SUPA_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1odnlxZnB5cmZzc2R2YmhtcmhrIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODIyMDIwNTUsImV4cCI6MjA5Nzc3ODA1NX0.ktl_XPAp2hY2v6-pfZD88RE1HOvQvuVm5VPi8ZGXfbs';
+
 function getSupabase() {
   if (_supa) return _supa;
-  var url = localStorage.getItem('mm_supabase_url');
-  var key = localStorage.getItem('mm_supabase_key');
+  var url = localStorage.getItem('mm_supabase_url') || SUPA_URL;
+  var key = localStorage.getItem('mm_supabase_key') || SUPA_KEY;
   if (!url || !key) return null;
   _supa = supabase.createClient(url, key);
   return _supa;
@@ -984,13 +988,13 @@ function getSupabase() {
 function saveSupabaseTokens(url, key) {
   localStorage.setItem('mm_supabase_url', url.trim());
   localStorage.setItem('mm_supabase_key', key.trim());
-  _supa = null; // reset so next getSupabase() reinitializes
+  _supa = null;
   showToast('Supabase connection saved!', 'success');
   startLivePolling();
 }
 
-function getSupabaseUrl() { return localStorage.getItem('mm_supabase_url') || ''; }
-function getSupabaseKey() { return localStorage.getItem('mm_supabase_key') || ''; }
+function getSupabaseUrl() { return localStorage.getItem('mm_supabase_url') || SUPA_URL; }
+function getSupabaseKey() { return localStorage.getItem('mm_supabase_key') || SUPA_KEY; }
 
 // ============================================================
 // ROLE PERMISSIONS
