@@ -658,7 +658,7 @@ body.offline-mode .sidebar{margin-top:38px}
   <div class="modal-body">
     <div class="form-row"><div class="form-group"><label class="mandatory">Full Name</label><input type="text" id="sb-name"></div><div class="form-group"><label class="mandatory">Mobile</label><input type="tel" id="sb-mobile"></div></div>
     <div class="form-row">
-      <div class="form-group"><label>T-Shirt Size</label><select id="sb-tshirt"><option>S</option><option>M</option><option>L</option><option selected>XL</option><option>XXL</option><option>XXXL</option></select></div>
+      <div class="form-group"><label>T-Shirt Size</label><select id="sb-tshirt"><option>34 – XS (Extra Small)</option><option>36 – S (Small)</option><option>38 – M (Medium)</option><option selected>40 – L (Large)</option><option>42 – XL (Extra Large)</option><option>44 – XXL (Double Extra Large)</option><option>46 – 3XL (Triple Extra Large)</option><option>48 – 4XL (Four Extra Large)</option></select></div>
       <div class="form-group"><label>Fee Type</label><select id="sb-fee-type"><option value="">— Select Fee Type —</option></select></div>
     </div>
     <div class="form-group"><label>Link to Flat/Room</label><select id="sb-flat-link"><option value="">— No flat linked —</option></select></div>
@@ -1660,7 +1660,7 @@ function toggleCustomRole(sel) { document.getElementById('cm-custom-role-group')
 
 var BULK_TEMPLATES = {
   committee: ['Name','Mobile','Role','Email','DOB(YYYY-MM-DD)','Address'],
-  sabhashad: ['Name','Mobile','TShirt(S/M/L/XL/XXL/XXXL)','FeeTypeName','FlatLabel']
+  sabhashad: ['Name','Mobile','TShirt(34 – XS (Extra Small)/36 – S (Small)/38 – M (Medium)/40 – L (Large)/42 – XL (Extra Large)/44 – XXL (Double Extra Large)/46 – 3XL (Triple Extra Large)/48 – 4XL (Four Extra Large))','FeeTypeName','FlatLabel']
 };
 
 function downloadTemplate(kind) {
