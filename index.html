@@ -1745,6 +1745,15 @@ async function saveSabhashad() {
   var name = document.getElementById('sb-name').value.trim();
   var mobile = document.getElementById('sb-mobile').value.trim();
   if(!name||!mobile) { showToast('Name and mobile required','error'); return; }
+  var members = DB.get('sabhashad');
+  var dupName = members.find(function(m){
+    return m.id !== editingId && m.name.trim().toLowerCase() === name.toLowerCase();
+  });
+  if(dupName) { showToast('❌ "'+dupName.name+'" already exists. Duplicate name not allowed.','error'); return; }
+  var dupMobile = members.find(function(m){
+    return m.id !== editingId && m.mobile.trim() === mobile;
+  });
+  if(dupMobile) { showToast('❌ Mobile '+mobile+' already registered under "'+dupMobile.name+'". Duplicate not allowed.','error'); return; }
   var existing = editingId ? (DB.get('sabhashad').find(function(x){ return x.id===editingId; })||{}) : {};
   var member = {id:editingId||uid(),name:name,mobile:mobile,tshirt:document.getElementById('sb-tshirt').value,
     feeTypeId:document.getElementById('sb-fee-type').value,flatLink:document.getElementById('sb-flat-link').value,
