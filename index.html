@@ -1192,7 +1192,7 @@ function resetForm(modalId) {
 // INIT
 // ============================================================
 function initApp() {
-  // Pre-fill Supabase UI fields if tokens already saved
+  // Pre-fill Supabase UI fields
   setTimeout(function(){
     var supaUrlEl = document.getElementById('supa-url');
     var supaKeyEl = document.getElementById('supa-key');
@@ -1200,32 +1200,9 @@ function initApp() {
     if(supaKeyEl) supaKeyEl.value = getSupabaseKey();
   }, 300);
 
-  // Load all data from Supabase before doing anything else
-  if (getSupabase()) {
-    pullFromSupabase().then(function() {
-      var users = DB.get('users');
-      if(!users.length) {
-        var adminUser = {id:uid(), name:'Admin', username:'admin', password:'admin123', role:'superadmin', roles:['superadmin'], mobile:'', email:'', status:'active', createdAt:now()};
-        DB.push('users', adminUser);
-        supabaseUpsert('users', adminUser);
-      }
-      var settings = DB.getObj('settings');
-      currentFY = settings.currentFY || '2026-27';
-      seedDefaultLedgers();
-      seedDefaultBankAccount();
-      updateSyncBadge();
-      updateFYDisplay();
-    });
-  } else {
-    // No Supabase yet — just show login with empty state
-    currentFY = '2026-27';
-    updateFYDisplay();
-  }
-  populateFYSelects();
-  seedDefaultLedgers();
-  seedDefaultBankAccount();
-  updateSyncBadge();
+  currentFY = '2026-27';
   updateFYDisplay();
+  // initApp is sync — full data load happens at login time via pullFromSupabase()
 }
 
 function seedDefaultLedgers() {
@@ -3424,7 +3401,12 @@ function exportBackup() {
   showToast('Preparing backup — this may take a moment...');
   var keys=['mandal','users','committee','sabhashad','areas','events','donations','vouchers','vendors','investments','meetings','ledgers','audit','settings','bankaccounts'];
   var data={_exportedAt:now(),_version:'3.1'};
-  keys.forEach(function(k){try{data[k]=JSON.parse(localStorage.getItem('mm_'+k));}catch(e){}});
+  keys.forEach(function(k){
+    try {
+      var val = (k==='mandal'||k==='settings') ? DB.getObj(k) : DB.get(k);
+      data[k] = val;
+    } catch(e) {}
+  });
 
   // Count files that only exist on Drive (no local dataUrl) so the user
   // knows this JSON won't contain their actual bytes.
@@ -3454,18 +3436,31 @@ function exportBackup() {
   }
 }
 
-function importBackup() {
+async function importBackup() {
   var file=document.getElementById('restore-file').files[0];
   if(!file){showToast('Select a file first','error');return;}
-  if(!confirm('This will REPLACE all data. Continue?'))return;
+  if(!confirm('This will REPLACE all data in Supabase. Continue?'))return;
   var r=new FileReader();
-  r.onload=function(e){
+  r.onload=async function(e){
     try{
       var data=JSON.parse(e.target.result);
-      Object.entries(data).forEach(function(entry){ if(!entry[0].startsWith('_')) localStorage.setItem('mm_'+entry[0],JSON.stringify(entry[1])); });
-      addAudit('Restore','Data restored'); showToast('Restored! Refreshing...','success');
+      var sb = getSupabase();
+      var tables=['mandal','users','committee','sabhashad','areas','events','donations','vouchers','vendors','investments','meetings','ledgers','audit','settings','bankaccounts'];
+      for(var i=0;i<tables.length;i++){
+        var k=tables[i];
+        if(!data[k]) continue;
+        if(k==='mandal'||k==='settings'){
+          if(data[k] && typeof data[k]==='object') { DB.set(k,data[k]); await supabaseUpsert(k,data[k]); }
+        } else {
+          var rows = Array.isArray(data[k]) ? data[k] : [];
+          DB.set(k,rows);
+          for(var j=0;j<rows.length;j++) await supabaseUpsert(k,rows[j]);
+        }
+      }
+      addAudit('Restore','Data restored from backup');
+      showToast('Restored! Reloading...','success');
       setTimeout(function(){location.reload();},1500);
-    }catch(e){showToast('Invalid file','error');}
+    }catch(err){showToast('Invalid file: '+err.message,'error');}
   };
   r.readAsText(file);
 }
