@@ -302,7 +302,10 @@ body.offline-mode .sidebar{margin-top:38px}
       <button class="tab" onclick="switchTab(this,'mandal-qr')">Payment QR</button>
     </div>
     <div class="tab-content active" id="tab-mandal-basic">
-      <div class="form-row"><div class="form-group"><label class="mandatory">Mandal Name</label><input type="text" id="m-name"></div><div class="form-group"><label>Mandal ID</label><input type="text" id="m-id" placeholder="Auto or custom"></div></div>
+      <div class="form-group"><label>Mandal Logo</label><input type="file" id="m-logo" accept="image/*" onchange="previewMandalLogo(this)">
+        <div class="qr-display" id="mandal-logo-preview" style="margin-top:8px;max-width:140px"><div style="color:var(--text2);font-size:12px">🖼️ Logo will appear here</div></div>
+      </div>
+      <div class="form-row"><div class="form-group"><label class="mandatory">Mandal Name</label><input type="text" id="m-name"></div>
       <div class="form-row"><div class="form-group"><label>Registration Number</label><input type="text" id="m-reg-no"></div><div class="form-group"><label>Registration Date</label><input type="date" id="m-reg-date"></div></div>
       <div class="form-group"><label>Address</label><textarea id="m-address" rows="2"></textarea></div>
       <div class="form-row-3"><div class="form-group"><label>City</label><input type="text" id="m-city"></div><div class="form-group"><label>State</label><input type="text" id="m-state" value="Maharashtra"></div><div class="form-group"><label>Pincode</label><input type="text" id="m-pin"></div></div>
@@ -334,14 +337,7 @@ body.offline-mode .sidebar{margin-top:38px}
         <button class="btn btn-primary btn-sm" onclick="addFeeType()">+ Add Fee Type</button>
       </div>
       <hr class="divider">
-      <div class="section-label">Opening Balance — FY <span id="ob-fy-label">2026-27</span></div>
-      <div class="alert alert-info">💡 Set opening balance for Cash and each Bank Account separately for FY <span id="ob-fy-label-sub"></span></div>
-      <div class="form-group">
-        <label>Opening Cash Balance (₹)</label>
-        <input type="number" id="ob-cash" min="0" value="0">
-      </div>
-      <div id="ob-bank-accounts-list" style="margin-bottom:14px"></div>
-      <button class="btn btn-primary btn-sm" onclick="saveOpeningBalance()">💾 Save Opening Balance</button>
+      <div class="alert alert-info">💡 Opening Balance is now managed only from <strong>FY Management → Opening Balance</strong> tab.</div>
     </div>
     <div class="tab-content" id="tab-mandal-qr">
       <div class="section-label">Payment QR Code</div>
@@ -355,7 +351,14 @@ body.offline-mode .sidebar{margin-top:38px}
 <!-- COMMITTEE -->
 <div class="page" id="page-committee">
   <div class="card">
-    <div class="card-header"><div class="card-title">👥 Committee Members</div><button class="btn btn-primary btn-sm" onclick="openModal('modal-committee');editingId=null;resetForm('modal-committee')">+ Add Member</button></div>
+    <div class="card-header"><div class="card-title">👥 Committee Members</div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap">
+        <button class="btn btn-secondary btn-sm" onclick="downloadTemplate('committee')">⬇️ Template</button>
+        <input type="file" id="bulk-committee-file" accept=".csv" style="display:none" onchange="bulkUpload('committee',this)">
+        <button class="btn btn-secondary btn-sm" onclick="document.getElementById('bulk-committee-file').click()">📤 Bulk Upload</button>
+        <button class="btn btn-primary btn-sm" onclick="openModal('modal-committee');editingId=null;resetForm('modal-committee')">+ Add Member</button>
+      </div>
+    </div>
     <div class="search-bar">
       <input class="search-input" placeholder="Search members..." oninput="filterTable('committee-table',this.value)">
       <select class="search-input" style="flex:0;min-width:150px" onchange="filterTableCol('committee-table',1,this.value)"><option value="">All Roles</option><option>President</option><option>Vice President</option><option>Secretary</option><option>Treasurer</option><option>General Member</option></select>
@@ -367,7 +370,14 @@ body.offline-mode .sidebar{margin-top:38px}
 <!-- SABHASHAD -->
 <div class="page" id="page-sabhashad">
   <div class="card">
-    <div class="card-header"><div class="card-title">👤 General Sabhashad</div><button class="btn btn-primary btn-sm" onclick="openModal('modal-sabhashad');editingId=null;resetForm('modal-sabhashad')">+ Add Member</button></div>
+    <div class="card-header"><div class="card-title">👤 General Sabhashad</div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap">
+        <button class="btn btn-secondary btn-sm" onclick="downloadTemplate('sabhashad')">⬇️ Template</button>
+        <input type="file" id="bulk-sabhashad-file" accept=".csv" style="display:none" onchange="bulkUpload('sabhashad',this)">
+        <button class="btn btn-secondary btn-sm" onclick="document.getElementById('bulk-sabhashad-file').click()">📤 Bulk Upload</button>
+        <button class="btn btn-primary btn-sm" onclick="openModal('modal-sabhashad');editingId=null;resetForm('modal-sabhashad')">+ Add Member</button>
+      </div>
+    </div>
     <div class="search-bar">
       <input class="search-input" placeholder="Search name or mobile..." oninput="filterTable('sabhashad-table',this.value)">
       <select class="search-input" style="flex:0;min-width:150px" onchange="filterSabhashadFee(this.value)"><option value="">All Fee Status</option><option value="paid">Paid ✅</option><option value="unpaid">Unpaid ❌</option></select>
@@ -379,7 +389,7 @@ body.offline-mode .sidebar{margin-top:38px}
 <!-- COLLECTION AREA -->
 <div class="page" id="page-collection-area">
   <div class="card">
-    <div class="card-header"><div class="card-title">🏘️ Collection Area Master</div><button class="btn btn-primary btn-sm" onclick="openModal('modal-area');editingId=null">+ Add Area</button></div>
+    <div class="card-header"><div class="card-title">🏘️ Collection Area Master</div><button class="btn btn-primary btn-sm" onclick="openModal('modal-area');editingId=null;resetForm('modal-area')">+ Add Area</button></div>
     <div id="area-list"></div>
   </div>
 </div>
@@ -389,8 +399,8 @@ body.offline-mode .sidebar{margin-top:38px}
   <div class="card">
     <div class="card-header"><div class="card-title">📒 Account Master</div>
       <div style="display:flex;gap:6px">
-        <button class="btn btn-primary btn-sm" onclick="openModal('modal-ledger');editingId=null">+ Add Ledger</button>
-        <button class="btn btn-secondary btn-sm" onclick="openModal('modal-vendor');editingId=null">+ Add Vendor</button>
+        <button class="btn btn-primary btn-sm" onclick="openModal('modal-ledger');editingId=null;resetForm('modal-ledger')">+ Add Ledger</button>
+        <button class="btn btn-secondary btn-sm" onclick="openModal('modal-vendor');editingId=null;resetForm('modal-vendor')">+ Add Vendor</button>
         <button class="btn btn-secondary btn-sm" onclick="openInvestmentModal()">+ Add Investment</button>
       </div>
     </div>
@@ -484,7 +494,7 @@ body.offline-mode .sidebar{margin-top:38px}
         </div>
         <div class="form-group" id="dd-bank-group" style="display:none">
           <label>💳 Received In Bank Account</label>
-          <select id="dd-bank-account" style="border:2px solid var(--info)"></select>
+          <select id="dd-bank-account" style="border:2px solid var(--info)" onchange="showBankQR('dd-bank-account','donation-qr-show')"></select>
           <div class="form-hint">Select the bank account where this payment was received</div>
         </div>
         <div id="dd-qr-section" style="display:none;margin-bottom:14px"><div class="section-label">Scan QR to Pay</div><div class="qr-display" id="donation-qr-show"></div></div>
@@ -501,7 +511,7 @@ body.offline-mode .sidebar{margin-top:38px}
 <!-- MEETINGS -->
 <div class="page" id="page-meetings">
   <div class="card">
-    <div class="card-header"><div class="card-title">📋 Meetings</div><button class="btn btn-primary btn-sm" onclick="openModal('modal-meeting');editingId=null">+ Schedule Meeting</button></div>
+    <div class="card-header"><div class="card-title">📋 Meetings</div><button class="btn btn-primary btn-sm" onclick="openModal('modal-meeting');editingId=null;resetForm('modal-meeting')">+ Schedule Meeting</button></div>
     <div id="meetings-list"></div>
   </div>
 </div>
@@ -616,11 +626,9 @@ body.offline-mode .sidebar{margin-top:38px}
       </div>
     </div>
   </div>
-  <div class="card">
-    <div class="card-header"><div class="card-title">🧹 Clear Local Cache (This Device Only)</div></div>
-    <div class="alert alert-info">💡 This does NOT touch Google Sheets/Drive. It only clears what's cached on THIS browser, then re-downloads fresh data from Google Sheets. Use this if this device is showing old/wrong data, or before handing a shared device to someone else.</div>
-    <button class="btn btn-secondary" onclick="clearLocalCacheAndResync()">🧹 Clear Local Cache &amp; Reload Fresh Data</button>
-  </div>
+  <p style="text-align:center;margin-top:10px">
+      <a href="#" onclick="clearCacheFromLoginScreen();return false;" style="font-size:12px;color:var(--saffron);text-decoration:underline">🧹 Having trouble? Clear cached data on this device</a>
+    </p>
   <div class="card" id="superadmin-only-wipe-card">
     <div class="card-header"><div class="card-title">🧨 Wipe All Data &amp; Start Fresh</div></div>
     <div class="alert alert-danger">⚠️ Permanently deletes ALL data — local, Google Sheets, and Drive files — for every user. Cannot be undone.</div>
@@ -795,6 +803,9 @@ body.offline-mode .sidebar{margin-top:38px}
   <div class="modal"><div class="modal-header"><div class="modal-title" id="modal-event-title">Create Event</div><button class="modal-close" onclick="closeModal('modal-event')">✕</button></div>
   <div class="modal-body">
     <div class="form-row"><div class="form-group"><label class="mandatory">Event Name</label><input type="text" id="ev-name"></div><div class="form-group"><label class="mandatory">Event Date</label><input type="date" id="ev-date"></div></div>
+    <div class="form-group"><label>Event Logo / Banner</label><input type="file" id="ev-logo" accept="image/*" onchange="previewEventLogo(this)">
+      <div class="qr-display" id="event-logo-preview" style="margin-top:8px;max-width:140px"><div style="color:var(--text2);font-size:12px">🖼️ Logo will appear here</div></div>
+    </div>
     <div class="form-group"><label class="mandatory">Venue</label><input type="text" id="ev-venue"></div>
     <div class="form-group"><label>Description</label><textarea id="ev-desc" rows="2"></textarea></div>
     <div class="form-row"><div class="form-group"><label>Budget (₹)</label><input type="number" id="ev-budget" min="0"></div><div class="form-group"><label>Status</label><select id="ev-status"><option>Draft</option><option>Active</option><option>Completed</option><option>Cancelled</option></select></div></div>
@@ -821,7 +832,7 @@ body.offline-mode .sidebar{margin-top:38px}
     </div>
     <div class="form-group" id="fd-bank-group" style="display:none">
       <label>💳 Received In Bank Account</label>
-      <select id="fd-bank-account" style="border:2px solid var(--info)"></select>
+      <select id="fd-bank-account" style="border:2px solid var(--info)" onchange="showBankQR('fd-bank-account','flat-qr-display')"></select>
       <div class="form-hint">Select the bank account where this payment was received</div>
     </div>
   </div>
@@ -896,6 +907,9 @@ body.offline-mode .sidebar{margin-top:38px}
     <div class="form-group"><label class="mandatory">Account / Ledger Name</label><input type="text" id="bk-name" placeholder="e.g. SBI Savings, HDFC Current"></div>
     <div class="form-row"><div class="form-group"><label>Bank Name</label><input type="text" id="bk-bank"></div><div class="form-group"><label>Account Number</label><input type="text" id="bk-accno"></div></div>
     <div class="form-group"><label>Opening Balance (₹) — FY <span id="bk-fy-label">2026-27</span></label><input type="number" id="bk-opening" value="0"></div>
+    <div class="form-group"><label>Bank QR Code (UPI)</label><input type="file" id="bk-qr" accept="image/*" onchange="previewBankQR(this)">
+      <div class="qr-display" id="bk-qr-preview" style="margin-top:8px"><div style="color:var(--text2);font-size:12px">📲 QR will appear here</div></div>
+    </div>
   </div>
   <div class="modal-footer"><button class="btn btn-secondary" onclick="closeModal('modal-bankaccount')">Cancel</button><button class="btn btn-primary" onclick="saveBankAccount()">Save Bank Account</button></div></div>
 </div>
@@ -1399,7 +1413,7 @@ function showFYModal() {
 
 function selectFY(fy) {
   currentFY = fy;
-  var s = DB.getObj('settings'); s.currentFY = fy; DB.set('settings', s);
+  var s = DB.getObj('settings'); s.currentFY = fy; DB.set('settings', s); queueSync('settings', s);
   seedDefaultLedgers(); updateFYDisplay(); closeModal('modal-fy'); loadDashboard();
   showToast('FY changed to ' + fy);
 }
@@ -1413,6 +1427,7 @@ function loadMandal() {
     var el = document.getElementById('m-'+k); if(el && m[k]!==undefined) el.value = m[k];
   });
   if(m.qrCode) document.getElementById('qr-preview').innerHTML = '<img src="'+m.qrCode+'" alt="QR">';
+  if(m.logo) document.getElementById('mandal-logo-preview').innerHTML = '<img src="'+m.logo+'" style="max-width:140px;border-radius:8px">';
   if(m.name) { document.getElementById('mandal-sidebar-name').textContent = m.name; document.getElementById('mandal-sidebar-loc').textContent = m.city||''; }
   renderFeeTypes();
   // render per-bank opening balance fields
@@ -1462,6 +1477,7 @@ async function addFeeType() {
   if(!m.feeTypes[currentFY]) m.feeTypes[currentFY] = [];
   m.feeTypes[currentFY].push({id:uid(), name:name, amount:amt});
   DB.set('mandal', m);
+  queueSync('mandal', m);
   document.getElementById('new-fee-type-name').value = '';
   document.getElementById('new-fee-type-amount').value = '';
   renderFeeTypes(); showToast('Fee type added!','success');
@@ -1480,7 +1496,7 @@ function renderFeeTypes() {
 function deleteFeeType(id) {
   var m = DB.getObj('mandal');
   if(m.feeTypes && m.feeTypes[currentFY]) m.feeTypes[currentFY] = m.feeTypes[currentFY].filter(function(x){ return x.id!==id; });
-  DB.set('mandal', m); renderFeeTypes();
+  DB.set('mandal', m); queueSync('mandal', m); renderFeeTypes();
 }
 
 function getFeeTypes() { var m = DB.getObj('mandal'); return (m.feeTypes||{})[currentFY]||[]; }
@@ -1610,6 +1626,52 @@ function populateCommitteeModal() {
 function toggleCustomRole(sel) { document.getElementById('cm-custom-role-group').style.display = sel.value==='custom'?'block':'none'; }
 
 async function saveCommitteeMember() {
+  var BULK_TEMPLATES = {
+  committee: ['Name','Mobile','Role','Email','DOB(YYYY-MM-DD)','Address'],
+  sabhashad: ['Name','Mobile','TShirt(S/M/L/XL/XXL/XXXL)','FeeTypeName','FlatLabel']
+};
+
+function downloadTemplate(kind) {
+  var headers = BULK_TEMPLATES[kind]; if(!headers) return;
+  var csv = headers.join(',') + '\n';
+  var blob = new Blob([csv], {type:'text/csv'});
+  var url = URL.createObjectURL(blob);
+  var a = document.createElement('a'); a.href = url; a.download = kind+'-template.csv'; a.click();
+  URL.revokeObjectURL(url);
+}
+
+function bulkUpload(kind, input) {
+  var file = input.files[0]; if(!file) return;
+  var r = new FileReader();
+  r.onload = function(e) {
+    var lines = e.target.result.split(/\r?\n/).filter(function(l){ return l.trim(); });
+    lines.shift(); // remove header row
+    var count = 0;
+    for(var i=0;i<lines.length;i++){
+      var cols = lines[i].split(',').map(function(c){ return c.trim(); });
+      if(!cols[0]) continue;
+      if(kind==='committee') {
+        var member = {id:uid(),name:cols[0],mobile:cols[1]||'',role:cols[2]||'General Member',
+          email:cols[3]||'',dob:cols[4]||'',address:cols[5]||'',createdAt:now()};
+        DB.push('committee',member); queueSync('committee',member);
+      } else if(kind==='sabhashad') {
+        var feeTypes = getFeeTypes();
+        var ft = feeTypes.find(function(f){ return f.name.toLowerCase()===((cols[3]||'').toLowerCase()); });
+        var areas = DB.get('areas'); var flatLink='';
+        areas.forEach(function(a){ var items=a.type==='building'?a.flats:a.rooms; (items||[]).forEach(function(it){ if(it.label===cols[4]) flatLink=it.key; }); });
+        var sab = {id:uid(),name:cols[0],mobile:cols[1]||'',tshirt:cols[2]||'XL',
+          feeTypeId:ft?ft.id:'',flatLink:flatLink,fees:{},createdAt:now()};
+        DB.push('sabhashad',sab); queueSync('sabhashad',sab);
+      }
+      count++;
+    }
+    input.value = '';
+    if(kind==='committee') renderCommittee(); else renderSabhashad();
+    addAudit('Bulk Upload', count+' '+kind+' record(s) imported');
+    showToast(count+' record(s) imported!','success');
+  };
+  r.readAsText(file);
+}
   if(!await guardAgainstStaleWipe()) return;
   var name = document.getElementById('cm-name').value.trim();
   var mobile = document.getElementById('cm-mobile').value.trim();
@@ -1835,9 +1897,11 @@ async function saveEvent() {
   var date = document.getElementById('ev-date').value;
   if(!name||!date) { showToast('Name and date required','error'); return; }
   if(!checkDateInFY(date)) { fyDateError(date); return; }
+  var existingEv = editingId ? (DB.get('events').find(function(x){ return x.id===editingId; })||{}) : {};
   var ev = {id:editingId||uid(),name:name,date:date,venue:document.getElementById('ev-venue').value,
     desc:document.getElementById('ev-desc').value,budget:parseFloat(document.getElementById('ev-budget').value)||0,
-    status:document.getElementById('ev-status').value,fy:currentFY,createdAt:now()};
+    status:document.getElementById('ev-status').value,logo:_tempEventLogo||existingEv.logo||'',fy:currentFY,createdAt:existingEv.createdAt||now()};
+  _tempEventLogo = '';
   if(editingId) DB.update('events',editingId,ev); else DB.push('events',ev);
   queueSync('events', ev);
   closeModal('modal-event'); renderEvents(); populateEventSelects();
@@ -1875,7 +1939,19 @@ function editEvent(id) {
     document.getElementById('ev-desc').value = ev.desc||'';
     document.getElementById('ev-budget').value = ev.budget||0;
     document.getElementById('ev-status').value = ev.status;
+    if(ev.logo) document.getElementById('event-logo-preview').innerHTML = '<img src="'+ev.logo+'" style="max-width:140px;border-radius:8px">';
+    _tempEventLogo = ev.logo||'';
   }, 50);
+}
+  var _tempEventLogo = '';
+function previewEventLogo(input) {
+  if(!input.files[0]) return;
+  var r = new FileReader();
+  r.onload = function(e) {
+    document.getElementById('event-logo-preview').innerHTML = '<img src="'+e.target.result+'" style="max-width:140px;border-radius:8px">';
+    _tempEventLogo = e.target.result;
+  };
+  r.readAsDataURL(input.files[0]);
 }
 
 // ============================================================
@@ -2008,7 +2084,7 @@ function renderDirectDonorsTable(eventId) {
   tbody.innerHTML = donations.length ? donations.map(function(d){
     return '<tr><td><span class="badge badge-info">'+d.receipt+'</span></td><td>'+d.donorName+'</td><td>'+(d.mobile||'—')+'</td>' +
       '<td style="font-weight:700">'+fmtAmt(d.amount)+'</td><td>'+d.mode+'</td><td>'+fmtDate(d.date)+'</td>' +
-      '<td><button class="btn btn-sm btn-secondary" onclick="showReceiptById(\''+d.id+'\')">🧾</button> <button class="btn btn-sm btn-danger" onclick="deleteItem(\'donations\',\''+d.id+'\',function(){renderDirectDonorsTable(\''+eventId+'\')})">🗑️</button></td></tr>';
+      '<td><button class="btn btn-sm btn-secondary" onclick="showReceiptById(\''+d.id+'\')">🧾</button> <button class="btn btn-sm btn-danger" onclick="deleteDonationCascade(\''+d.id+'\',function(){renderDirectDonorsTable(\''+eventId+'\')})">🗑️</button></td></tr>';
   }).join('') : '<tr><td colspan="7" style="text-align:center;color:var(--text2);padding:16px">No direct donors yet</td></tr>';
 }
 
@@ -2016,7 +2092,7 @@ function showReceipt(don) {
   var mandal = DB.getObj('mandal');
   var event = DB.get('events').find(function(e){ return e.id===don.eventId; });
   document.getElementById('receipt-content').innerHTML = '<div class="receipt">' +
-    '<div class="receipt-header">' + (mandal.qrCode?'<img src="'+mandal.qrCode+'" style="width:55px;height:55px;float:right;border-radius:6px">':'') +
+    '<div class="receipt-header">' + (event&&event.logo?'<img src="'+event.logo+'" style="width:55px;height:55px;float:right;border-radius:6px">':(mandal.logo?'<img src="'+mandal.logo+'" style="width:55px;height:55px;float:right;border-radius:6px">':'')) +
     '<div style="font-size:10px;font-weight:700;text-transform:uppercase;color:var(--saffron)">Official Receipt</div>' +
     '<div style="font-size:17px;font-weight:800;margin:3px 0">'+(mandal.name||'Mandal Manager')+'</div>' +
     (mandal.address?'<div style="font-size:11px;color:var(--text2)">'+mandal.address+'</div>':'') + '</div>' +
@@ -2542,6 +2618,7 @@ function editVendor(id) {
   
 function openInvestmentModal() {
   editingId = null;
+  resetForm('modal-investment');
   document.getElementById('inv-source').innerHTML = getStdLedgers().map(function(n){ return '<option value="'+n+'">'+(n==='Cash in Hand'?'💵 ':'🏦 ')+n+'</option>'; }).join('');
   openModal('modal-investment');
 }
@@ -2606,6 +2683,16 @@ function renderAssetBankCash() {
 }
 
 async function saveBankAccount() {
+  var _tempBankQR = '';
+function previewBankQR(input) {
+  if(!input.files[0]) return;
+  var r = new FileReader();
+  r.onload = function(e) {
+    document.getElementById('bk-qr-preview').innerHTML = '<img src="'+e.target.result+'" style="max-width:140px;border-radius:8px">';
+    _tempBankQR = e.target.result;
+  };
+  r.readAsDataURL(input.files[0]);
+}
   if(!await guardAgainstStaleWipe()) return;
   var name = document.getElementById('bk-name').value.trim();
   if(!name) { showToast('Account name required','error'); return; }
@@ -2615,7 +2702,9 @@ async function saveBankAccount() {
   var accounts = DB.get('bankaccounts');
   var existing = editingId ? accounts.find(function(b){ return b.id===editingId; }) : null;
   var acct = {id:editingId||uid(),name:name,bankName:document.getElementById('bk-bank').value,
-    accountNo:document.getElementById('bk-accno').value,openingBalances:(existing&&existing.openingBalances)||{},createdAt:(existing&&existing.createdAt)||now()};
+    accountNo:document.getElementById('bk-accno').value,openingBalances:(existing&&existing.openingBalances)||{},
+    qrCode:_tempBankQR||(existing&&existing.qrCode)||'',createdAt:(existing&&existing.createdAt)||now()};
+  _tempBankQR = '';
   acct.openingBalances[currentFY] = opening;
   if(editingId) DB.update('bankaccounts',editingId,acct); else DB.push('bankaccounts',acct);
   queueSync('bankaccounts', acct);
@@ -2635,6 +2724,8 @@ function editBankAccount(id) {
     document.getElementById('bk-accno').value = a.accountNo||'';
     document.getElementById('bk-fy-label').textContent = currentFY;
     document.getElementById('bk-opening').value = (a.openingBalances&&a.openingBalances[currentFY])||0;
+    if(a.qrCode) document.getElementById('bk-qr-preview').innerHTML = '<img src="'+a.qrCode+'" style="max-width:140px;border-radius:8px">';
+    _tempBankQR = a.qrCode||'';
   }, 50);
 }
   
@@ -2912,6 +3003,7 @@ function resetAllFees() {
   if(!confirm('Reset ALL Sabhashad member fees for FY '+currentFY+' to UNPAID?')) return;
   var members = DB.get('sabhashad');
   members.forEach(function(m){ if(!m.fees)m.fees={}; delete m.fees[currentFY]; });
+  members.forEach(function(m){ queueSync('sabhashad', m); });
   DB.set('sabhashad',members); renderFYOverview(); renderSabhashad();
   addAudit('Fee Reset','All fees reset for FY '+currentFY); showToast('All fees reset','success');
 }
@@ -3301,16 +3393,64 @@ async function forceSyncNow() {
 // ============================================================
 var pullTimer = null;
 var lastPullStamp = null;
+var _realtimeChannel = null;
+var _realtimeTables = ['mandal','users','committee','sabhashad','areas','events','donations',
+  'vouchers','vendors','investments','ledgers','meetings','audit','bankaccounts','settings'];
 
 function startLivePolling() {
-  if (pullTimer) return;
   if (!getSupabase()) return;
-  pullFromSupabase();
-  pullTimer = setInterval(pullFromSupabase, 8000);
+  pullFromSupabase(); // one full pull on login/connect to get the current state
+  startRealtimeSync();
 }
 
 function stopLivePolling() {
   if (pullTimer) { clearInterval(pullTimer); pullTimer = null; }
+  stopRealtimeSync();
+}
+
+function startRealtimeSync() {
+  var sb = getSupabase();
+  if (!sb || _realtimeChannel) return;
+  _realtimeChannel = sb.channel('mandal-live-changes');
+  _realtimeTables.forEach(function(t){
+    _realtimeChannel.on('postgres_changes', {event:'*', schema:'public', table:t}, function(payload){
+      handleRealtimeChange(t, payload);
+    });
+  });
+  _realtimeChannel.subscribe(function(status){
+    if (status === 'SUBSCRIBED') setSyncStatus('synced');
+    else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
+      // fall back to polling if realtime can't connect (e.g. not enabled in Supabase yet)
+      if (!pullTimer) pullTimer = setInterval(pullFromSupabase, 8000);
+    }
+  });
+}
+
+function stopRealtimeSync() {
+  var sb = getSupabase();
+  if (sb && _realtimeChannel) { sb.removeChannel(_realtimeChannel); }
+  _realtimeChannel = null;
+}
+
+function handleRealtimeChange(table, payload) {
+  if (Date.now() < _suppressPullUntil) return; // ignore the echo of our own just-made save
+  var isSettingsLike = (table === 'mandal' || table === 'settings');
+  if (payload.eventType === 'DELETE') {
+    var oldId = payload.old && payload.old.id;
+    if (!isSettingsLike && oldId) DB.delete(table, oldId);
+  } else {
+    var row = payload.new && payload.new.data;
+    if (!row) return;
+    if (isSettingsLike) {
+      DB.set(table, row);
+    } else {
+      var list = DB.get(table);
+      var idx = list.findIndex(function(x){ return x.id === row.id; });
+      if (idx > -1) list[idx] = row; else list.push(row);
+      DB.set(table, list);
+    }
+  }
+  refreshCurrentPageView();
 }
 
 async function pullFromSupabase() {
@@ -3591,6 +3731,21 @@ function filterTable(tableId, val) {
   });
 }
 
+function deleteDonationCascade(id, callback) {
+  if(!confirm('Delete this donation? Linked voucher entries will also be removed from Vouchers, FY Reports, and Dashboard everywhere.')) return;
+  var don = DB.get('donations').find(function(x){ return x.id===id; });
+  if(!don) return;
+  var linkedVouchers = DB.get('vouchers').filter(function(v){ return v.linkedDonationId===id || v.ref===don.receipt; });
+  linkedVouchers.forEach(function(v){ DB.delete('vouchers', v.id); queueDelete('vouchers', v.id); });
+  DB.delete('donations', id); queueDelete('donations', id);
+  addAudit('Delete', 'Donation '+(don.donorName||'')+' '+fmtAmt(don.amount)+' + '+linkedVouchers.length+' linked voucher(s) removed');
+  showToast('Donation and linked voucher(s) deleted');
+  loadDashboard();
+  renderVoucherList('All'); renderVoucherList('Receipt');
+  renderFYOverview(); renderFinancials();
+  if(callback) callback();
+}
+
 function filterTableCol(tableId, colIdx, val) {
   document.querySelectorAll('#'+tableId+' tr').forEach(function(r){
     r.style.display=(!val||r.cells[colIdx]&&r.cells[colIdx].textContent.indexOf(val)>-1)?'':'none';
@@ -3710,6 +3865,25 @@ function populateBankSelects() {
   ['fd-bank-account','dd-bank-account'].forEach(function(id){
     var el = document.getElementById(id); if(el) el.innerHTML = opts||'<option value="Bank Account">Bank Account</option>';
   });
+}
+
+function previewMandalLogo(input) {
+  if(!input.files[0]) return;
+  var r = new FileReader();
+  r.onload = function(e) {
+    document.getElementById('mandal-logo-preview').innerHTML = '<img src="'+e.target.result+'" style="max-width:140px;border-radius:8px">';
+    var m = DB.getObj('mandal'); m.logo = e.target.result; DB.set('mandal', m); queueSync('mandal', m);
+  };
+  r.readAsDataURL(input.files[0]);
+}  
+
+function showBankQR(selectId, displayId) {
+  var sel = document.getElementById(selectId);
+  var disp = document.getElementById(displayId);
+  if(!sel||!disp) return;
+  var acct = DB.get('bankaccounts').find(function(b){ return b.name===sel.value; });
+  if(acct && acct.qrCode) disp.innerHTML = '<img src="'+acct.qrCode+'" style="max-width:160px">';
+  else disp.innerHTML = '<div style="color:var(--text2);font-size:12px">No QR uploaded for this bank account</div>';
 }
 
 function toggleFlatBankSelect(mode) {
