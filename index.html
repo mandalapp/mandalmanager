@@ -956,7 +956,7 @@ body.offline-mode .sidebar{margin-top:38px}
     <div class="form-group"><label>Narration / Remarks</label><textarea id="mr-narration" rows="2" placeholder="Purpose of receipt..."></textarea></div>
     <div class="form-group"><label>Receipt No. (leave blank for auto)</label><input type="text" id="mr-receipt-no" placeholder="e.g. RCP-2025-001"></div>
   </div>
-  <div class="modal-footer"><button class="btn btn-secondary" onclick="closeModal('modal-manual-receipt')">Cancel</button><button class="btn btn-primary" onclick="saveManualReceipt()">💾 Save &amp; Print Receipt</button></div></div>
+  <div class="modal-footer"><button class="btn btn-secondary" onclick="closeModal('modal-manual-receipt')">Cancel</button><button class="btn btn-warning" onclick="previewManualReceipt()">👁️ Preview Receipt</button><button class="btn btn-primary" onclick="saveManualReceipt()">💾 Save &amp; Print Receipt</button></div></div>
 </div>
 
 <!-- BANK ACCOUNT MODAL -->
@@ -2231,22 +2231,138 @@ function renderDirectDonorsTable(eventId) {
   }).join('') : '<tr><td colspan="7" style="text-align:center;color:var(--text2);padding:16px">No direct donors yet</td></tr>';
 }
 
+function amountToWords(amount) {
+  var ones = ['','One','Two','Three','Four','Five','Six','Seven','Eight','Nine','Ten','Eleven','Twelve','Thirteen','Fourteen','Fifteen','Sixteen','Seventeen','Eighteen','Nineteen'];
+  var tens = ['','','Twenty','Thirty','Forty','Fifty','Sixty','Seventy','Eighty','Ninety'];
+  function convert(n) {
+    if(n===0) return '';
+    if(n<20) return ones[n]+' ';
+    if(n<100) return tens[Math.floor(n/10)]+' '+(n%10?ones[n%10]+' ':'');
+    if(n<1000) return ones[Math.floor(n/100)]+' Hundred '+(n%100?convert(n%100):'');
+    if(n<100000) return convert(Math.floor(n/1000))+'Thousand '+(n%1000?convert(n%1000):'');
+    if(n<10000000) return convert(Math.floor(n/100000))+'Lakh '+(n%100000?convert(n%100000):'');
+    return convert(Math.floor(n/10000000))+'Crore '+(n%10000000?convert(n%10000000):'');
+  }
+  var n = Math.floor(Number(amount)||0);
+  return (n===0?'Zero':convert(n).trim())+' Rupees Only';
+}
+
 function showReceipt(don) {
   var mandal = DB.getObj('mandal');
   var event = DB.get('events').find(function(e){ return e.id===don.eventId; });
-  document.getElementById('receipt-content').innerHTML = '<div class="receipt">' +
-    '<div class="receipt-header">' + (event&&event.logo?'<img src="'+event.logo+'" style="width:55px;height:55px;float:right;border-radius:6px">':(mandal.logo?'<img src="'+mandal.logo+'" style="width:60px;height:60px;margin:0 auto 8px;display:block;border-radius:8px">':'')) +
-    '<div style="font-size:10px;font-weight:700;text-transform:uppercase;color:var(--saffron)">Official Receipt</div>' +
-    '<div style="font-size:17px;font-weight:800;margin:3px 0">'+(mandal.name||'Mandal Manager')+'</div>' +
-    (mandal.address?'<div style="font-size:11px;color:var(--text2)">'+mandal.address+'</div>':'') + '</div>' +
-    '<div class="receipt-row"><span>Receipt No.</span><strong>'+don.receipt+'</strong></div>' +
-    '<div class="receipt-row"><span>Date</span><span>'+fmtDate(don.date)+'</span></div>' +
-    '<div class="receipt-row"><span>Event</span><span>'+(event&&event.name||'—')+'</span></div>' +
-    '<div class="receipt-row"><span>Donor Name</span><span>'+(don.donorName||'—')+'</span></div>' +
-    (don.mobile?'<div class="receipt-row"><span>Mobile</span><span>'+don.mobile+'</span></div>':'') +
-    '<div class="receipt-row"><span>Payment Mode</span><span>'+don.mode+'</span></div>' +
-    '<div class="receipt-row total"><span>Amount Received</span><strong>'+fmtAmt(don.amount)+'</strong></div>' +
-    '<div style="margin-top:22px;display:flex;justify-content:space-between;font-size:11px;color:var(--text2)"><span>Collected by: '+don.collectedBy+'</span><span>Authorised Signature</span></div></div>';
+  var amtWords = amountToWords(don.amount);
+  var dateStr = don.date ? don.date.split('-').reverse().join(' / ') : '__ / __ / ____';
+
+  document.getElementById('receipt-content').innerHTML =
+    '<div style="border:3px solid #1A237E;border-radius:8px;padding:0;font-family:serif;background:#fff;max-width:700px;margin:0 auto;overflow:hidden">' +
+
+    // ── TOP BORDER STRIP ──
+    '<div style="background:linear-gradient(90deg,#1A237E,#4A148C,#1A237E);height:8px"></div>' +
+
+    // ── HEADER ──
+    '<div style="padding:14px 20px 8px;border-bottom:2px solid #C9A84C;display:flex;align-items:center;justify-content:space-between;gap:10px">' +
+      '<div style="flex-shrink:0;width:70px;text-align:center">' +
+        (mandal.logo ? '<img src="'+mandal.logo+'" style="width:65px;height:65px;border-radius:50%;border:2px solid #C9A84C;object-fit:cover">' : '<div style="width:65px;height:65px;border-radius:50%;border:2px dashed #C9A84C;display:flex;align-items:center;justify-content:center;font-size:10px;color:#999">LOGO</div>') +
+        '<div style="font-size:9px;color:#C9A84C;font-weight:700;margin-top:3px">MANDAL LOGO</div>' +
+      '</div>' +
+      '<div style="flex:1;text-align:center">' +
+        '<div style="font-size:20px;font-weight:900;color:#1A237E;letter-spacing:1px;text-transform:uppercase">'+(mandal.name||'MANDAL NAME')+'</div>' +
+        '<div style="font-size:11px;color:#555;margin:2px 0">(Registered Social Organization)</div>' +
+        (mandal.address ? '<div style="font-size:10px;color:#777">'+mandal.address+'</div>' : '') +
+        '<div style="margin:8px auto;background:linear-gradient(90deg,#8B0000,#C62828,#8B0000);color:#FFD700;font-size:14px;font-weight:900;padding:6px 20px;border-radius:4px;letter-spacing:2px;display:inline-block;border:2px solid #C9A84C">✦ DONATION RECEIPT ✦</div>' +
+      '</div>' +
+      '<div style="flex-shrink:0;width:70px;text-align:center">' +
+        (event&&event.logo ? '<img src="'+event.logo+'" style="width:65px;height:65px;border-radius:50%;border:2px solid #C9A84C;object-fit:cover">' : '<div style="width:65px;height:65px;border-radius:50%;border:2px dashed #C9A84C;display:flex;align-items:center;justify-content:center;font-size:10px;color:#999">EVENT</div>') +
+        '<div style="font-size:9px;color:#C9A84C;font-weight:700;margin-top:3px">EVENT LOGO</div>' +
+      '</div>' +
+    '</div>' +
+
+    // ── BODY ──
+    '<div style="padding:14px 20px">' +
+
+      // Receipt No + Date
+      '<div style="display:flex;justify-content:space-between;margin-bottom:10px">' +
+        '<div style="font-size:12px"><span style="color:#8B0000;font-weight:700">Receipt No. : </span><span style="border-bottom:1px solid #333;padding:0 40px 2px">'+don.receipt+'</span></div>' +
+        '<div style="font-size:12px"><span style="color:#8B0000;font-weight:700">Date : </span><span>'+dateStr+'</span></div>' +
+      '</div>' +
+
+      // Received from
+      '<div style="font-size:12px;margin-bottom:8px;border-bottom:1px solid #ccc;padding-bottom:6px">' +
+        '<span style="color:#333">Received with thanks from Shri / Smt. </span>' +
+        '<strong style="color:#1A237E">'+(don.donorName||'_________________________')+'</strong>' +
+        (don.mobile ? ' &nbsp; <span style="color:#555;font-size:11px">📞 '+don.mobile+'</span>' : '') +
+      '</div>' +
+
+      // Amount
+      '<div style="font-size:12px;margin-bottom:8px;padding-bottom:6px;border-bottom:1px solid #ccc">' +
+        '<span style="color:#333">A sum of Rs. </span>' +
+        '<strong style="font-size:14px;color:#1A237E;border:1px solid #1A237E;padding:2px 10px;border-radius:4px">'+fmtAmt(don.amount)+'</strong>' +
+        '&nbsp; <span style="color:#333">(Rupees </span><em style="color:#1A237E">'+amtWords+'</em><span>)</span>' +
+      '</div>' +
+
+      // Purpose
+      '<div style="font-size:12px;margin-bottom:8px;border-bottom:1px solid #ccc;padding-bottom:6px">' +
+        '<span style="color:#333">towards donation / contribution for the activities of </span>' +
+        '<strong>'+(mandal.name||'the Mandal')+'</strong>' +
+      '</div>' +
+
+      // Event / Purpose
+      '<div style="font-size:12px;margin-bottom:8px;border-bottom:1px solid #ccc;padding-bottom:6px">' +
+        '<span style="color:#8B0000;font-weight:700">Purpose / Event : </span>' +
+        '<span>'+(event&&event.name||'—')+'</span>' +
+      '</div>' +
+
+      // Payment mode
+      '<div style="font-size:12px;margin-bottom:10px;border-bottom:1px solid #ccc;padding-bottom:6px;display:flex;justify-content:space-between;align-items:center">' +
+        '<div>' +
+          '<span style="color:#8B0000;font-weight:700">Mode of Payment : </span>' +
+          ['Cash','Cheque','UPI/Online','Bank Transfer','NEFT'].map(function(m){
+            var sel = (don.mode===m||(m==='UPI/Online'&&don.mode==='Online/UPI')||(m==='NEFT'&&don.mode==='Bank Transfer'));
+            return '<span style="margin-right:8px;font-weight:'+(sel?'900':'400')+';color:'+(sel?'#8B0000':'#555')+';text-decoration:'+(sel?'underline':'none')+'">'+m+'</span>';
+          }).join('<span style="color:#ccc">/</span> ') +
+        '</div>' +
+      '</div>' +
+
+    // ── FOOTER ──
+    '<div style="display:flex;align-items:flex-start;justify-content:space-between;margin-top:10px;gap:10px">' +
+
+      // Left: registration info
+      '<div style="border:1px solid #1A237E;border-radius:6px;padding:8px 12px;font-size:10px;color:#333;min-width:180px">' +
+        (mandal['reg-no'] ? '<div>📋 Registration No. : '+mandal['reg-no']+'</div>' : '') +
+        (mandal['id'] ? '<div>📋 Trust Reg. No. : '+mandal['id']+'</div>' : '') +
+        '<div style="margin-top:4px;font-size:9px;color:#777">Collected by: <strong>'+don.collectedBy+'</strong></div>' +
+      '</div>' +
+
+      // Center: thank you
+      '<div style="text-align:center;flex:1">' +
+        '<div style="font-family:cursive;font-size:16px;color:#8B0000;font-weight:700">✦ Thank You! ✦</div>' +
+        '<div style="font-size:10px;color:#555;margin-top:4px">Your support inspires us to<br>serve the society better.</div>' +
+      '</div>' +
+
+      // Right: signature
+      '<div style="text-align:center;min-width:140px">' +
+        '<div style="font-size:11px;font-weight:700;color:#1A237E">For '+(mandal.name||'MANDAL')+'</div>' +
+        '<div style="margin:24px 0 4px;border-top:1px solid #333;width:130px;margin-left:auto;margin-right:auto"></div>' +
+        '<div style="font-size:10px;color:#555">Authorized Signatory<br>(Name &amp; Signature)</div>' +
+        '<div style="width:55px;height:55px;border:2px dashed #1A237E;border-radius:50%;margin:8px auto 0;display:flex;align-items:center;justify-content:center;font-size:9px;color:#999;text-align:center">MANDAL<br>SEAL</div>' +
+      '</div>' +
+    '</div>' +
+
+    // Office contact strip
+    (mandal.email||mandal['contact-phone']||mandal.address ?
+    '<div style="margin-top:12px;border-top:2px solid #C9A84C;padding-top:8px;display:flex;justify-content:space-around;font-size:10px;color:#333">' +
+      (mandal.address ? '<span>📍 '+mandal.address+'</span>' : '') +
+      (mandal['contact-phone'] ? '<span>📞 '+mandal['contact-phone']+'</span>' : '') +
+      (mandal.email ? '<span>✉️ '+mandal.email+'</span>' : '') +
+    '</div>' : '') +
+
+    '</div>' + // end body padding
+
+    // ── BOTTOM BORDER STRIP ──
+    '<div style="background:linear-gradient(90deg,#1A237E,#4A148C,#1A237E);height:8px"></div>' +
+
+    '</div>'; // end outer div
+
   openModal('modal-receipt');
 }
 
@@ -3895,18 +4011,125 @@ function printFeeReceipt(memberId, fy) {
   var m = DB.get('sabhashad').find(function(x){ return x.id===memberId; });
   var fee = m.fees&&m.fees[fy]; if(!fee) return;
   var mandal = DB.getObj('mandal');
-  document.getElementById('receipt-content').innerHTML = '<div class="receipt"><div class="receipt-header">' +
-    '<div style="font-size:10px;font-weight:700;text-transform:uppercase;color:var(--saffron)">Membership Fee Receipt</div>' +
-    '<div style="font-size:17px;font-weight:800;margin:3px 0">'+(mandal.name||'Mandal Manager')+'</div></div>' +
-    '<div class="receipt-row"><span>Receipt No.</span><strong>'+fee.receipt+'</strong></div>' +
-    '<div class="receipt-row"><span>Member</span><span>'+m.name+'</span></div>' +
-    '<div class="receipt-row"><span>Mobile</span><span>'+m.mobile+'</span></div>' +
-    '<div class="receipt-row"><span>Financial Year</span><span>'+fy+'</span></div>' +
-    '<div class="receipt-row"><span>Date</span><span>'+fmtDate(fee.date)+'</span></div>' +
-    '<div class="receipt-row"><span>Mode</span><span>'+fee.mode+'</span></div>' +
-    '<div class="receipt-row total"><span>Fee Paid</span><strong>'+fmtAmt(fee.amount)+'</strong></div>' +
-    '<div style="margin-top:22px;display:flex;justify-content:space-between;font-size:11px;color:var(--text2)"><span>Collected by: '+fee.collectedBy+'</span><span>Authorised Signature</span></div></div>';
-  closeModal('modal-sabhashad-fee'); openModal('modal-receipt');
+  var amtWords = amountToWords(fee.amount);
+  var dateStr = fee.date ? fee.date.split('-').reverse().join(' / ') : '__ / __ / ____';
+  var feeTypes = getFeeTypes();
+  var ft = feeTypes.find(function(f){ return f.id===m.feeTypeId; });
+
+  document.getElementById('receipt-content').innerHTML =
+    '<div style="border:3px solid #1A237E;border-radius:8px;padding:0;font-family:serif;background:#fff;max-width:700px;margin:0 auto;overflow:hidden">' +
+
+    // ── TOP BORDER STRIP ──
+    '<div style="background:linear-gradient(90deg,#1A237E,#4A148C,#1A237E);height:8px"></div>' +
+
+    // ── HEADER ──
+    '<div style="padding:14px 20px 8px;border-bottom:2px solid #C9A84C;display:flex;align-items:center;justify-content:space-between;gap:10px">' +
+      '<div style="flex-shrink:0;width:70px;text-align:center">' +
+        (mandal.logo ? '<img src="'+mandal.logo+'" style="width:65px;height:65px;border-radius:50%;border:2px solid #C9A84C;object-fit:cover">' : '<div style="width:65px;height:65px;border-radius:50%;border:2px dashed #C9A84C;display:flex;align-items:center;justify-content:center;font-size:10px;color:#999">LOGO</div>') +
+        '<div style="font-size:9px;color:#C9A84C;font-weight:700;margin-top:3px">MANDAL LOGO</div>' +
+      '</div>' +
+      '<div style="flex:1;text-align:center">' +
+        '<div style="font-size:20px;font-weight:900;color:#1A237E;letter-spacing:1px;text-transform:uppercase">'+(mandal.name||'MANDAL NAME')+'</div>' +
+        '<div style="font-size:11px;color:#555;margin:2px 0">(Registered Social Organization)</div>' +
+        (mandal.address ? '<div style="font-size:10px;color:#777">'+mandal.address+'</div>' : '') +
+        '<div style="margin:8px auto;background:linear-gradient(90deg,#8B0000,#C62828,#8B0000);color:#FFD700;font-size:14px;font-weight:900;padding:6px 20px;border-radius:4px;letter-spacing:2px;display:inline-block;border:2px solid #C9A84C">✦ MEMBERSHIP FEE RECEIPT ✦</div>' +
+      '</div>' +
+      '<div style="flex-shrink:0;width:70px;text-align:center">' +
+        '<div style="width:65px;height:65px;border-radius:50%;border:2px solid #C9A84C;display:flex;align-items:center;justify-content:center;flex-direction:column;background:#FFF8E1">' +
+          '<div style="font-size:10px;font-weight:900;color:#1A237E;text-align:center;line-height:1.2">FY<br>'+fy+'</div>' +
+        '</div>' +
+        '<div style="font-size:9px;color:#C9A84C;font-weight:700;margin-top:3px">FINANCIAL YEAR</div>' +
+      '</div>' +
+    '</div>' +
+
+    // ── BODY ──
+    '<div style="padding:14px 20px">' +
+
+      // Receipt No + Date
+      '<div style="display:flex;justify-content:space-between;margin-bottom:10px">' +
+        '<div style="font-size:12px"><span style="color:#8B0000;font-weight:700">Receipt No. : </span><span style="border-bottom:1px solid #333;padding:0 40px 2px">'+fee.receipt+'</span></div>' +
+        '<div style="font-size:12px"><span style="color:#8B0000;font-weight:700">Date : </span><span>'+dateStr+'</span></div>' +
+      '</div>' +
+
+      // Member name
+      '<div style="font-size:12px;margin-bottom:8px;border-bottom:1px solid #ccc;padding-bottom:6px">' +
+        '<span style="color:#333">Received with thanks from Shri / Smt. </span>' +
+        '<strong style="color:#1A237E">'+m.name+'</strong>' +
+        (m.mobile ? ' &nbsp; <span style="color:#555;font-size:11px">📞 '+m.mobile+'</span>' : '') +
+      '</div>' +
+
+      // Amount
+      '<div style="font-size:12px;margin-bottom:8px;padding-bottom:6px;border-bottom:1px solid #ccc">' +
+        '<span style="color:#333">A sum of Rs. </span>' +
+        '<strong style="font-size:14px;color:#1A237E;border:1px solid #1A237E;padding:2px 10px;border-radius:4px">'+fmtAmt(fee.amount)+'</strong>' +
+        '&nbsp; <span style="color:#333">(Rupees </span><em style="color:#1A237E">'+amtWords+'</em><span>)</span>' +
+      '</div>' +
+
+      // Purpose
+      '<div style="font-size:12px;margin-bottom:8px;border-bottom:1px solid #ccc;padding-bottom:6px">' +
+        '<span style="color:#333">towards Annual Membership Fee for Financial Year </span>' +
+        '<strong style="color:#1A237E">'+fy+'</strong>' +
+        (ft ? ' &nbsp; <span style="color:#555;font-size:11px">('+ft.name+')</span>' : '') +
+      '</div>' +
+
+      // Fee Type / Category
+      '<div style="font-size:12px;margin-bottom:8px;border-bottom:1px solid #ccc;padding-bottom:6px">' +
+        '<span style="color:#8B0000;font-weight:700">Membership Type : </span>' +
+        '<span>'+(ft ? ft.name : 'General Member')+'</span>' +
+        (fee.remarks ? ' &nbsp; <span style="color:#777;font-size:11px">| Remarks: '+fee.remarks+'</span>' : '') +
+      '</div>' +
+
+      // Payment mode
+      '<div style="font-size:12px;margin-bottom:10px;border-bottom:1px solid #ccc;padding-bottom:6px">' +
+        '<span style="color:#8B0000;font-weight:700">Mode of Payment : </span>' +
+        ['Cash','Cheque','UPI/Online','Bank Transfer','NEFT'].map(function(md){
+          var sel = (fee.mode===md||(md==='UPI/Online'&&fee.mode==='Online/UPI')||(md==='NEFT'&&fee.mode==='Bank Transfer'));
+          return '<span style="margin-right:8px;font-weight:'+(sel?'900':'400')+';color:'+(sel?'#8B0000':'#555')+';text-decoration:'+(sel?'underline':'none')+'">'+md+'</span>';
+        }).join('<span style="color:#ccc">/</span> ') +
+      '</div>' +
+
+    // ── FOOTER ──
+    '<div style="display:flex;align-items:flex-start;justify-content:space-between;margin-top:10px;gap:10px">' +
+
+      // Left: registration info
+      '<div style="border:1px solid #1A237E;border-radius:6px;padding:8px 12px;font-size:10px;color:#333;min-width:180px">' +
+        (mandal['reg-no'] ? '<div>📋 Registration No. : '+mandal['reg-no']+'</div>' : '') +
+        (mandal['id'] ? '<div>📋 Trust Reg. No. : '+mandal['id']+'</div>' : '') +
+        '<div style="margin-top:4px;font-size:9px;color:#777">Collected by: <strong>'+fee.collectedBy+'</strong></div>' +
+      '</div>' +
+
+      // Center: thank you
+      '<div style="text-align:center;flex:1">' +
+        '<div style="font-family:cursive;font-size:16px;color:#8B0000;font-weight:700">✦ Thank You! ✦</div>' +
+        '<div style="font-size:10px;color:#555;margin-top:4px">Your support inspires us to<br>serve the society better.</div>' +
+      '</div>' +
+
+      // Right: signature + seal
+      '<div style="text-align:center;min-width:140px">' +
+        '<div style="font-size:11px;font-weight:700;color:#1A237E">For '+(mandal.name||'MANDAL')+'</div>' +
+        '<div style="margin:24px 0 4px;border-top:1px solid #333;width:130px;margin-left:auto;margin-right:auto"></div>' +
+        '<div style="font-size:10px;color:#555">Authorized Signatory<br>(Name &amp; Signature)</div>' +
+        '<div style="width:55px;height:55px;border:2px dashed #1A237E;border-radius:50%;margin:8px auto 0;display:flex;align-items:center;justify-content:center;font-size:9px;color:#999;text-align:center">MANDAL<br>SEAL</div>' +
+      '</div>' +
+    '</div>' +
+
+    // Office contact strip
+    (mandal.email||mandal['contact-phone']||mandal.address ?
+    '<div style="margin-top:12px;border-top:2px solid #C9A84C;padding-top:8px;display:flex;justify-content:space-around;font-size:10px;color:#333">' +
+      (mandal.address ? '<span>📍 '+mandal.address+'</span>' : '') +
+      (mandal['contact-phone'] ? '<span>📞 '+mandal['contact-phone']+'</span>' : '') +
+      (mandal.email ? '<span>✉️ '+mandal.email+'</span>' : '') +
+    '</div>' : '') +
+
+    '</div>' + // end body padding
+
+    // ── BOTTOM BORDER STRIP ──
+    '<div style="background:linear-gradient(90deg,#1A237E,#4A148C,#1A237E);height:8px"></div>' +
+
+    '</div>';
+
+  closeModal('modal-sabhashad-fee');
+  openModal('modal-receipt');
 }
 
 // ============================================================
@@ -4530,6 +4753,117 @@ function filterTableCol(tableId, colIdx, val) {
 // ============================================================
 // MANUAL RECEIPT
 // ============================================================
+function previewManualReceipt() {
+  var date = document.getElementById('mr-date').value;
+  var amount = parseFloat(document.getElementById('mr-amount').value);
+  var fromName = document.getElementById('mr-from-name').value.trim();
+  var mode = document.getElementById('mr-mode').value;
+  var creditLedger = document.getElementById('mr-credit-ledger').value;
+  var ref = document.getElementById('mr-ref').value.trim();
+  var narration = document.getElementById('mr-narration').value.trim();
+  var eventId = document.getElementById('mr-event').value;
+  var mobile = document.getElementById('mr-mobile').value.trim();
+  var receiptNo = document.getElementById('mr-receipt-no').value.trim() || ('RCP-PREVIEW');
+  var mandal = DB.getObj('mandal');
+  var event = eventId ? DB.get('events').find(function(e){ return e.id===eventId; }) : null;
+
+  if(!fromName) { showToast('Enter Received From name to preview','error'); return; }
+  if(!amount) { showToast('Enter amount to preview','error'); return; }
+
+  var debitLedger;
+  if(mode==='Cash') {
+    debitLedger = 'Cash in Hand';
+  } else {
+    var bankEl = document.getElementById('mr-bank-account');
+    debitLedger = bankEl && bankEl.value ? bankEl.value : (DB.get('bankaccounts')[0]&&DB.get('bankaccounts')[0].name||'Bank Account');
+  }
+
+  var amtWordsM = amountToWords(amount);
+  var dateStrM = date ? date.split('-').reverse().join(' / ') : '__ / __ / ____';
+
+  document.getElementById('receipt-content').innerHTML =
+    '<div style="border:3px solid #1A237E;border-radius:8px;padding:0;font-family:serif;background:#fff;max-width:700px;margin:0 auto;overflow:hidden">' +
+    '<div style="background:linear-gradient(90deg,#1A237E,#4A148C,#1A237E);height:8px"></div>' +
+    '<div style="padding:14px 20px 8px;border-bottom:2px solid #C9A84C;display:flex;align-items:center;justify-content:space-between;gap:10px">' +
+      '<div style="flex-shrink:0;width:70px;text-align:center">' +
+        (mandal.logo ? '<img src="'+mandal.logo+'" style="width:65px;height:65px;border-radius:50%;border:2px solid #C9A84C;object-fit:cover">' : '<div style="width:65px;height:65px;border-radius:50%;border:2px dashed #C9A84C;display:flex;align-items:center;justify-content:center;font-size:10px;color:#999">LOGO</div>') +
+        '<div style="font-size:9px;color:#C9A84C;font-weight:700;margin-top:3px">MANDAL LOGO</div>' +
+      '</div>' +
+      '<div style="flex:1;text-align:center">' +
+        '<div style="font-size:20px;font-weight:900;color:#1A237E;letter-spacing:1px;text-transform:uppercase">'+(mandal.name||'MANDAL NAME')+'</div>' +
+        '<div style="font-size:11px;color:#555;margin:2px 0">(Registered Social Organization)</div>' +
+        (mandal.address ? '<div style="font-size:10px;color:#777">'+mandal.address+'</div>' : '') +
+        '<div style="margin:8px auto;background:linear-gradient(90deg,#8B0000,#C62828,#8B0000);color:#FFD700;font-size:14px;font-weight:900;padding:6px 20px;border-radius:4px;letter-spacing:2px;display:inline-block;border:2px solid #C9A84C">✦ OFFICIAL RECEIPT ✦</div>' +
+      '</div>' +
+      '<div style="flex-shrink:0;width:70px;text-align:center">' +
+        (event&&event.logo ? '<img src="'+event.logo+'" style="width:65px;height:65px;border-radius:50%;border:2px solid #C9A84C;object-fit:cover">' : '<div style="width:65px;height:65px;border-radius:50%;border:2px dashed #C9A84C;display:flex;align-items:center;justify-content:center;font-size:10px;color:#999">EVENT</div>') +
+        '<div style="font-size:9px;color:#C9A84C;font-weight:700;margin-top:3px">EVENT LOGO</div>' +
+      '</div>' +
+    '</div>' +
+    '<div style="padding:14px 20px">' +
+      // PREVIEW BANNER
+      '<div style="background:#FFF9C4;border:2px dashed #F39C12;border-radius:8px;padding:8px 14px;font-size:12px;font-weight:700;color:#E67E22;margin-bottom:12px;text-align:center">👁️ PREVIEW — Receipt not saved yet. Close and click Save &amp; Print to finalize.</div>' +
+      '<div style="display:flex;justify-content:space-between;margin-bottom:10px">' +
+        '<div style="font-size:12px"><span style="color:#8B0000;font-weight:700">Receipt No. : </span><span style="border-bottom:1px solid #333;padding:0 40px 2px">'+receiptNo+'</span></div>' +
+        '<div style="font-size:12px"><span style="color:#8B0000;font-weight:700">Date : </span><span>'+dateStrM+'</span></div>' +
+      '</div>' +
+      '<div style="font-size:12px;margin-bottom:8px;border-bottom:1px solid #ccc;padding-bottom:6px">' +
+        '<span style="color:#333">Received with thanks from Shri / Smt. </span>' +
+        '<strong style="color:#1A237E">'+fromName+'</strong>' +
+        (mobile ? ' &nbsp; <span style="color:#555;font-size:11px">📞 '+mobile+'</span>' : '') +
+      '</div>' +
+      '<div style="font-size:12px;margin-bottom:8px;padding-bottom:6px;border-bottom:1px solid #ccc">' +
+        '<span style="color:#333">A sum of Rs. </span>' +
+        '<strong style="font-size:14px;color:#1A237E;border:1px solid #1A237E;padding:2px 10px;border-radius:4px">'+fmtAmt(amount)+'</strong>' +
+        '&nbsp; <span style="color:#333">(Rupees </span><em style="color:#1A237E">'+amtWordsM+'</em><span>)</span>' +
+      '</div>' +
+      '<div style="font-size:12px;margin-bottom:8px;border-bottom:1px solid #ccc;padding-bottom:6px">' +
+        '<span style="color:#333">towards donation / contribution for the activities of </span>' +
+        '<strong>'+(mandal.name||'the Mandal')+'</strong>' +
+      '</div>' +
+      (event ? '<div style="font-size:12px;margin-bottom:8px;border-bottom:1px solid #ccc;padding-bottom:6px"><span style="color:#8B0000;font-weight:700">Purpose / Event : </span><span>'+event.name+'</span></div>' : '') +
+      '<div style="font-size:12px;margin-bottom:8px;border-bottom:1px solid #ccc;padding-bottom:6px">' +
+        '<span style="color:#8B0000;font-weight:700">Income Ledger : </span><span>'+(creditLedger||'—')+'</span>' +
+        (narration ? ' &nbsp; <span style="color:#777;font-size:11px">| '+narration+'</span>' : '') +
+      '</div>' +
+      (ref ? '<div style="font-size:12px;margin-bottom:8px;border-bottom:1px solid #ccc;padding-bottom:6px"><span style="color:#8B0000;font-weight:700">Ref / Cheque No. : </span><span>'+ref+'</span></div>' : '') +
+      '<div style="font-size:12px;margin-bottom:10px;border-bottom:1px solid #ccc;padding-bottom:6px">' +
+        '<span style="color:#8B0000;font-weight:700">Mode of Payment : </span>' +
+        ['Cash','Cheque','UPI/Online','Bank Transfer','NEFT'].map(function(md){
+          var sel = (mode===md||(md==='UPI/Online'&&mode==='Online/UPI')||(md==='NEFT'&&mode==='Bank Transfer'));
+          return '<span style="margin-right:8px;font-weight:'+(sel?'900':'400')+';color:'+(sel?'#8B0000':'#555')+';text-decoration:'+(sel?'underline':'none')+'">'+md+'</span>';
+        }).join('<span style="color:#ccc">/</span> ') +
+      '</div>' +
+      '<div style="display:flex;align-items:flex-start;justify-content:space-between;margin-top:10px;gap:10px">' +
+        '<div style="border:1px solid #1A237E;border-radius:6px;padding:8px 12px;font-size:10px;color:#333;min-width:180px">' +
+          (mandal['reg-no'] ? '<div>📋 Registration No. : '+mandal['reg-no']+'</div>' : '') +
+          (mandal['id'] ? '<div>📋 Trust Reg. No. : '+mandal['id']+'</div>' : '') +
+          '<div style="margin-top:4px;font-size:9px;color:#777">Collected by: <strong>'+((currentUser&&currentUser.name)||'Admin')+'</strong></div>' +
+        '</div>' +
+        '<div style="text-align:center;flex:1">' +
+          '<div style="font-family:cursive;font-size:16px;color:#8B0000;font-weight:700">✦ Thank You! ✦</div>' +
+          '<div style="font-size:10px;color:#555;margin-top:4px">Your support inspires us to<br>serve the society better.</div>' +
+        '</div>' +
+        '<div style="text-align:center;min-width:140px">' +
+          '<div style="font-size:11px;font-weight:700;color:#1A237E">For '+(mandal.name||'MANDAL')+'</div>' +
+          '<div style="margin:24px 0 4px;border-top:1px solid #333;width:130px;margin-left:auto;margin-right:auto"></div>' +
+          '<div style="font-size:10px;color:#555">Authorized Signatory<br>(Name &amp; Signature)</div>' +
+          '<div style="width:55px;height:55px;border:2px dashed #1A237E;border-radius:50%;margin:8px auto 0;display:flex;align-items:center;justify-content:center;font-size:9px;color:#999;text-align:center">MANDAL<br>SEAL</div>' +
+        '</div>' +
+      '</div>' +
+      (mandal.email||mandal['contact-phone']||mandal.address ?
+      '<div style="margin-top:12px;border-top:2px solid #C9A84C;padding-top:8px;display:flex;justify-content:space-around;font-size:10px;color:#333">' +
+        (mandal.address ? '<span>📍 '+mandal.address+'</span>' : '') +
+        (mandal['contact-phone'] ? '<span>📞 '+mandal['contact-phone']+'</span>' : '') +
+        (mandal.email ? '<span>✉️ '+mandal.email+'</span>' : '') +
+      '</div>' : '') +
+    '</div>' +
+    '<div style="background:linear-gradient(90deg,#1A237E,#4A148C,#1A237E);height:8px"></div>' +
+    '</div>';
+
+  openModal('modal-receipt');
+}
+
 function openManualReceiptModal() {
   var today = new Date().toISOString().split('T')[0];
   document.getElementById('mr-date').value = today;
@@ -4609,23 +4943,85 @@ async function saveManualReceipt() {
   // show print receipt
   var mandal = DB.getObj('mandal');
   var event = eventId ? DB.get('events').find(function(e){ return e.id===eventId; }) : null;
-  document.getElementById('receipt-content').innerHTML = '<div class="receipt">' +
-    '<div class="receipt-header">' +
-    '<div style="font-size:10px;font-weight:700;text-transform:uppercase;color:var(--saffron)">Official Receipt</div>' +
-    '<div style="font-size:17px;font-weight:800;margin:3px 0">'+(mandal.name||'Mandal Manager')+'</div>' +
-    (mandal.address?'<div style="font-size:11px;color:var(--text2)">'+mandal.address+'</div>':'')+'</div>' +
-    '<div class="receipt-row"><span>Receipt No.</span><strong>'+receiptNo+'</strong></div>' +
-    '<div class="receipt-row"><span>Date</span><span>'+fmtDate(date)+'</span></div>' +
-    (event?'<div class="receipt-row"><span>Event</span><span>'+event.name+'</span></div>':'') +
-    '<div class="receipt-row"><span>Received From</span><span>'+fromName+'</span></div>' +
-    (mobile?'<div class="receipt-row"><span>Mobile</span><span>'+mobile+'</span></div>':'') +
-    '<div class="receipt-row"><span>Purpose</span><span>'+creditLedger+'</span></div>' +
-    '<div class="receipt-row"><span>Payment Mode</span><span>'+mode+'</span></div>' +
-    (debitLedger!=='Cash in Hand'?'<div class="receipt-row"><span>Bank Account</span><span>'+debitLedger+'</span></div>':'') +
-    (ref?'<div class="receipt-row"><span>Ref / Cheque No.</span><span>'+ref+'</span></div>':'') +
-    '<div class="receipt-row total"><span>Amount Received</span><strong>'+fmtAmt(amount)+'</strong></div>' +
-    (narration?'<div class="receipt-row" style="font-size:11px;color:var(--text2)"><span>Remarks</span><span>'+narration+'</span></div>':'') +
-    '<div style="margin-top:22px;display:flex;justify-content:space-between;font-size:11px;color:var(--text2)"><span>Collected by: '+((currentUser&&currentUser.name)||'Admin')+'</span><span>Authorised Signature</span></div></div>';
+  var amtWordsM = amountToWords(amount);
+  var dateStrM = date ? date.split('-').reverse().join(' / ') : '__ / __ / ____';
+  document.getElementById('receipt-content').innerHTML =
+    '<div style="border:3px solid #1A237E;border-radius:8px;padding:0;font-family:serif;background:#fff;max-width:700px;margin:0 auto;overflow:hidden">' +
+    '<div style="background:linear-gradient(90deg,#1A237E,#4A148C,#1A237E);height:8px"></div>' +
+    '<div style="padding:14px 20px 8px;border-bottom:2px solid #C9A84C;display:flex;align-items:center;justify-content:space-between;gap:10px">' +
+      '<div style="flex-shrink:0;width:70px;text-align:center">' +
+        (mandal.logo ? '<img src="'+mandal.logo+'" style="width:65px;height:65px;border-radius:50%;border:2px solid #C9A84C;object-fit:cover">' : '<div style="width:65px;height:65px;border-radius:50%;border:2px dashed #C9A84C;display:flex;align-items:center;justify-content:center;font-size:10px;color:#999">LOGO</div>') +
+        '<div style="font-size:9px;color:#C9A84C;font-weight:700;margin-top:3px">MANDAL LOGO</div>' +
+      '</div>' +
+      '<div style="flex:1;text-align:center">' +
+        '<div style="font-size:20px;font-weight:900;color:#1A237E;letter-spacing:1px;text-transform:uppercase">'+(mandal.name||'MANDAL NAME')+'</div>' +
+        '<div style="font-size:11px;color:#555;margin:2px 0">(Registered Social Organization)</div>' +
+        (mandal.address ? '<div style="font-size:10px;color:#777">'+mandal.address+'</div>' : '') +
+        '<div style="margin:8px auto;background:linear-gradient(90deg,#8B0000,#C62828,#8B0000);color:#FFD700;font-size:14px;font-weight:900;padding:6px 20px;border-radius:4px;letter-spacing:2px;display:inline-block;border:2px solid #C9A84C">✦ OFFICIAL RECEIPT ✦</div>' +
+      '</div>' +
+      '<div style="flex-shrink:0;width:70px;text-align:center">' +
+        (event&&event.logo ? '<img src="'+event.logo+'" style="width:65px;height:65px;border-radius:50%;border:2px solid #C9A84C;object-fit:cover">' : '<div style="width:65px;height:65px;border-radius:50%;border:2px dashed #C9A84C;display:flex;align-items:center;justify-content:center;font-size:10px;color:#999">EVENT</div>') +
+        '<div style="font-size:9px;color:#C9A84C;font-weight:700;margin-top:3px">EVENT LOGO</div>' +
+      '</div>' +
+    '</div>' +
+    '<div style="padding:14px 20px">' +
+      '<div style="display:flex;justify-content:space-between;margin-bottom:10px">' +
+        '<div style="font-size:12px"><span style="color:#8B0000;font-weight:700">Receipt No. : </span><span style="border-bottom:1px solid #333;padding:0 40px 2px">'+receiptNo+'</span></div>' +
+        '<div style="font-size:12px"><span style="color:#8B0000;font-weight:700">Date : </span><span>'+dateStrM+'</span></div>' +
+      '</div>' +
+      '<div style="font-size:12px;margin-bottom:8px;border-bottom:1px solid #ccc;padding-bottom:6px">' +
+        '<span style="color:#333">Received with thanks from Shri / Smt. </span>' +
+        '<strong style="color:#1A237E">'+fromName+'</strong>' +
+        (mobile ? ' &nbsp; <span style="color:#555;font-size:11px">📞 '+mobile+'</span>' : '') +
+      '</div>' +
+      '<div style="font-size:12px;margin-bottom:8px;padding-bottom:6px;border-bottom:1px solid #ccc">' +
+        '<span style="color:#333">A sum of Rs. </span>' +
+        '<strong style="font-size:14px;color:#1A237E;border:1px solid #1A237E;padding:2px 10px;border-radius:4px">'+fmtAmt(amount)+'</strong>' +
+        '&nbsp; <span style="color:#333">(Rupees </span><em style="color:#1A237E">'+amtWordsM+'</em><span>)</span>' +
+      '</div>' +
+      '<div style="font-size:12px;margin-bottom:8px;border-bottom:1px solid #ccc;padding-bottom:6px">' +
+        '<span style="color:#333">towards donation / contribution for the activities of </span>' +
+        '<strong>'+(mandal.name||'the Mandal')+'</strong>' +
+      '</div>' +
+      (event ? '<div style="font-size:12px;margin-bottom:8px;border-bottom:1px solid #ccc;padding-bottom:6px"><span style="color:#8B0000;font-weight:700">Purpose / Event : </span><span>'+event.name+'</span></div>' : '') +
+      '<div style="font-size:12px;margin-bottom:8px;border-bottom:1px solid #ccc;padding-bottom:6px">' +
+        '<span style="color:#8B0000;font-weight:700">Income Ledger : </span><span>'+creditLedger+'</span>' +
+        (narration ? ' &nbsp; <span style="color:#777;font-size:11px">| '+narration+'</span>' : '') +
+      '</div>' +
+      (ref ? '<div style="font-size:12px;margin-bottom:8px;border-bottom:1px solid #ccc;padding-bottom:6px"><span style="color:#8B0000;font-weight:700">Ref / Cheque No. : </span><span>'+ref+'</span></div>' : '') +
+      '<div style="font-size:12px;margin-bottom:10px;border-bottom:1px solid #ccc;padding-bottom:6px">' +
+        '<span style="color:#8B0000;font-weight:700">Mode of Payment : </span>' +
+        ['Cash','Cheque','UPI/Online','Bank Transfer','NEFT'].map(function(md){
+          var sel = (mode===md||(md==='UPI/Online'&&mode==='Online/UPI')||(md==='NEFT'&&mode==='Bank Transfer'));
+          return '<span style="margin-right:8px;font-weight:'+(sel?'900':'400')+';color:'+(sel?'#8B0000':'#555')+';text-decoration:'+(sel?'underline':'none')+'">'+md+'</span>';
+        }).join('<span style="color:#ccc">/</span> ') +
+      '</div>' +
+      '<div style="display:flex;align-items:flex-start;justify-content:space-between;margin-top:10px;gap:10px">' +
+        '<div style="border:1px solid #1A237E;border-radius:6px;padding:8px 12px;font-size:10px;color:#333;min-width:180px">' +
+          (mandal['reg-no'] ? '<div>📋 Registration No. : '+mandal['reg-no']+'</div>' : '') +
+          (mandal['id'] ? '<div>📋 Trust Reg. No. : '+mandal['id']+'</div>' : '') +
+          '<div style="margin-top:4px;font-size:9px;color:#777">Collected by: <strong>'+((currentUser&&currentUser.name)||'Admin')+'</strong></div>' +
+        '</div>' +
+        '<div style="text-align:center;flex:1">' +
+          '<div style="font-family:cursive;font-size:16px;color:#8B0000;font-weight:700">✦ Thank You! ✦</div>' +
+          '<div style="font-size:10px;color:#555;margin-top:4px">Your support inspires us to<br>serve the society better.</div>' +
+        '</div>' +
+        '<div style="text-align:center;min-width:140px">' +
+          '<div style="font-size:11px;font-weight:700;color:#1A237E">For '+(mandal.name||'MANDAL')+'</div>' +
+          '<div style="margin:24px 0 4px;border-top:1px solid #333;width:130px;margin-left:auto;margin-right:auto"></div>' +
+          '<div style="font-size:10px;color:#555">Authorized Signatory<br>(Name &amp; Signature)</div>' +
+          '<div style="width:55px;height:55px;border:2px dashed #1A237E;border-radius:50%;margin:8px auto 0;display:flex;align-items:center;justify-content:center;font-size:9px;color:#999;text-align:center">MANDAL<br>SEAL</div>' +
+        '</div>' +
+      '</div>' +
+      (mandal.email||mandal['contact-phone']||mandal.address ?
+      '<div style="margin-top:12px;border-top:2px solid #C9A84C;padding-top:8px;display:flex;justify-content:space-around;font-size:10px;color:#333">' +
+        (mandal.address ? '<span>📍 '+mandal.address+'</span>' : '') +
+        (mandal['contact-phone'] ? '<span>📞 '+mandal['contact-phone']+'</span>' : '') +
+        (mandal.email ? '<span>✉️ '+mandal.email+'</span>' : '') +
+      '</div>' : '') +
+    '</div>' +
+    '<div style="background:linear-gradient(90deg,#1A237E,#4A148C,#1A237E);height:8px"></div>' +
+    '</div>';
   openModal('modal-receipt');
   addAudit('Manual Receipt',receiptNo+' — '+fromName+': '+fmtAmt(amount));
   showToast('Receipt saved! '+receiptNo,'success');
