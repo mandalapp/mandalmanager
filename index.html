@@ -3648,36 +3648,37 @@ function loadOpeningBalance() {
       }).join('');
     }
   }
-}
-// Calculate and show auto surplus
-var s3 = DB.getObj('settings');
-var prevFYs2 = getFYList().filter(function(f){ return f < currentFY; });
-var autoSurplus2 = 0;
-prevFYs2.forEach(function(f){
-  var closing = s3.closingBalance && s3.closingBalance[f];
-  if(closing && closing.surplus !== undefined){
-    autoSurplus2 += Number(closing.surplus || 0);
-  } else {
-    autoSurplus2 += calcNetProfitLoss(f);
-  }
-});
-var autoEl = document.getElementById('ob-acc-surplus-auto');
-if(autoEl) autoEl.value = autoSurplus2;
 
-// Load saved manual override if any
-var ob3 = (s3.openingBalance && s3.openingBalance[currentFY]) || {};
-var manualEl = document.getElementById('ob-acc-surplus');
-if(manualEl) manualEl.value = ob3.accumulatedSurplus !== undefined ? ob3.accumulatedSurplus : '';
+  // Calculate and show auto surplus
+  var s3 = DB.getObj('settings');
+  var prevFYs2 = getFYList().filter(function(f){ return f < currentFY; });
+  var autoSurplus2 = 0;
+  prevFYs2.forEach(function(f){
+    var closing = s3.closingBalance && s3.closingBalance[f];
+    if(closing && closing.surplus !== undefined){
+      autoSurplus2 += Number(closing.surplus || 0);
+    } else {
+      autoSurplus2 += calcNetProfitLoss(f);
+    }
+  });
+  var autoEl = document.getElementById('ob-acc-surplus-auto');
+  if(autoEl) autoEl.value = autoSurplus2;
 
-// Show status
-var statusEl = document.getElementById('ob-surplus-status');
-if(statusEl) {
-  if(ob3.accumulatedSurplus !== undefined) {
-    statusEl.textContent = '✏️ Using manual override: ' + fmtAmt(ob3.accumulatedSurplus);
-    statusEl.style.color = 'var(--warning)';
-  } else {
-    statusEl.textContent = '✅ Using auto-calculated value: ' + fmtAmt(autoSurplus2);
-    statusEl.style.color = 'var(--success)';
+  // Load saved manual override if any
+  var ob3 = (s3.openingBalance && s3.openingBalance[currentFY]) || {};
+  var manualEl = document.getElementById('ob-acc-surplus');
+  if(manualEl) manualEl.value = ob3.accumulatedSurplus !== undefined ? ob3.accumulatedSurplus : '';
+
+  // Show status
+  var statusEl = document.getElementById('ob-surplus-status');
+  if(statusEl) {
+    if(ob3.accumulatedSurplus !== undefined) {
+      statusEl.textContent = '✏️ Using manual override: ' + fmtAmt(ob3.accumulatedSurplus);
+      statusEl.style.color = 'var(--warning)';
+    } else {
+      statusEl.textContent = '✅ Using auto-calculated value: ' + fmtAmt(autoSurplus2);
+      statusEl.style.color = 'var(--success)';
+    }
   }
 }
 
