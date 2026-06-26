@@ -581,12 +581,15 @@ body.offline-mode .sidebar{margin-top:38px}
 </div>
 <div class="form-group">
   <label>Auto-Calculated Surplus (read-only)</label>
-  <input type="number" id="ob-acc-surplus-auto" style="background:var(--bg);color:var(--text2)" readonly>
+  <input type="number" id="ob-acc-surplus-auto" readonly
+  style="background:#F0F0F0;color:var(--text2);cursor:not-allowed;border:2px solid var(--border)">
   <div class="form-hint">Sum of Net Profit/Loss from all previous FYs based on voucher data.</div>
 </div>
 <div class="form-group">
   <label>Manual Override (₹) — leave blank to use auto-calculated</label>
-  <input type="number" id="ob-acc-surplus" placeholder="Leave blank to use auto value">
+  <input type="number" id="ob-acc-surplus" placeholder="Leave blank to use auto value" 
+    style="background:white;border:2px solid var(--saffron);color:var(--text);cursor:text" 
+    onclick="this.focus()" step="1" min="0">
   <div class="form-hint">Fill this only if auto value is incorrect (e.g. first-time migration from paper books).</div>
 </div>
 <div style="display:flex;gap:10px;margin-bottom:14px">
