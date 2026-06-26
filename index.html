@@ -3736,15 +3736,17 @@ function renderProfitLoss(fy) {
 
   var directIncome = 0, indirectIncome = 0;
   var directExpense = 0, indirectExpense = 0;
-  var incomeRows = '', expenseRows = '';
+  var directIncomeRows = '', indirectIncomeRows = '';
+  var directExpenseRows = '', indirectExpenseRows = '';
 
   allLedgers.filter(function(l){ return l.type === 'income'; }).forEach(function(l){
     var b = getFullLedgerBalance(l.name, targetFY);
-    var amt = b.closingCr - b.closingDr; // net income (credit side positive)
+    var amt = b.closingCr - b.closingDr;
     if(amt === 0) return;
     var isDirect = (l.group || '').indexOf('Direct') > -1;
-    if(isDirect) directIncome += amt; else indirectIncome += amt;
-    incomeRows += '<tr><td>'+l.name+'</td><td style="text-align:right;color:var(--success)">'+fmtAmt(amt)+'</td></tr>';
+    var row = '<tr><td>'+l.name+'</td><td style="text-align:right;color:var(--success)">'+fmtAmt(amt)+'</td></tr>';
+    if(isDirect) { directIncome += amt; directIncomeRows += row; }
+    else { indirectIncome += amt; indirectIncomeRows += row; }
   });
 
   allLedgers.filter(function(l){ return l.type === 'expense'; }).forEach(function(l){
@@ -3752,8 +3754,9 @@ function renderProfitLoss(fy) {
     var amt = b.closingDr - b.closingCr;
     if(amt === 0) return;
     var isDirect = (l.group || '').indexOf('Direct') > -1;
-    if(isDirect) directExpense += amt; else indirectExpense += amt;
-    expenseRows += '<tr><td>'+l.name+'</td><td style="text-align:right;color:var(--danger)">'+fmtAmt(amt)+'</td></tr>';
+    var row = '<tr><td>'+l.name+'</td><td style="text-align:right;color:var(--danger)">'+fmtAmt(amt)+'</td></tr>';
+    if(isDirect) { directExpense += amt; directExpenseRows += row; }
+    else { indirectExpense += amt; indirectExpenseRows += row; }
   });
 
   var totalIncome = directIncome + indirectIncome;
@@ -3771,11 +3774,11 @@ function renderProfitLoss(fy) {
     '<div>' +
       '<div class="section-label" style="color:var(--danger)">📤 EXPENDITURE (Dr Side)</div>' +
       '<table style="width:100%"><tbody>' +
-      '<tr style="background:var(--bg)"><td colspan="2" style="font-weight:700;padding:8px">Direct Expenses</td></tr>' +
-      (directExpense > 0 ? expenseRows.split('</tr>').slice(0, allLedgers.filter(function(l){ return l.type==='expense'&&(l.group||'').indexOf('Direct')>-1; }).length).join('</tr>') + '</tr>' : '<tr><td colspan="2" style="color:var(--text2);font-size:12px;padding:8px">None</td></tr>') +
+      ''<tr style="background:var(--bg)"><td colspan="2" style="font-weight:700;padding:8px">Direct Expenses</td></tr>' +
+      (directExpense > 0 ? directExpenseRows : '<tr><td colspan="2" style="color:var(--text2);font-size:12px;padding:8px">None</td></tr>') +
       '<tr style="border-top:1px solid var(--border)"><td><strong>Gross Profit c/d</strong></td><td style="text-align:right"><strong>'+fmtAmt(Math.max(0,grossProfit))+'</strong></td></tr>' +
       '<tr style="background:var(--bg)"><td colspan="2" style="font-weight:700;padding:8px">Indirect Expenses</td></tr>' +
-      (indirectExpense > 0 ? expenseRows.split('</tr>').slice(allLedgers.filter(function(l){ return l.type==='expense'&&(l.group||'').indexOf('Direct')>-1; }).length).join('</tr>') + '</tr>' : '<tr><td colspan="2" style="color:var(--text2);font-size:12px;padding:8px">None</td></tr>') +
+      (indirectExpense > 0 ? indirectExpenseRows : '<tr><td colspan="2" style="color:var(--text2);font-size:12px;padding:8px">None</td></tr>') +
       '<tr style="background:var(--saffron-light);font-weight:800;border-top:2px solid var(--saffron)"><td>'+profitLabel+'</td><td style="text-align:right;color:'+profitColor+'">'+fmtAmt(Math.abs(netProfit))+'</td></tr>' +
       '</tbody></table>' +
     '</div>' +
@@ -3784,9 +3787,10 @@ function renderProfitLoss(fy) {
       '<div class="section-label" style="color:var(--success)">📥 INCOME (Cr Side)</div>' +
       '<table style="width:100%"><tbody>' +
       '<tr style="background:var(--bg)"><td colspan="2" style="font-weight:700;padding:8px">Direct Income</td></tr>' +
-      incomeRows +
+      (directIncome > 0 ? directIncomeRows : '<tr><td colspan="2" style="color:var(--text2);font-size:12px;padding:8px">None</td></tr>') +
       '<tr style="border-top:1px solid var(--border)"><td><strong>Gross Loss b/d</strong></td><td style="text-align:right"><strong>'+fmtAmt(Math.max(0,-grossProfit))+'</strong></td></tr>' +
       '<tr style="background:var(--bg)"><td colspan="2" style="font-weight:700;padding:8px">Indirect Income</td></tr>' +
+      (indirectIncome > 0 ? indirectIncomeRows : '<tr><td colspan="2" style="color:var(--text2);font-size:12px;padding:8px">None</td></tr>') +
       '</tbody></table>' +
       '<div style="margin-top:18px;padding:14px;background:var(--saffron-light);border-radius:10px">' +
         '<div style="font-size:12px;color:var(--text2)">Summary</div>' +
