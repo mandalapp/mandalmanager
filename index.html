@@ -519,9 +519,9 @@ body.offline-mode .sidebar{margin-top:38px}
       </div>
     </div>
     <div class="tabs">
-      <button class="tab active" onclick="switchTab(this,'fin-tb')">Trial Balance</button>
-      <button class="tab" onclick="switchTab(this,'fin-pl')">P&amp;L Statement</button>
-      <button class="tab" onclick="switchTab(this,'fin-bs')">Balance Sheet</button>
+      <button class="tab active" onclick="switchTab(this,'fin-tb');renderTrialBalance()">Trial Balance</button>
+      <button class="tab" onclick="switchTab(this,'fin-pl');renderProfitLoss()">P&amp;L Statement</button>
+      <button class="tab" onclick="switchTab(this,'fin-bs');renderBalanceSheet()">Balance Sheet</button>
     </div>
     <div class="tab-content active" id="tab-fin-tb"><div id="tb-report"></div></div>
     <div class="tab-content" id="tab-fin-pl"><div id="pl-report"></div></div>
@@ -949,8 +949,27 @@ body.offline-mode .sidebar{margin-top:38px}
 <div class="modal-overlay" id="modal-ledger">
   <div class="modal" style="max-width:480px"><div class="modal-header"><div class="modal-title" id="modal-ledger-title">Add Ledger</div><button class="modal-close" onclick="closeModal('modal-ledger')">✕</button></div>
   <div class="modal-body">
-    <div class="form-group"><label class="mandatory">Type</label><select id="ledger-type"><option value="income">Income</option><option value="expense">Expense</option></select></div>
-    <div class="form-group"><label class="mandatory">Group Name</label><input type="text" id="ledger-group" placeholder="e.g. Festival Income"></div>
+    <div class="form-group"><label class="mandatory">Group</label>
+      <select id="ledger-type" onchange="updateLedgerSubgroups(this.value)">
+        <option value="income">Income</option>
+        <option value="expense">Expense</option>
+        <option value="asset">Asset</option>
+        <option value="liability">Liability</option>
+        <option value="capital">Capital</option>
+      </select>
+    </div>
+    <div class="form-group"><label class="mandatory">Sub-Group</label>
+      <select id="ledger-subgroup">
+        <option value="Direct Income">Direct Income</option>
+        <option value="Indirect Income">Indirect Income</option>
+      </select>
+    </div>
+    <div class="form-group"><label class="mandatory">Sub-Group</label>
+      <select id="ledger-subgroup">
+        <option value="Direct Income">Direct Income</option>
+        <option value="Indirect Income">Indirect Income</option>
+      </select>
+    </div>
     <div class="form-group"><label class="mandatory">Ledger Name</label><input type="text" id="ledger-name" placeholder="e.g. Ganesh Festival Donation"></div>
     <div class="form-group"><label>Opening Balance (₹)</label><input type="number" id="ledger-opening" value="0"></div>
   </div>
@@ -1256,17 +1275,21 @@ function initApp() {
 function seedDefaultLedgers() {
   var ledgers = DB.get('ledgers');
   var need = [
-    {type:'income', group:'Direct Income', name:'Donation Income'},
-    {type:'income', group:'Direct Income', name:'Membership Fee Income'}
+    {type:'income',    group:'Direct Income',    name:'Donation Income',         normalBalance:'credit'},
+    {type:'income',    group:'Direct Income',    name:'Membership Fee Income',   normalBalance:'credit'},
+    {type:'capital',   group:'Capital Account',  name:'General Capital Account', normalBalance:'credit'},
+    {type:'capital',   group:'Reserves & Surplus', name:'Reserves & Surplus',   normalBalance:'credit'},
+    {type:'expense',   group:'Indirect Expenses', name:'Bank Charges',           normalBalance:'debit'},
+    {type:'expense',   group:'Indirect Expenses', name:'Miscellaneous Expense',  normalBalance:'debit'}
   ];
   var changed = false;
   need.forEach(function(n){
     if(!ledgers.find(function(l){ return l.name===n.name && l.fy===currentFY; })){
-      ledgers.push({id:uid(), type:n.type, group:n.group, name:n.name, opening:0, fy:currentFY, createdAt:now(), system:true});
+      ledgers.push({id:uid(), type:n.type, group:n.group, name:n.name, normalBalance:n.normalBalance, opening:0, fy:currentFY, createdAt:now(), system:true});
       changed = true;
     }
   });
-  if(changed) DB.set('ledgers', ledgers);
+  if(changed) { DB.set('ledgers', ledgers); }
 }
 
 function populateFYSelects() {
@@ -2289,14 +2312,36 @@ function getAllLedgerNames() {
   };
 }
 
-function getLedgerBalance(ledgerName) {
-  var dr=0, cr=0;
-  DB.get('vouchers').filter(function(v){ return v.fy===currentFY; }).forEach(function(v){
-    v.entries.forEach(function(e){ if(e.ledger===ledgerName){ if(e.type==='debit') dr+=Number(e.amount); else cr+=Number(e.amount); } });
-  });
-  var vendor = DB.get('vendors').find(function(v){ return v.name===ledgerName; });
+function getLedgerBalance(ledgerName, fy) {
+  var targetFY = fy || currentFY;
+  var dr = 0, cr = 0;
+  // Include ledger's own opening balance
+  var ledgers = DB.get('ledgers');
+  var ledgerDef = ledgers.find(function(l){ return l.name === ledgerName && l.fy === targetFY; });
+  if(ledgerDef && ledgerDef.opening) {
+    var normalBal = ledgerDef.normalBalance || (['asset','expense'].indexOf(ledgerDef.type) > -1 ? 'debit' : 'credit');
+    if(normalBal === 'debit') dr += Number(ledgerDef.opening);
+    else cr += Number(ledgerDef.opening);
+  }
+  // Vendor opening balance (sundry creditors side)
+  var vendor = DB.get('vendors').find(function(v){ return v.name === ledgerName; });
   if(vendor && vendor.opening) cr += Number(vendor.opening);
-  return {dr:dr, cr:cr, balance:dr-cr};
+  // All voucher entries
+  DB.get('vouchers').filter(function(v){ return v.fy === targetFY; }).forEach(function(v){
+    v.entries.forEach(function(e){
+      if(e.ledger === ledgerName){
+        if(e.type === 'debit') dr += Number(e.amount);
+        else cr += Number(e.amount);
+      }
+    });
+  });
+  return { dr: dr, cr: cr, balance: dr - cr };
+}
+
+// Returns the net closing balance for a ledger (Dr positive, Cr negative)
+function getClosingBalance(ledgerName, fy) {
+  var b = getLedgerBalance(ledgerName, fy);
+  return b.dr - b.cr;
 }
 
 function getVendorOutstanding(vendorName) {
@@ -2830,13 +2875,32 @@ function editBankAccount(id) {
 // ============================================================
 // LEDGER MASTER
 // ============================================================
+function updateLedgerSubgroups(type) {
+  var map = {
+    income:    ['Direct Income','Indirect Income'],
+    expense:   ['Direct Expenses','Indirect Expenses'],
+    asset:     ['Fixed Assets','Current Assets','Investments','Cash-in-Hand','Bank Accounts'],
+    liability: ['Current Liabilities','Loans & Borrowings','Sundry Creditors'],
+    capital:   ['Capital Account','Reserves & Surplus']
+  };
+  var opts = (map[type]||['General']).map(function(g){ return '<option value="'+g+'">'+g+'</option>'; }).join('');
+  var el = document.getElementById('ledger-subgroup'); if(el) el.innerHTML = opts;
+}
+
 async function saveLedger() {
   if(!await guardAgainstStaleWipe()) return;
-  var group = document.getElementById('ledger-group').value.trim();
-  var name = document.getElementById('ledger-name').value.trim();
   var type = document.getElementById('ledger-type').value;
-  if(!group||!name) { showToast('Group and name required','error'); return; }
-  var ledger = {id:editingId||uid(),type:type,group:group,name:name,opening:parseFloat(document.getElementById('ledger-opening').value)||0,fy:currentFY,createdAt:now()};
+  var subgroupEl = document.getElementById('ledger-subgroup');
+  var group = subgroupEl ? subgroupEl.value : (document.getElementById('ledger-group') ? document.getElementById('ledger-group').value.trim() : '');
+  var name = document.getElementById('ledger-name').value.trim();
+  if(!group||!name) { showToast('Sub-group and name required','error'); return; }
+  var normalBal = ['asset','expense'].indexOf(type) > -1 ? 'debit' : 'credit';
+  var ledger = {
+    id: editingId||uid(), type: type, group: group, name: name,
+    normalBalance: normalBal,
+    opening: parseFloat(document.getElementById('ledger-opening').value)||0,
+    fy: currentFY, createdAt: now()
+  };
   if(editingId) DB.update('ledgers',editingId,ledger); else DB.push('ledgers',ledger);
   queueSync('ledgers',ledger); closeModal('modal-ledger'); renderLedgers();
   addAudit('Ledger',(editingId?'Updated':'Added')+' '+name); showToast('Ledger saved!','success');
@@ -2844,12 +2908,19 @@ async function saveLedger() {
 
 function renderLedgers() {
   var ledgers = DB.get('ledgers').filter(function(l){ return l.fy===currentFY; });
-  ['income','expense'].forEach(function(type){
+  var typeLabels = { income:'Income', expense:'Expense', asset:'Asset', liability:'Liability', capital:'Capital' };
+  ['income','expense','asset','liability','capital'].forEach(function(type){
     var filtered = ledgers.filter(function(l){ return l.type===type; });
     var elId = type==='income'?'income-ledgers-list':'expense-ledgers-list';
-    var el = document.getElementById(elId);
+    // For income/expense use dedicated tab elements; others append to expense tab as fallback
+    var elId2 = type==='income'?'income-ledgers-list': type==='expense'?'expense-ledgers-list':'expense-ledgers-list';
+    var el = document.getElementById(elId2);
     if(!el) return;
-    if(!filtered.length) { el.innerHTML='<div class="empty-state" style="padding:30px"><div class="icon">📒</div><h3>No '+type+' ledgers</h3></div>'; return; }
+    if(!filtered.length) return; // skip empty types silently
+    // Add section header for asset/liability/capital inside expense tab
+    if(type !== 'income' && type !== 'expense') {
+      el.innerHTML += '<div class="ledger-group-header" style="background:var(--saffron-light);color:var(--saffron);margin-top:14px">'+typeLabels[type]+' Ledgers</div>';
+    }
     var groups = [...new Set(filtered.map(function(l){ return l.group; }))];
     el.innerHTML = groups.map(function(g){
       var gLedgers = filtered.filter(function(l){ return l.group===g; });
@@ -2871,78 +2942,429 @@ function editLedger(id) {
   document.getElementById('modal-ledger-title').textContent = 'Edit Ledger';
   openModal('modal-ledger');
   setTimeout(function(){
-    document.getElementById('ledger-type').value = l.type;
-    document.getElementById('ledger-group').value = l.group;
+    var typeEl = document.getElementById('ledger-type');
+    if(typeEl) { typeEl.value = l.type; updateLedgerSubgroups(l.type); }
+    var sgEl = document.getElementById('ledger-subgroup');
+    if(sgEl) sgEl.value = l.group;
     document.getElementById('ledger-name').value = l.name;
     document.getElementById('ledger-opening').value = l.opening||0;
-  }, 50);
+  }, 80);
 }
 
 // ============================================================
 // FINANCIAL REPORTS
 // ============================================================
+// ============================================================
+// ACCOUNTING ENGINE — Full Double-Entry Reports
+// ============================================================
+
+/**
+ * Collect ALL named ledgers for the current FY including
+ * system ledgers (Donation Income, Membership Fee Income, Cash in Hand, bank accounts, vendors, investments).
+ */
+function getAllAccountLedgers(fy) {
+  var targetFY = fy || currentFY;
+  var result = [];
+
+  // User-defined ledgers
+  DB.get('ledgers').filter(function(l){ return l.fy === targetFY; }).forEach(function(l){
+    result.push({ name: l.name, type: l.type, group: l.group, normalBalance: l.normalBalance || (['asset','expense'].indexOf(l.type)>-1 ? 'debit' : 'credit') });
+  });
+
+  // System income ledgers (if not already present)
+  ['Donation Income','Membership Fee Income'].forEach(function(sn){
+    if(!result.find(function(r){ return r.name===sn; }))
+      result.push({ name: sn, type: 'income', group: 'Direct Income', normalBalance: 'credit' });
+  });
+
+  // Cash in Hand
+  if(!result.find(function(r){ return r.name==='Cash in Hand'; }))
+    result.push({ name: 'Cash in Hand', type: 'asset', group: 'Cash-in-Hand', normalBalance: 'debit' });
+
+  // Bank accounts
+  DB.get('bankaccounts').forEach(function(b){
+    if(!result.find(function(r){ return r.name===b.name; }))
+      result.push({ name: b.name, type: 'asset', group: 'Bank Accounts', normalBalance: 'debit' });
+  });
+
+  // Vendors (Sundry Creditors)
+  DB.get('vendors').forEach(function(v){
+    if(!result.find(function(r){ return r.name===v.name; }))
+      result.push({ name: v.name, type: 'liability', group: 'Sundry Creditors', normalBalance: 'credit' });
+  });
+
+  // Investments
+  DB.get('investments').forEach(function(i){
+    if(!result.find(function(r){ return r.name===i.name; }))
+      result.push({ name: i.name, type: 'asset', group: 'Investments', normalBalance: 'debit' });
+  });
+
+  return result;
+}
+
+/**
+ * Returns the OPENING balance for a ledger for the given FY
+ * (cash/bank from settings, others from ledger.opening or vendor.opening)
+ */
+function getLedgerOpeningBalance(ledgerName, fy) {
+  var targetFY = fy || currentFY;
+  // Cash in Hand
+  if(ledgerName === 'Cash in Hand') return getOpeningBalanceForLedger('Cash in Hand', targetFY);
+  // Bank accounts
+  var bank = DB.get('bankaccounts').find(function(b){ return b.name === ledgerName; });
+  if(bank) return getOpeningBalanceForLedger(ledgerName, targetFY);
+  // Vendor opening
+  var vendor = DB.get('vendors').find(function(v){ return v.name === ledgerName; });
+  if(vendor && vendor.opening) return -Number(vendor.opening); // credit normal → negative
+  // User-defined ledger opening
+  var ledger = DB.get('ledgers').find(function(l){ return l.name === ledgerName && l.fy === targetFY; });
+  if(ledger && ledger.opening) {
+    var nb = ledger.normalBalance || (['asset','expense'].indexOf(ledger.type)>-1 ? 'debit' : 'credit');
+    return nb === 'debit' ? Number(ledger.opening) : -Number(ledger.opening);
+  }
+  return 0;
+}
+
+/**
+ * Returns {dr, cr, closingDr, closingCr} for a ledger.
+ * closingDr / closingCr reflect the NET closing balance split into Dr or Cr column.
+ */
+function getFullLedgerBalance(ledgerName, fy) {
+  var targetFY = fy || currentFY;
+  var txDr = 0, txCr = 0;
+  DB.get('vouchers').filter(function(v){ return v.fy === targetFY; }).forEach(function(v){
+    v.entries.forEach(function(e){
+      if(e.ledger === ledgerName){
+        if(e.type === 'debit') txDr += Number(e.amount);
+        else txCr += Number(e.amount);
+      }
+    });
+  });
+  var ob = getLedgerOpeningBalance(ledgerName, targetFY);
+  // ob positive = debit-side opening; ob negative = credit-side opening
+  var obDr = ob > 0 ? ob : 0;
+  var obCr = ob < 0 ? -ob : 0;
+  var netDr = obDr + txDr;
+  var netCr = obCr + txCr;
+  var net = netDr - netCr; // positive = debit closing, negative = credit closing
+  return {
+    obDr: obDr, obCr: obCr,
+    txDr: txDr, txCr: txCr,
+    totalDr: netDr, totalCr: netCr,
+    closingDr: net > 0 ? net : 0,
+    closingCr: net < 0 ? -net : 0,
+    net: net
+  };
+}
+
+/**
+ * Calculates Net Profit/Loss for the FY.
+ * Positive = Profit (excess of income over expense).
+ */
+function calcNetProfitLoss(fy) {
+  var targetFY = fy || currentFY;
+  var allLedgers = getAllAccountLedgers(targetFY);
+  var totalIncome = 0, totalExpense = 0;
+  allLedgers.forEach(function(l){
+    var b = getFullLedgerBalance(l.name, targetFY);
+    if(l.type === 'income') totalIncome += b.closingCr - b.closingDr; // income normal = credit
+    if(l.type === 'expense') totalExpense += b.closingDr - b.closingCr; // expense normal = debit
+  });
+  return totalIncome - totalExpense; // positive = profit
+}
+
+// ── TRIAL BALANCE ──────────────────────────────────────────
+function renderTrialBalance(fy) {
+  var targetFY = fy || currentFY;
+  var allLedgers = getAllAccountLedgers(targetFY);
+  var totalDr = 0, totalCr = 0;
+  var rows = '';
+
+  // Group order for display
+  var groupOrder = ['Cash-in-Hand','Bank Accounts','Investments','Fixed Assets','Current Assets','Direct Income','Indirect Income','Direct Expenses','Indirect Expenses','Current Liabilities','Sundry Creditors','Loans & Borrowings','Capital Account','Reserves & Surplus','General'];
+  var grouped = {};
+  allLedgers.forEach(function(l){
+    var g = l.group || 'General';
+    if(!grouped[g]) grouped[g] = [];
+    grouped[g].push(l);
+  });
+
+  var displayGroups = groupOrder.filter(function(g){ return grouped[g] && grouped[g].length; });
+  // Add any groups not in the order list
+  Object.keys(grouped).forEach(function(g){ if(displayGroups.indexOf(g) === -1) displayGroups.push(g); });
+
+  displayGroups.forEach(function(group){
+    var groupLedgers = grouped[group] || [];
+    if(!groupLedgers.length) return;
+    rows += '<tr style="background:var(--bg)"><td colspan="4" style="font-weight:700;font-size:12px;color:var(--saffron);padding:8px 12px;letter-spacing:.5px;text-transform:uppercase">'+group+'</td></tr>';
+    groupLedgers.forEach(function(l){
+      var b = getFullLedgerBalance(l.name, targetFY);
+      totalDr += b.closingDr;
+      totalCr += b.closingCr;
+      rows += '<tr><td style="padding-left:20px">'+l.name+'</td>' +
+        '<td style="text-align:right">'+fmtAmt(Math.abs(b.obDr-b.obCr))+' '+(b.obDr>=b.obCr?'Dr':'Cr')+'</td>' +
+        '<td style="text-align:right;color:var(--success)">'+fmtAmt(b.closingDr)+'</td>' +
+        '<td style="text-align:right;color:var(--danger)">'+fmtAmt(b.closingCr)+'</td></tr>';
+    });
+  });
+
+  // Suspense row if not balanced
+  var diff = Math.abs(totalDr - totalCr);
+  var tbBalanced = diff < 0.01;
+  var suspenseRow = '';
+  if(!tbBalanced) {
+    suspenseRow = '<tr style="background:#FEF9E7"><td><strong>⚠️ Suspense (Difference)</strong></td><td></td>' +
+      '<td style="text-align:right;color:var(--warning)">'+(totalDr<totalCr?fmtAmt(diff):'—')+'</td>' +
+      '<td style="text-align:right;color:var(--warning)">'+(totalDr>totalCr?fmtAmt(diff):'—')+'</td></tr>';
+    if(totalDr < totalCr) totalDr += diff; else totalCr += diff;
+  }
+
+  var el = document.getElementById('tb-report');
+  if(!el) return;
+  el.innerHTML = (tbBalanced
+    ? '<div class="alert alert-success">✅ Trial Balance is balanced — Total Dr = Total Cr = '+fmtAmt(totalDr)+'</div>'
+    : '<div class="alert alert-warning">⚠️ Trial Balance has a difference of '+fmtAmt(diff)+'. A suspense entry has been added. Check your vouchers.</div>') +
+    '<div class="table-wrap"><table>' +
+    '<thead><tr>' +
+    '<th>Account / Ledger Name</th>' +
+    '<th style="text-align:right">Opening Balance</th>' +
+    '<th style="text-align:right">Debit (Dr) ₹</th>' +
+    '<th style="text-align:right">Credit (Cr) ₹</th>' +
+    '</tr></thead><tbody>' +
+    rows + suspenseRow +
+    '<tr style="background:var(--deep);color:white;font-weight:800">' +
+    '<td>TOTAL</td><td></td>' +
+    '<td style="text-align:right">'+fmtAmt(totalDr)+'</td>' +
+    '<td style="text-align:right">'+fmtAmt(totalCr)+'</td></tr>' +
+    '</tbody></table></div>';
+}
+
+// ── PROFIT & LOSS ──────────────────────────────────────────
+function renderProfitLoss(fy) {
+  var targetFY = fy || currentFY;
+  var allLedgers = getAllAccountLedgers(targetFY);
+
+  var directIncome = 0, indirectIncome = 0;
+  var directExpense = 0, indirectExpense = 0;
+  var incomeRows = '', expenseRows = '';
+
+  allLedgers.filter(function(l){ return l.type === 'income'; }).forEach(function(l){
+    var b = getFullLedgerBalance(l.name, targetFY);
+    var amt = b.closingCr - b.closingDr; // net income (credit side positive)
+    if(amt === 0) return;
+    var isDirect = (l.group || '').indexOf('Direct') > -1;
+    if(isDirect) directIncome += amt; else indirectIncome += amt;
+    incomeRows += '<tr><td>'+l.name+'</td><td style="text-align:right;color:var(--success)">'+fmtAmt(amt)+'</td></tr>';
+  });
+
+  allLedgers.filter(function(l){ return l.type === 'expense'; }).forEach(function(l){
+    var b = getFullLedgerBalance(l.name, targetFY);
+    var amt = b.closingDr - b.closingCr;
+    if(amt === 0) return;
+    var isDirect = (l.group || '').indexOf('Direct') > -1;
+    if(isDirect) directExpense += amt; else indirectExpense += amt;
+    expenseRows += '<tr><td>'+l.name+'</td><td style="text-align:right;color:var(--danger)">'+fmtAmt(amt)+'</td></tr>';
+  });
+
+  var totalIncome = directIncome + indirectIncome;
+  var totalExpense = directExpense + indirectExpense;
+  var grossProfit = directIncome - directExpense;
+  var netProfit = totalIncome - totalExpense;
+  var profitLabel = netProfit >= 0 ? 'Net Profit (Surplus)' : 'Net Loss (Deficit)';
+  var profitColor = netProfit >= 0 ? 'var(--success)' : 'var(--danger)';
+
+  var el = document.getElementById('pl-report');
+  if(!el) return;
+  el.innerHTML =
+    '<div style="display:grid;grid-template-columns:1fr 1fr;gap:18px">' +
+    // DEBIT (Expense) side
+    '<div>' +
+      '<div class="section-label" style="color:var(--danger)">📤 EXPENDITURE (Dr Side)</div>' +
+      '<table style="width:100%"><tbody>' +
+      '<tr style="background:var(--bg)"><td colspan="2" style="font-weight:700;padding:8px">Direct Expenses</td></tr>' +
+      (directExpense > 0 ? expenseRows.split('</tr>').slice(0, allLedgers.filter(function(l){ return l.type==='expense'&&(l.group||'').indexOf('Direct')>-1; }).length).join('</tr>') + '</tr>' : '<tr><td colspan="2" style="color:var(--text2);font-size:12px;padding:8px">None</td></tr>') +
+      '<tr style="border-top:1px solid var(--border)"><td><strong>Gross Profit c/d</strong></td><td style="text-align:right"><strong>'+fmtAmt(Math.max(0,grossProfit))+'</strong></td></tr>' +
+      '<tr style="background:var(--bg)"><td colspan="2" style="font-weight:700;padding:8px">Indirect Expenses</td></tr>' +
+      (indirectExpense > 0 ? expenseRows.split('</tr>').slice(allLedgers.filter(function(l){ return l.type==='expense'&&(l.group||'').indexOf('Direct')>-1; }).length).join('</tr>') + '</tr>' : '<tr><td colspan="2" style="color:var(--text2);font-size:12px;padding:8px">None</td></tr>') +
+      '<tr style="background:var(--saffron-light);font-weight:800;border-top:2px solid var(--saffron)"><td>'+profitLabel+'</td><td style="text-align:right;color:'+profitColor+'">'+fmtAmt(Math.abs(netProfit))+'</td></tr>' +
+      '</tbody></table>' +
+    '</div>' +
+    // CREDIT (Income) side
+    '<div>' +
+      '<div class="section-label" style="color:var(--success)">📥 INCOME (Cr Side)</div>' +
+      '<table style="width:100%"><tbody>' +
+      '<tr style="background:var(--bg)"><td colspan="2" style="font-weight:700;padding:8px">Direct Income</td></tr>' +
+      incomeRows +
+      '<tr style="border-top:1px solid var(--border)"><td><strong>Gross Loss b/d</strong></td><td style="text-align:right"><strong>'+fmtAmt(Math.max(0,-grossProfit))+'</strong></td></tr>' +
+      '<tr style="background:var(--bg)"><td colspan="2" style="font-weight:700;padding:8px">Indirect Income</td></tr>' +
+      '</tbody></table>' +
+      '<div style="margin-top:18px;padding:14px;background:var(--saffron-light);border-radius:10px">' +
+        '<div style="font-size:12px;color:var(--text2)">Summary</div>' +
+        '<div style="display:flex;justify-content:space-between;margin-top:6px"><span>Total Income</span><strong style="color:var(--success)">'+fmtAmt(totalIncome)+'</strong></div>' +
+        '<div style="display:flex;justify-content:space-between;margin-top:4px"><span>Total Expenses</span><strong style="color:var(--danger)">'+fmtAmt(totalExpense)+'</strong></div>' +
+        '<div style="display:flex;justify-content:space-between;margin-top:8px;padding-top:8px;border-top:1px solid var(--border)"><span style="font-weight:700">'+profitLabel+'</span><strong style="color:'+profitColor+';font-size:18px">'+fmtAmt(Math.abs(netProfit))+'</strong></div>' +
+        '<div style="font-size:11px;color:var(--text2);margin-top:8px">↩ Transferred to Capital / Reserves & Surplus in Balance Sheet</div>' +
+      '</div>' +
+    '</div></div>';
+}
+
+// ── BALANCE SHEET ──────────────────────────────────────────
+function renderBalanceSheet(fy) {
+  var targetFY = fy || currentFY;
+  var allLedgers = getAllAccountLedgers(targetFY);
+  var netProfit = calcNetProfitLoss(targetFY);
+
+  // ── LIABILITIES SIDE ──
+  var capitalRows = '';
+  var capitalTotal = 0;
+
+  // Capital Account ledgers
+  allLedgers.filter(function(l){ return l.type === 'capital'; }).forEach(function(l){
+    var b = getFullLedgerBalance(l.name, targetFY);
+    var val = b.closingCr - b.closingDr;
+    capitalTotal += val;
+    capitalRows += '<tr><td style="padding-left:16px">'+l.name+'</td><td style="text-align:right">'+fmtAmt(val)+'</td></tr>';
+  });
+
+  // Reserves & Surplus = Opening + Net Profit this FY
+  var prevFYs = getFYList().filter(function(f){ return f < targetFY; });
+  var cumulativeSurplus = 0;
+  prevFYs.forEach(function(f){ cumulativeSurplus += calcNetProfitLoss(f); });
+  var reserveTotal = cumulativeSurplus + netProfit;
+
+  // Loans & Liabilities
+  var loanRows = '';
+  var loanTotal = 0;
+  allLedgers.filter(function(l){ return l.type === 'liability' && (l.group||'').indexOf('Loan') > -1; }).forEach(function(l){
+    var b = getFullLedgerBalance(l.name, targetFY);
+    var val = b.closingCr - b.closingDr;
+    if(val === 0) return;
+    loanTotal += val;
+    loanRows += '<tr><td style="padding-left:16px">'+l.name+'</td><td style="text-align:right">'+fmtAmt(val)+'</td></tr>';
+  });
+
+  // Current Liabilities (vendors + current liability ledgers)
+  var clRows = '';
+  var clTotal = 0;
+  allLedgers.filter(function(l){ return l.type === 'liability' && (l.group||'').indexOf('Loan') === -1; }).forEach(function(l){
+    var b = getFullLedgerBalance(l.name, targetFY);
+    var val = b.closingCr - b.closingDr;
+    if(val === 0) return;
+    clTotal += val;
+    clRows += '<tr><td style="padding-left:16px">'+l.name+'</td><td style="text-align:right">'+fmtAmt(val)+'</td></tr>';
+  });
+
+  var totalLiabilities = capitalTotal + reserveTotal + loanTotal + clTotal;
+
+  // ── ASSETS SIDE ──
+  // Fixed Assets
+  var fixedRows = '';
+  var fixedTotal = 0;
+  allLedgers.filter(function(l){ return l.type==='asset' && ['Fixed Assets'].indexOf(l.group) > -1; }).forEach(function(l){
+    var b = getFullLedgerBalance(l.name, targetFY);
+    var val = b.closingDr - b.closingCr;
+    if(val === 0) return;
+    fixedTotal += val;
+    fixedRows += '<tr><td style="padding-left:16px">'+l.name+'</td><td style="text-align:right">'+fmtAmt(val)+'</td></tr>';
+  });
+
+  // Investments
+  var invRows = '';
+  var invTotal = 0;
+  allLedgers.filter(function(l){ return l.type==='asset' && l.group==='Investments'; }).forEach(function(l){
+    var b = getFullLedgerBalance(l.name, targetFY);
+    var val = b.closingDr - b.closingCr;
+    if(val === 0) return;
+    invTotal += val;
+    invRows += '<tr><td style="padding-left:16px">'+l.name+'</td><td style="text-align:right">'+fmtAmt(val)+'</td></tr>';
+  });
+  // Also DB investments not in ledgers
+  DB.get('investments').forEach(function(i){
+    if(!allLedgers.find(function(l){ return l.name===i.name && l.type==='asset'; })){
+      invTotal += Number(i.principal||0);
+      invRows += '<tr><td style="padding-left:16px">'+i.name+'</td><td style="text-align:right">'+fmtAmt(i.principal)+'</td></tr>';
+    }
+  });
+
+  // Current Assets
+  var caRows = '';
+  var caTotal = 0;
+  allLedgers.filter(function(l){ return l.type==='asset' && ['Current Assets'].indexOf(l.group)>-1; }).forEach(function(l){
+    var b = getFullLedgerBalance(l.name, targetFY);
+    var val = b.closingDr - b.closingCr;
+    if(val === 0) return;
+    caTotal += val;
+    caRows += '<tr><td style="padding-left:16px">'+l.name+'</td><td style="text-align:right">'+fmtAmt(val)+'</td></tr>';
+  });
+
+  // Cash & Bank
+  var cashBal = getCashBankBalance('Cash in Hand', targetFY);
+  var bankBal = DB.get('bankaccounts').reduce(function(s,a){ return s + getCashBankBalance(a.name, targetFY); }, 0);
+  var cbTotal = cashBal + bankBal;
+
+  var totalAssets = fixedTotal + invTotal + caTotal + cbTotal;
+
+  // Check tally
+  var diff = Math.abs(totalAssets - totalLiabilities);
+  var balanced = diff < 1;
+
+  var el = document.getElementById('bs-report');
+  if(!el) return;
+  el.innerHTML =
+    (balanced
+      ? '<div class="alert alert-success">✅ Balance Sheet tallies — Total Assets = Total Liabilities = '+fmtAmt(totalAssets)+'</div>'
+      : '<div class="alert alert-warning">⚠️ Balance Sheet difference: '+fmtAmt(diff)+'. Check opening balances and capital entries.</div>') +
+    '<div style="display:grid;grid-template-columns:1fr 1fr;gap:18px">' +
+
+    // LIABILITIES
+    '<div>' +
+      '<div class="section-label" style="color:var(--danger)">⚖️ LIABILITIES & CAPITAL</div>' +
+      '<table style="width:100%"><tbody>' +
+
+      '<tr style="background:var(--bg)"><td colspan="2" style="font-weight:700;padding:8px">Capital Account</td></tr>' +
+      (capitalRows || '<tr><td style="padding-left:16px;color:var(--text2)">General Capital</td><td style="text-align:right">₹0</td></tr>') +
+      '<tr style="border-top:1px solid var(--border)"><td style="padding-left:16px;font-weight:600">Capital Sub-total</td><td style="text-align:right;font-weight:700">'+fmtAmt(capitalTotal)+'</td></tr>' +
+
+      '<tr style="background:var(--bg)"><td colspan="2" style="font-weight:700;padding:8px">Reserves & Surplus</td></tr>' +
+      '<tr><td style="padding-left:16px">Accumulated Surplus (prev FYs)</td><td style="text-align:right">'+fmtAmt(cumulativeSurplus)+'</td></tr>' +
+      '<tr><td style="padding-left:16px">Current Year '+(netProfit>=0?'Profit':'Loss')+' (FY '+targetFY+')</td><td style="text-align:right;color:'+(netProfit>=0?'var(--success)':'var(--danger)')+'">'+fmtAmt(netProfit)+'</td></tr>' +
+      '<tr style="border-top:1px solid var(--border)"><td style="padding-left:16px;font-weight:600">Reserves Sub-total</td><td style="text-align:right;font-weight:700">'+fmtAmt(reserveTotal)+'</td></tr>' +
+
+      (loanTotal > 0 ? '<tr style="background:var(--bg)"><td colspan="2" style="font-weight:700;padding:8px">Loans & Borrowings</td></tr>' + loanRows + '<tr style="border-top:1px solid var(--border)"><td style="padding-left:16px;font-weight:600">Loans Sub-total</td><td style="text-align:right;font-weight:700">'+fmtAmt(loanTotal)+'</td></tr>' : '') +
+
+      (clTotal > 0 ? '<tr style="background:var(--bg)"><td colspan="2" style="font-weight:700;padding:8px">Current Liabilities</td></tr>' + clRows + '<tr style="border-top:1px solid var(--border)"><td style="padding-left:16px;font-weight:600">Current Liabilities Sub-total</td><td style="text-align:right;font-weight:700">'+fmtAmt(clTotal)+'</td></tr>' : '') +
+
+      '<tr style="background:var(--deep);color:white;font-weight:800"><td>TOTAL LIABILITIES</td><td style="text-align:right">'+fmtAmt(totalLiabilities)+'</td></tr>' +
+      '</tbody></table>' +
+    '</div>' +
+
+    // ASSETS
+    '<div>' +
+      '<div class="section-label" style="color:var(--success)">🏦 ASSETS</div>' +
+      '<table style="width:100%"><tbody>' +
+
+      (fixedTotal > 0 ? '<tr style="background:var(--bg)"><td colspan="2" style="font-weight:700;padding:8px">Fixed Assets</td></tr>' + fixedRows + '<tr style="border-top:1px solid var(--border)"><td style="padding-left:16px;font-weight:600">Fixed Assets Sub-total</td><td style="text-align:right;font-weight:700">'+fmtAmt(fixedTotal)+'</td></tr>' : '') +
+
+      (invTotal > 0 ? '<tr style="background:var(--bg)"><td colspan="2" style="font-weight:700;padding:8px">Investments</td></tr>' + invRows + '<tr style="border-top:1px solid var(--border)"><td style="padding-left:16px;font-weight:600">Investments Sub-total</td><td style="text-align:right;font-weight:700">'+fmtAmt(invTotal)+'</td></tr>' : '') +
+
+      (caTotal > 0 ? '<tr style="background:var(--bg)"><td colspan="2" style="font-weight:700;padding:8px">Current Assets</td></tr>' + caRows + '<tr style="border-top:1px solid var(--border)"><td style="padding-left:16px;font-weight:600">Current Assets Sub-total</td><td style="text-align:right;font-weight:700">'+fmtAmt(caTotal)+'</td></tr>' : '') +
+
+      '<tr style="background:var(--bg)"><td colspan="2" style="font-weight:700;padding:8px">Cash & Bank Balances</td></tr>' +
+      '<tr><td style="padding-left:16px">Cash in Hand</td><td style="text-align:right">'+fmtAmt(cashBal)+'</td></tr>' +
+      DB.get('bankaccounts').map(function(a){ return '<tr><td style="padding-left:16px">'+a.name+'</td><td style="text-align:right">'+fmtAmt(getCashBankBalance(a.name,targetFY))+'</td></tr>'; }).join('') +
+      '<tr style="border-top:1px solid var(--border)"><td style="padding-left:16px;font-weight:600">Cash & Bank Sub-total</td><td style="text-align:right;font-weight:700">'+fmtAmt(cbTotal)+'</td></tr>' +
+
+      '<tr style="background:var(--deep);color:white;font-weight:800"><td>TOTAL ASSETS</td><td style="text-align:right">'+fmtAmt(totalAssets)+'</td></tr>' +
+      '</tbody></table>' +
+    '</div></div>';
+}
+
 function renderFinancials() {
-  var eventId = (document.getElementById('fin-event-filter')&&document.getElementById('fin-event-filter').value)||'';
-  var vouchers = DB.get('vouchers').filter(function(v){ return v.fy===currentFY; });
-  if(eventId) vouchers = vouchers.filter(function(v){ return v.linkedEventId===eventId; });
-  var ledgers = DB.get('ledgers').filter(function(l){ return l.fy===currentFY; });
-  var incLedgerNames = ledgers.filter(function(l){ return l.type==='income'; }).map(function(l){ return l.name; }).concat(['Donation Income','Membership Fee Income']);
-  var expLedgerNames = ledgers.filter(function(l){ return l.type==='expense'; }).map(function(l){ return l.name; });
-  function sumLedgerCr(names){ var t=0; vouchers.forEach(function(v){v.entries.forEach(function(e){if(names.indexOf(e.ledger)>-1&&e.type==='credit')t+=Number(e.amount);});}); return t; }
-  function sumLedgerDr(names){ var t=0; vouchers.forEach(function(v){v.entries.forEach(function(e){if(names.indexOf(e.ledger)>-1&&e.type==='debit')t+=Number(e.amount);});}); return t; }
-  var totalDon = sumLedgerCr(['Donation Income']);
-  var totalFees = sumLedgerCr(['Membership Fee Income']);
-  var otherIncome = sumLedgerCr(incLedgerNames.filter(function(n){ return n!=='Donation Income'&&n!=='Membership Fee Income'; }));
-  var totalIncome = totalDon + totalFees + otherIncome;
-  var totalExp = sumLedgerDr(expLedgerNames);
-  var surplus = totalIncome - totalExp;
-  var s = DB.getObj('settings');
-  var ob = (s.openingBalance&&s.openingBalance[currentFY])||{cash:0,bank:0,total:0};
-  var cashBal = getCashBankBalance('Cash in Hand');
-  var bankBal = DB.get('bankaccounts').reduce(function(s,a){ return s+getCashBankBalance(a.name); },0);
-  var vendors = DB.get('vendors');
-  var totalPayable = vendors.reduce(function(s,v){ return s+getVendorOutstanding(v.name); },0);
-  var investments = DB.get('investments');
-  var totalInvested = investments.reduce(function(s,i){ return s+Number(i.principal||0); },0);
-
-  document.getElementById('tb-report').innerHTML = '<div style="display:grid;grid-template-columns:1fr 1fr;gap:18px">' +
-    '<div><div class="section-label" style="color:var(--success)">Debit Balances</div>' +
-    '<div class="ledger-row"><span>Cash in Hand</span><span>'+fmtAmt(cashBal)+'</span></div>' +
-    '<div class="ledger-row"><span>Bank Account</span><span>'+fmtAmt(bankBal)+'</span></div>' +
-    investments.map(function(i){ return '<div class="ledger-row"><span>'+i.name+'</span><span>'+fmtAmt(i.principal)+'</span></div>'; }).join('') +
-    expLedgerNames.map(function(n){ var a=sumLedgerDr([n]); return a?'<div class="ledger-row"><span>'+n+'</span><span>'+fmtAmt(a)+'</span></div>':''; }).join('') +
-    '<div class="ledger-row" style="font-weight:700;border-top:2px solid var(--border)"><span>Total Debit</span><span>'+fmtAmt(cashBal+bankBal+totalInvested+totalExp)+'</span></div></div>' +
-    '<div><div class="section-label" style="color:var(--danger)">Credit Balances</div>' +
-    '<div class="ledger-row"><span>Donation Income</span><span>'+fmtAmt(totalDon)+'</span></div>' +
-    '<div class="ledger-row"><span>Membership Fee Income</span><span>'+fmtAmt(totalFees)+'</span></div>' +
-    vendors.map(function(v){ var o=getVendorOutstanding(v.name); return o?'<div class="ledger-row"><span>'+v.name+'</span><span>'+fmtAmt(o)+'</span></div>':''; }).join('') +
-    '<div class="ledger-row" style="font-weight:700;border-top:2px solid var(--border)"><span>Total Credit</span><span>'+fmtAmt(totalDon+totalFees+otherIncome+totalPayable)+'</span></div></div></div>';
-
-  document.getElementById('pl-report').innerHTML = '<div style="display:grid;grid-template-columns:1fr 1fr;gap:18px">' +
-    '<div><div class="section-label" style="color:var(--success)">Income</div>' +
-    '<div class="ledger-row"><span>Donation Collections</span><span class="amount-positive">'+fmtAmt(totalDon)+'</span></div>' +
-    '<div class="ledger-row"><span>Membership Fees</span><span class="amount-positive">'+fmtAmt(totalFees)+'</span></div>' +
-    (otherIncome?'<div class="ledger-row"><span>Other Income</span><span class="amount-positive">'+fmtAmt(otherIncome)+'</span></div>':'') +
-    '<div class="ledger-row" style="font-weight:700;border-top:2px solid var(--border)"><span>Total Income</span><span class="amount-positive">'+fmtAmt(totalIncome)+'</span></div></div>' +
-    '<div><div class="section-label" style="color:var(--danger)">Expenses</div>' +
-    (expLedgerNames.map(function(n){ var a=sumLedgerDr([n]); return a?'<div class="ledger-row"><span>'+n+'</span><span class="amount-negative">'+fmtAmt(a)+'</span></div>':''; }).join('')||'<div style="color:var(--text2);font-size:13px">No expenses</div>') +
-    '<div class="ledger-row" style="font-weight:700;border-top:2px solid var(--border)"><span>Total Expenses</span><span class="amount-negative">'+fmtAmt(totalExp)+'</span></div></div></div>' +
-    '<div style="margin-top:18px;padding:16px;background:var(--saffron-light);border-radius:10px;text-align:center">' +
-    '<div style="font-size:12px;color:var(--text2)">Net Surplus / (Deficit)</div>' +
-    '<div style="font-size:26px;font-weight:800;color:'+(surplus>=0?'var(--success)':'var(--danger)')+'">'+fmtAmt(surplus)+'</div></div>';
-
-  document.getElementById('bs-report').innerHTML = '<div style="display:grid;grid-template-columns:1fr 1fr;gap:18px">' +
-    '<div><div class="section-label">Assets</div>' +
-    '<div class="ledger-row"><span>Cash in Hand</span><span class="amount-positive">'+fmtAmt(cashBal)+'</span></div>' +
-    '<div class="ledger-row"><span>Bank Balance</span><span class="amount-positive">'+fmtAmt(bankBal)+'</span></div>' +
-    investments.map(function(i){ return '<div class="ledger-row"><span>'+i.name+'</span><span>'+fmtAmt(i.principal)+'</span></div>'; }).join('') +
-    '<div class="ledger-row" style="font-weight:700;border-top:2px solid var(--border)"><span>Total Assets</span><span>'+fmtAmt(cashBal+bankBal+totalInvested)+'</span></div></div>' +
-    '<div><div class="section-label">Liabilities &amp; Capital</div>' +
-    '<div class="ledger-row"><span>Opening Balance (FY)</span><span>'+fmtAmt(ob.total||0)+'</span></div>' +
-    '<div class="ledger-row"><span>Current Year Surplus</span><span class="'+(surplus>=0?'amount-positive':'amount-negative')+'">'+fmtAmt(surplus)+'</span></div>' +
-    '<div class="ledger-row"><span>Sundry Creditors Payable</span><span class="amount-negative">'+fmtAmt(totalPayable)+'</span></div>' +
-    '<div class="ledger-row" style="font-weight:700;border-top:2px solid var(--border)"><span>Total Liabilities</span><span>'+fmtAmt((ob.total||0)+surplus+totalPayable)+'</span></div></div></div>';
-
+  var eventId = (document.getElementById('fin-event-filter') && document.getElementById('fin-event-filter').value) || '';
+  // Event filter only applies to Trial Balance summary; P&L and BS always use FY-wide
+  renderTrialBalance(currentFY);
+  renderProfitLoss(currentFY);
+  renderBalanceSheet(currentFY);
   populateEventSelects();
 }
 
