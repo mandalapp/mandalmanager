@@ -3098,6 +3098,7 @@ function deleteVoucher(id){
   });
 
   DB.set('vouchers', vouchers);
+  queueDelete('vouchers', id);
 
   addAudit(
     'Voucher Deleted',
@@ -4803,11 +4804,23 @@ async function pullFromSupabase() {
       var t = tables[i];
       var { data, error } = await sb.from(t).select('id, data, updated_at');
       if (error) { console.warn('Pull error ['+t+']:', error.message); continue; }
-      if (!data || !data.length) continue;
       if (t === 'mandal' || t === 'settings') {
-        DB.set(t, data[0].data || {});
+        if (data && data.length) DB.set(t, data[0].data || {});
+        else DB.set(t, {});
       } else {
-        DB.set(t, data.map(function(row) { return row.data; }));
+        // Only replace local data if Supabase actually has rows;
+        // an empty result means all rows were deleted — respect that.
+        var remoteIds = new Set((data || []).map(function(row){ return row.id; }));
+        var remoteRows = (data || []).map(function(row){ return row.data; }).filter(Boolean);
+        // Remove local rows that no longer exist in Supabase (were deleted by another user/session)
+        var local = DB.get(t);
+        var merged = local.filter(function(item){ return remoteIds.has(item.id); });
+        // Add/update rows from Supabase that differ from local
+        remoteRows.forEach(function(row){
+          var idx = merged.findIndex(function(x){ return x.id === row.id; });
+          if (idx > -1) merged[idx] = row; else merged.push(row);
+        });
+        DB.set(t, merged);
       }
     }
     lastPullStamp = new Date().toISOString();
@@ -5055,20 +5068,24 @@ function deleteItem(collection, id, callback) {
   }
 }
 
-function queueDelete(sheetName, id) {
+async function queueDelete(sheetName, id) {
   var sb = getSupabase();
   if (!sb) {
     showToast('⚠️ No Supabase connection — deletion is local only until reconnected','warning');
     return;
   }
-  sb.from(sheetName).delete().eq('id', id)
-    .then(function(res) {
-      if (res.error) {
-        console.warn('Supabase delete error:', res.error.message);
-        showToast('⚠️ Supabase delete failed for '+sheetName+': '+res.error.message,'error');
-      }
-      // Success: no toast needed — already shown by the calling function
-    });
+  try {
+    var { error } = await sb.from(sheetName).delete().eq('id', id);
+    if (error) {
+      console.warn('Supabase delete error ['+sheetName+'/'+id+']:', error.message);
+      showToast('⚠️ Supabase delete failed for '+sheetName+': '+error.message,'error');
+    } else {
+      console.log('Supabase delete OK:', sheetName, id);
+    }
+  } catch(e) {
+    console.warn('Supabase delete exception:', e.message);
+    showToast('⚠️ Supabase delete exception: '+e.message,'error');
+  }
 }
 
 function touchLastPullStampReset() {
@@ -5359,10 +5376,10 @@ async function saveManualReceipt() {
       '<div style="display:flex;align-items:flex-start;justify-content:space-between;margin-top:10px;gap:10px">' +
         '<div style="border:1px solid #1A237E;border-radius:6px;padding:8px 12px;font-size:10px;color:#333;min-width:180px">' +
           (mandal['reg-no'] ? '<div>📋 Registration No. : '+mandal['reg-no']+'</div>' : '') +
-          (mandal['id'] ? '<div>📋 Trust Reg. No. : '+mandal['id']+'</div>' : '') +
+          (mandal['trust-id'] ? '<div>📋 Trust Reg. No. : '+mandal['trust-id']+'</div>' : '') +
           '<div style="margin-top:4px;font-size:9px;color:#777">Collected by: <strong>'+((currentUser&&currentUser.name)||'Admin')+'</strong></div>' +
-        '</div>' +
-        '<div style="text-align:center;flex:1">' +
+      '</div>' +
+      '<div style="text-align:center;flex:1">' +
           '<div style="font-family:cursive;font-size:16px;color:#8B0000;font-weight:700">✦ Thank You! ✦</div>' +
           '<div style="font-size:10px;color:#555;margin-top:4px">Your support inspires us to<br>serve the society better.</div>' +
         '</div>' +
@@ -5370,7 +5387,9 @@ async function saveManualReceipt() {
           '<div style="font-size:11px;font-weight:700;color:#1A237E">For '+(mandal.name||'MANDAL')+'</div>' +
           '<div style="margin:24px 0 4px;border-top:1px solid #333;width:130px;margin-left:auto;margin-right:auto"></div>' +
           '<div style="font-size:10px;color:#555">Authorized Signatory<br>(Name &amp; Signature)</div>' +
-          '<div style="width:55px;height:55px;border:2px dashed #1A237E;border-radius:50%;margin:8px auto 0;display:flex;align-items:center;justify-content:center;font-size:9px;color:#999;text-align:center">MANDAL<br>SEAL</div>' +
+          (mandal.seal
+            ? '<img src="'+mandal.seal+'" style="width:55px;height:55px;border-radius:50%;border:2px solid #1A237E;object-fit:contain;margin:8px auto 0;display:block">'
+            : '<div style="width:55px;height:55px;border:2px dashed #1A237E;border-radius:50%;margin:8px auto 0;display:flex;align-items:center;justify-content:center;font-size:9px;color:#999;text-align:center">MANDAL<br>SEAL</div>') +
         '</div>' +
       '</div>' +
       (mandal.email||mandal['contact-phone']||mandal.address ?
