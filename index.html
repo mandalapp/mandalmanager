@@ -298,7 +298,7 @@ body.offline-mode .sidebar{margin-top:38px}
       <button class="tab active" onclick="switchTab(this,'mandal-basic')">Basic Info</button>
       <button class="tab" onclick="switchTab(this,'mandal-docs')">Documents</button>
       <button class="tab" onclick="switchTab(this,'mandal-social')">Contact &amp; Social</button>
-      <button class="tab" onclick="switchTab(this,'mandal-finance');renderFeeTypes()">Fee Settings</button>
+      <button class="tab" onclick="switchTab(this,'mandal-finance');renderFeeTypes();renderReceiptSeriesUI()">Fee Settings</button>
     </div>
     <div class="tab-content active" id="tab-mandal-basic">
       <div class="form-group"><label>Mandal Logo</label><input type="file" id="m-logo" accept="image/*" onchange="previewMandalLogo(this)">
@@ -332,6 +332,7 @@ body.offline-mode .sidebar{margin-top:38px}
     </div>
     <div class="tab-content" id="tab-mandal-finance">
       <div class="section-label">Annual Membership Fee Types — FY <span id="finance-fy-label">2026-27</span></div>
+      <script>document.querySelectorAll('.finance-fy-label2').forEach(function(el){el.textContent=currentFY||'2026-27'});</script>
       <div class="alert alert-info">💡 Create fee types (e.g. General ₹500, Life Member ₹5000). Each Sabhashad is assigned a fee type.</div>
       <div id="fee-types-list" style="margin-bottom:14px"></div>
       <div class="card" style="box-shadow:none;border:1px solid var(--border)">
@@ -341,6 +342,54 @@ body.offline-mode .sidebar{margin-top:38px}
           <div class="form-group"><label class="mandatory">Amount (₹)</label><input type="number" id="new-fee-type-amount" min="0"></div>
         </div>
         <button class="btn btn-primary btn-sm" onclick="addFeeType()">+ Add Fee Type</button>
+      </div>
+      <hr class="divider">
+      <div class="section-label">Receipt Number Series — FY <span class="finance-fy-label2"></span></div>
+      <div class="alert alert-info">💡 Set prefix for each receipt type. Numbers auto-increment and are never reused even after deletion.</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:14px">
+        <div class="card" style="box-shadow:none;border:2px solid var(--saffron);padding:14px">
+          <div class="section-label">💰 Donation Receipt</div>
+          <div class="form-group">
+            <label>Prefix</label>
+            <input type="text" id="don-receipt-prefix" placeholder="e.g. DON, RCP, GAN" maxlength="10" style="text-transform:uppercase" oninput="this.value=this.value.toUpperCase()">
+            <div class="form-hint">Preview: <strong id="don-receipt-preview">DON-2026-27-0001</strong></div>
+          </div>
+          <div class="form-group">
+            <label>Starting Number</label>
+            <input type="number" id="don-receipt-start" min="1" value="1">
+            <div class="form-hint">Next number to use (auto-increments)</div>
+          </div>
+          <div style="font-size:12px;color:var(--text2);margin-bottom:8px">
+            Last used: <strong id="don-last-used">—</strong> &nbsp;|&nbsp; Total issued: <strong id="don-total-issued">0</strong>
+          </div>
+          <button class="btn btn-primary btn-sm" onclick="saveReceiptSeries('donation')">💾 Save Donation Series</button>
+        </div>
+        <div class="card" style="box-shadow:none;border:2px solid var(--info);padding:14px">
+          <div class="section-label">🏷️ Membership Fee Receipt</div>
+          <div class="form-group">
+            <label>Prefix</label>
+            <input type="text" id="fee-receipt-prefix" placeholder="e.g. FEE, MBR, MEM" maxlength="10" style="text-transform:uppercase" oninput="this.value=this.value.toUpperCase()">
+            <div class="form-hint">Preview: <strong id="fee-receipt-preview">FEE-2026-27-0001</strong></div>
+          </div>
+          <div class="form-group">
+            <label>Starting Number</label>
+            <input type="number" id="fee-receipt-start" min="1" value="1">
+            <div class="form-hint">Next number to use (auto-increments)</div>
+          </div>
+          <div style="font-size:12px;color:var(--text2);margin-bottom:8px">
+            Last used: <strong id="fee-last-used">—</strong> &nbsp;|&nbsp; Total issued: <strong id="fee-total-issued">0</strong>
+          </div>
+          <button class="btn btn-primary btn-sm" onclick="saveReceiptSeries('fee')">💾 Save Fee Series</button>
+        </div>
+      </div>
+      <div class="card" style="box-shadow:none;border:1px solid var(--border);padding:14px">
+        <div class="section-label">📋 Receipt Number Log — FY <span class="finance-fy-label2"></span></div>
+        <div class="tabs" style="margin-bottom:14px">
+          <button class="tab active" onclick="switchTab(this,'rlog-donation');renderReceiptLog('donation')">💰 Donation Receipts</button>
+          <button class="tab" onclick="switchTab(this,'rlog-fee');renderReceiptLog('fee')">🏷️ Fee Receipts</button>
+        </div>
+        <div class="tab-content active" id="tab-rlog-donation"><div id="receipt-log-donation"></div></div>
+        <div class="tab-content" id="tab-rlog-fee"><div id="receipt-log-fee"></div></div>
       </div>
       <hr class="divider">
       <div class="alert alert-info">💡 Opening Balance is now managed only from <strong>FY Management → Opening Balance</strong> tab.</div>
@@ -1268,8 +1317,9 @@ function addAudit(action, detail) {
 }
 
 function genReceipt(prefix) {
-  prefix = prefix || 'RCP';
-  return prefix + '-' + String(DB.get('donations').length + 1).padStart(4,'0');
+  // Legacy fallback — new code uses generateReceiptNumber() directly
+  prefix = prefix || 'DON';
+  return generateReceiptNumber('donation', {});
 }
 
 function resetForm(modalId) {
@@ -2193,11 +2243,13 @@ async function saveFlatDonation() {
   if(existing) { showToast('Donation already recorded for this flat!','error'); return; }
   var date = document.getElementById('fd-date').value;
   if(!checkDateInFY(date)) { fyDateError(date); return; }
-  var receipt = genReceipt();
+  var donorNameVal = document.getElementById('fd-name').value;
+  var donDateVal = document.getElementById('fd-date').value;
+  var receipt = generateReceiptNumber('donation', {donorName: donorNameVal, amount: amt, date: donDateVal});
   var don = {id:uid(),eventId:currentFlatKey.eventId,flatKey:currentFlatKey.flatKey,type:'area',
-    donorName:document.getElementById('fd-name').value,amount:amt,mode:document.getElementById('fd-mode').value,
+    donorName:donorNameVal,amount:amt,mode:document.getElementById('fd-mode').value,
     bankAccount:getSelectedBankForDonation('fd-mode','fd-bank-account'),
-    date:document.getElementById('fd-date').value,receipt:receipt,collectedBy:currentUser.name,fy:currentFY,createdAt:now()};
+    date:donDateVal,receipt:receipt,collectedBy:currentUser.name,fy:currentFY,createdAt:now()};
   DB.push('donations',don); queueSync('donations',don);
   var ev = DB.get('events').find(function(e){ return e.id===don.eventId; });
   autoPostDonationReceipt(don,ev);
@@ -2216,11 +2268,12 @@ async function addDirectDonor() {
   if(!name||!mobile||!amt) { showToast('Name, mobile and amount required','error'); return; }
   var date = document.getElementById('dd-date').value;
   if(!checkDateInFY(date)) { fyDateError(date); return; }
-  var receipt = genReceipt();
+  var ddDate = document.getElementById('dd-date').value;
+  var receipt = generateReceiptNumber('donation', {donorName: name, amount: amt, date: ddDate});
   var don = {id:uid(),eventId:eventId,type:'direct',donorName:name,mobile:mobile,
     sabhashadId:document.getElementById('dd-sabhashad').value,amount:amt,mode:document.getElementById('dd-mode').value,
     bankAccount:getSelectedBankForDonation('dd-mode','dd-bank-account'),
-    date:document.getElementById('dd-date').value,receipt:receipt,collectedBy:currentUser.name,fy:currentFY,createdAt:now()};
+    date:ddDate,receipt:receipt,collectedBy:currentUser.name,fy:currentFY,createdAt:now()};
   DB.push('donations',don); queueSync('donations',don);
   var ev = DB.get('events').find(function(e){ return e.id===don.eventId; });
   autoPostDonationReceipt(don,ev);
@@ -3977,7 +4030,7 @@ async function markFeePaid(memberId, fy, minAmt) {
   var remarks = remarksEl&&remarksEl.value||'';
   if(paidAmt < minAmt && minAmt > 0) { showToast('Amount cannot be less than minimum '+fmtAmt(minAmt),'error'); return; }
   if(!checkDateInFY(date)) { fyDateError(date); return; }
-  var receipt = 'FEE-'+String(Date.now()).slice(-6);
+  var receipt = generateReceiptNumber('fee', {donorName: members[i].name, amount: paidAmt, date: date});
   var members = DB.get('sabhashad');
   var i = members.findIndex(function(x){ return x.id===memberId; });
   if(i<0) return;
@@ -3999,7 +4052,10 @@ async function unpayFee(memberId, fy) {
   var members = DB.get('sabhashad');
   var i = members.findIndex(function(x){ return x.id===memberId; });
   if(i>-1 && members[i].fees&&members[i].fees[fy]) {
+    var oldFeeReceipt = members[i].fees[fy].receipt;
     reverseFeeReceipt(members[i], fy, members[i].fees[fy]);
+    // Void the receipt number so it is never reused
+    if(oldFeeReceipt) voidReceiptNumber('fee', oldFeeReceipt, currentFY);
     delete members[i].fees[fy];
   }
   DB.set('sabhashad',members); queueSync('sabhashad',members[i]);
@@ -4735,8 +4791,10 @@ function deleteDonationCascade(id, callback) {
   if(!don) return;
   var linkedVouchers = DB.get('vouchers').filter(function(v){ return v.linkedDonationId===id || v.ref===don.receipt; });
   linkedVouchers.forEach(function(v){ DB.delete('vouchers', v.id); queueDelete('vouchers', v.id); });
+  // Void the receipt number so it is never reused
+  if(don.receipt) voidReceiptNumber('donation', don.receipt, don.fy||currentFY);
   DB.delete('donations', id); queueDelete('donations', id);
-  addAudit('Delete', 'Donation '+(don.donorName||'')+' '+fmtAmt(don.amount)+' + '+linkedVouchers.length+' linked voucher(s) removed');
+  addAudit('Delete', 'Donation '+(don.donorName||'')+' '+fmtAmt(don.amount)+' + '+linkedVouchers.length+' linked voucher(s) removed. Receipt '+don.receipt+' voided.');
   showToast('Donation and linked voucher(s) deleted');
   loadDashboard();
   renderVoucherList('All'); renderVoucherList('Receipt');
@@ -5070,6 +5128,247 @@ function previewMandalLogo(input) {
   };
   r.readAsDataURL(input.files[0]);
 }  
+
+// ============================================================
+// RECEIPT NUMBER SERIES ENGINE
+// ============================================================
+
+/**
+ * Returns the series config for a given type ('donation' or 'fee') and FY.
+ * Stored in settings.receiptSeries[fy][type] = { prefix, nextNum, issued:[], voided:[] }
+ */
+function getReceiptSeries(type, fy) {
+  fy = fy || currentFY;
+  var s = DB.getObj('settings');
+  if (!s.receiptSeries) s.receiptSeries = {};
+  if (!s.receiptSeries[fy]) s.receiptSeries[fy] = {};
+  if (!s.receiptSeries[fy][type]) {
+    s.receiptSeries[fy][type] = {
+      prefix: type === 'donation' ? 'DON' : 'FEE',
+      nextNum: 1,
+      issued: [],   // [{num, receipt, date, name, amount, voidedAt}]
+      voided: []    // nums that were voided/deleted and must NOT be reused
+    };
+    DB.set('settings', s);
+  }
+  return s.receiptSeries[fy][type];
+}
+
+function saveReceiptSeriesConfig(type, fy, config) {
+  fy = fy || currentFY;
+  var s = DB.getObj('settings');
+  if (!s.receiptSeries) s.receiptSeries = {};
+  if (!s.receiptSeries[fy]) s.receiptSeries[fy] = {};
+  s.receiptSeries[fy][type] = config;
+  DB.set('settings', s);
+  queueSync('settings', s);
+}
+
+/**
+ * Generates the next receipt number.
+ * Skips any numbers already in issued[] or voided[].
+ * Records the issued entry.
+ * Returns the full receipt string e.g. "DON-2026-27-0001"
+ */
+function generateReceiptNumber(type, meta) {
+  // meta = { donorName, amount, date }
+  var fy = currentFY;
+  var s = DB.getObj('settings');
+  if (!s.receiptSeries) s.receiptSeries = {};
+  if (!s.receiptSeries[fy]) s.receiptSeries[fy] = {};
+  if (!s.receiptSeries[fy][type]) {
+    s.receiptSeries[fy][type] = {
+      prefix: type === 'donation' ? 'DON' : 'FEE',
+      nextNum: 1,
+      issued: [],
+      voided: []
+    };
+  }
+  var cfg = s.receiptSeries[fy][type];
+  var issuedNums = new Set((cfg.issued || []).map(function(r) { return r.num; }));
+  var voidedNums = new Set(cfg.voided || []);
+
+  // Find next available number (skip issued and voided)
+  var num = cfg.nextNum || 1;
+  while (issuedNums.has(num) || voidedNums.has(num)) {
+    num++;
+  }
+
+  var receiptStr = cfg.prefix + '-' + fy + '-' + String(num).padStart(4, '0');
+
+  // Record in issued log
+  if (!cfg.issued) cfg.issued = [];
+  cfg.issued.push({
+    num: num,
+    receipt: receiptStr,
+    date: (meta && meta.date) || new Date().toISOString().split('T')[0],
+    name: (meta && meta.donorName) || '',
+    amount: (meta && meta.amount) || 0,
+    issuedAt: new Date().toISOString()
+  });
+
+  cfg.nextNum = num + 1;
+  s.receiptSeries[fy][type] = cfg;
+  DB.set('settings', s);
+  queueSync('settings', s);
+
+  return receiptStr;
+}
+
+/**
+ * When a donation/fee is deleted, mark its receipt number as voided.
+ * It will never be reused but the gap is preserved in the log.
+ */
+function voidReceiptNumber(type, receiptStr, fy) {
+  fy = fy || currentFY;
+  var s = DB.getObj('settings');
+  if (!s.receiptSeries || !s.receiptSeries[fy] || !s.receiptSeries[fy][type]) return;
+  var cfg = s.receiptSeries[fy][type];
+
+  // Find the number from issued log
+  var entry = (cfg.issued || []).find(function(r) { return r.receipt === receiptStr; });
+  if (entry) {
+    if (!cfg.voided) cfg.voided = [];
+    if (cfg.voided.indexOf(entry.num) === -1) cfg.voided.push(entry.num);
+    entry.voidedAt = new Date().toISOString();
+  }
+
+  s.receiptSeries[fy][type] = cfg;
+  DB.set('settings', s);
+  queueSync('settings', s);
+}
+
+/**
+ * Check if a receipt number string is already in use.
+ * Returns the existing entry or null.
+ */
+function isReceiptDuplicate(type, receiptStr, fy) {
+  fy = fy || currentFY;
+  var cfg = getReceiptSeries(type, fy);
+  return (cfg.issued || []).find(function(r) {
+    return r.receipt === receiptStr && !r.voidedAt;
+  }) || null;
+}
+
+// ── UI functions for the series settings panel ──
+
+function saveReceiptSeries(type) {
+  var prefixEl = document.getElementById(type === 'donation' ? 'don-receipt-prefix' : 'fee-receipt-prefix');
+  var startEl  = document.getElementById(type === 'donation' ? 'don-receipt-start'  : 'fee-receipt-start');
+  if (!prefixEl || !startEl) return;
+  var prefix = prefixEl.value.trim().toUpperCase();
+  var startNum = parseInt(startEl.value) || 1;
+  if (!prefix) { showToast('Prefix cannot be empty', 'error'); return; }
+  if (!/^[A-Z0-9\-]+$/.test(prefix)) { showToast('Prefix: only letters, numbers, hyphens allowed', 'error'); return; }
+
+  var cfg = getReceiptSeries(type, currentFY);
+
+  // Warn if issued receipts exist
+  var issuedCount = (cfg.issued || []).filter(function(r){ return !r.voidedAt; }).length;
+  if (issuedCount > 0 && cfg.prefix !== prefix) {
+    if (!confirm(issuedCount + ' receipts already issued with prefix "' + cfg.prefix + '". Changing prefix will apply only to NEW receipts. Continue?')) return;
+  }
+  if (issuedCount > 0 && startNum > cfg.nextNum) {
+    if (!confirm('Starting number ' + startNum + ' skips some numbers. Those skipped numbers will be marked as voided. Continue?')) return;
+    // void skipped numbers
+    for (var n = cfg.nextNum; n < startNum; n++) {
+      var already = (cfg.issued || []).find(function(r){ return r.num === n; });
+      if (!already) {
+        if (!cfg.voided) cfg.voided = [];
+        if (cfg.voided.indexOf(n) === -1) cfg.voided.push(n);
+      }
+    }
+  }
+
+  cfg.prefix = prefix;
+  if (startNum > (cfg.nextNum || 1)) cfg.nextNum = startNum;
+  saveReceiptSeriesConfig(type, currentFY, cfg);
+  renderReceiptSeriesUI();
+  showToast((type === 'donation' ? 'Donation' : 'Fee') + ' receipt series saved!', 'success');
+  addAudit('Receipt Series', type + ' prefix set to ' + prefix + ', next#' + cfg.nextNum);
+}
+
+function renderReceiptSeriesUI() {
+  // Update FY labels
+  document.querySelectorAll('.finance-fy-label2').forEach(function(el){ el.textContent = currentFY; });
+
+  var donCfg = getReceiptSeries('donation', currentFY);
+  var feeCfg = getReceiptSeries('fee', currentFY);
+
+  // Donation
+  var donPrefixEl = document.getElementById('don-receipt-prefix');
+  var donStartEl  = document.getElementById('don-receipt-start');
+  var donPreview  = document.getElementById('don-receipt-preview');
+  var donLast     = document.getElementById('don-last-used');
+  var donTotal    = document.getElementById('don-total-issued');
+  if (donPrefixEl) donPrefixEl.value = donCfg.prefix || 'DON';
+  if (donStartEl)  donStartEl.value  = donCfg.nextNum || 1;
+  if (donPreview)  donPreview.textContent = (donCfg.prefix||'DON') + '-' + currentFY + '-' + String(donCfg.nextNum||1).padStart(4,'0');
+  if (donLast) {
+    var lastDon = (donCfg.issued||[]).filter(function(r){ return !r.voidedAt; }).slice(-1)[0];
+    donLast.textContent = lastDon ? lastDon.receipt : '—';
+  }
+  if (donTotal) donTotal.textContent = (donCfg.issued||[]).filter(function(r){ return !r.voidedAt; }).length;
+
+  // Fee
+  var feePrefixEl = document.getElementById('fee-receipt-prefix');
+  var feeStartEl  = document.getElementById('fee-receipt-start');
+  var feePreview  = document.getElementById('fee-receipt-preview');
+  var feeLast     = document.getElementById('fee-last-used');
+  var feeTotal    = document.getElementById('fee-total-issued');
+  if (feePrefixEl) feePrefixEl.value = feeCfg.prefix || 'FEE';
+  if (feeStartEl)  feeStartEl.value  = feeCfg.nextNum || 1;
+  if (feePreview)  feePreview.textContent = (feeCfg.prefix||'FEE') + '-' + currentFY + '-' + String(feeCfg.nextNum||1).padStart(4,'0');
+  if (feeLast) {
+    var lastFee = (feeCfg.issued||[]).filter(function(r){ return !r.voidedAt; }).slice(-1)[0];
+    feeLast.textContent = lastFee ? lastFee.receipt : '—';
+  }
+  if (feeTotal) feeTotal.textContent = (feeCfg.issued||[]).filter(function(r){ return !r.voidedAt; }).length;
+
+  // Live preview update on prefix input
+  var dpEl = document.getElementById('don-receipt-prefix');
+  var fpEl = document.getElementById('fee-receipt-prefix');
+  if (dpEl) dpEl.oninput = function() {
+    var pr = document.getElementById('don-receipt-preview');
+    if(pr) pr.textContent = (this.value.toUpperCase()||'DON') + '-' + currentFY + '-' + String(donCfg.nextNum||1).padStart(4,'0');
+  };
+  if (fpEl) fpEl.oninput = function() {
+    var pr = document.getElementById('fee-receipt-preview');
+    if(pr) pr.textContent = (this.value.toUpperCase()||'FEE') + '-' + currentFY + '-' + String(feeCfg.nextNum||1).padStart(4,'0');
+  };
+
+  renderReceiptLog('donation');
+  renderReceiptLog('fee');
+}
+
+function renderReceiptLog(type) {
+  var elId = 'receipt-log-' + type;
+  var el = document.getElementById(elId);
+  if (!el) return;
+  var cfg = getReceiptSeries(type, currentFY);
+  var issued = (cfg.issued || []).slice().reverse();
+  if (!issued.length) {
+    el.innerHTML = '<div style="color:var(--text2);text-align:center;padding:16px;font-size:13px">No receipts issued yet for FY ' + currentFY + '</div>';
+    return;
+  }
+  el.innerHTML = '<div class="table-wrap"><table><thead><tr>' +
+    '<th>#</th><th>Receipt No.</th><th>Date</th><th>Name</th><th>Amount</th><th>Status</th>' +
+    '</tr></thead><tbody>' +
+    issued.map(function(r) {
+      var isVoided = !!r.voidedAt;
+      return '<tr style="' + (isVoided ? 'opacity:0.5;text-decoration:line-through' : '') + '">' +
+        '<td>' + r.num + '</td>' +
+        '<td><strong>' + r.receipt + '</strong></td>' +
+        '<td>' + fmtDate(r.date) + '</td>' +
+        '<td>' + (r.name || '—') + '</td>' +
+        '<td>' + fmtAmt(r.amount) + '</td>' +
+        '<td>' + (isVoided
+          ? '<span class="badge badge-danger">❌ Voided ' + fmtDate(r.voidedAt) + '</span>'
+          : '<span class="badge badge-success">✅ Active</span>') +
+        '</td></tr>';
+    }).join('') +
+    '</tbody></table></div>';
+}
 
 function previewMandalSeal(input) {
   if(!input.files[0]) return;
