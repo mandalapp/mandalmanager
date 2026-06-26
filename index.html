@@ -574,6 +574,25 @@ body.offline-mode .sidebar{margin-top:38px}
       <button class="btn btn-warning" style="margin-top:8px" onclick="resetAllFees()">🔄 Reset All Member Fees for Current FY</button>
     </div>
     <div class="tab-content" id="tab-fy-opening">
+      <hr class="divider">
+<div class="section-label">Accumulated Surplus (Previous FYs)</div>
+<div class="alert alert-info">
+  💡 Auto-calculated from past FY data. Override only if migrating from paper records or correcting opening figures.
+</div>
+<div class="form-group">
+  <label>Auto-Calculated Surplus (read-only)</label>
+  <input type="number" id="ob-acc-surplus-auto" style="background:var(--bg);color:var(--text2)" readonly>
+  <div class="form-hint">Sum of Net Profit/Loss from all previous FYs based on voucher data.</div>
+</div>
+<div class="form-group">
+  <label>Manual Override (₹) — leave blank to use auto-calculated</label>
+  <input type="number" id="ob-acc-surplus" placeholder="Leave blank to use auto value">
+  <div class="form-hint">Fill this only if auto value is incorrect (e.g. first-time migration from paper books).</div>
+</div>
+<div style="display:flex;gap:10px;margin-bottom:14px">
+  <button class="btn btn-secondary btn-sm" onclick="applyAutoSurplus()">↩ Reset to Auto Value</button>
+  <span id="ob-surplus-status" style="font-size:12px;color:var(--text2);align-self:center"></span>
+</div>
       <div class="section-label">Opening Balance — FY <span id="ob-fy-label2">2026-27</span></div>
       <div id="prev-fy-closing-info"></div>
       <div class="form-group">
@@ -2430,11 +2449,41 @@ function openVoucherModal(type) {
   } else if(type==='Journal') {
     document.getElementById('jv-date').value = today;
     var all = getAllLedgerNames();
-    var allNames = getStdLedgers().concat(all.income).concat(all.expense).concat(all.creditors).concat(all.investments);
-    var optsHtml = allNames.map(function(n){ return '<option value="'+n+'">'+n+'</option>'; }).join('');
-    document.getElementById('jv-debit').innerHTML = '<option value="">— Select —</option>'+optsHtml;
-    document.getElementById('jv-credit').innerHTML = '<option value="">— Select —</option>'+optsHtml;
-    document.getElementById('jv-amount').value=''; document.getElementById('jv-narration').value='';
+    
+    // All user-defined ledgers by type
+    var allLedgers = DB.get('ledgers').filter(function(l){ return l.fy === currentFY; });
+    var incomeNames = allLedgers.filter(function(l){ return l.type==='income'; }).map(function(l){ return l.name; });
+    var expenseNames = allLedgers.filter(function(l){ return l.type==='expense'; }).map(function(l){ return l.name; });
+    var assetNames = allLedgers.filter(function(l){ return l.type==='asset'; }).map(function(l){ return l.name; });
+    var liabilityNames = allLedgers.filter(function(l){ return l.type==='liability'; }).map(function(l){ return l.name; });
+    var capitalNames = allLedgers.filter(function(l){ return l.type==='capital'; }).map(function(l){ return l.name; });
+
+    // System income ledgers
+    ['Donation Income','Membership Fee Income'].forEach(function(n){
+      if(incomeNames.indexOf(n) === -1) incomeNames.push(n);
+    });
+
+    function makeOptGroup(label, names) {
+      if(!names.length) return '';
+      return '<optgroup label="'+label+'">'+
+        names.map(function(n){ return '<option value="'+n+'">'+n+'</option>'; }).join('')+
+      '</optgroup>';
+    }
+
+    var optsHtml = 
+      makeOptGroup('💵 Cash & Bank', getStdLedgers()) +
+      makeOptGroup('📥 Income', incomeNames) +
+      makeOptGroup('📤 Expense', expenseNames) +
+      makeOptGroup('🏦 Assets', assetNames) +
+      makeOptGroup('⚖️ Liabilities', liabilityNames) +
+      makeOptGroup('💼 Capital', capitalNames) +
+      makeOptGroup('🏪 Vendors (Sundry Creditors)', all.creditors) +
+      makeOptGroup('📈 Investments', all.investments);
+
+    document.getElementById('jv-debit').innerHTML = '<option value="">— Select Ledger —</option>'+optsHtml;
+    document.getElementById('jv-credit').innerHTML = '<option value="">— Select Ledger —</option>'+optsHtml;
+    document.getElementById('jv-amount').value=''; 
+    document.getElementById('jv-narration').value='';
     openModal('modal-voucher-journal');
   }
 }
@@ -3541,6 +3590,14 @@ function saveOpeningBalance() {
   });
   ob.bank = bankTotal;
   ob.total = cash + bankTotal;
+
+  var accSurplusEl = document.getElementById('ob-acc-surplus');
+  if(accSurplusEl && accSurplusEl.value.trim() !== '') {
+    ob.accumulatedSurplus = parseFloat(accSurplusEl.value) || 0;
+  } else {
+    delete ob.accumulatedSurplus; // will auto-calculate in balance sheet
+  }
+
   s.openingBalance[currentFY] = ob;
   DB.set('settings',s); queueSync('settings',s);
   showToast('Opening balances saved!','success');
@@ -3592,6 +3649,37 @@ function loadOpeningBalance() {
     }
   }
 }
+// Calculate and show auto surplus
+var s3 = DB.getObj('settings');
+var prevFYs2 = getFYList().filter(function(f){ return f < currentFY; });
+var autoSurplus2 = 0;
+prevFYs2.forEach(function(f){
+  var closing = s3.closingBalance && s3.closingBalance[f];
+  if(closing && closing.surplus !== undefined){
+    autoSurplus2 += Number(closing.surplus || 0);
+  } else {
+    autoSurplus2 += calcNetProfitLoss(f);
+  }
+});
+var autoEl = document.getElementById('ob-acc-surplus-auto');
+if(autoEl) autoEl.value = autoSurplus2;
+
+// Load saved manual override if any
+var ob3 = (s3.openingBalance && s3.openingBalance[currentFY]) || {};
+var manualEl = document.getElementById('ob-acc-surplus');
+if(manualEl) manualEl.value = ob3.accumulatedSurplus !== undefined ? ob3.accumulatedSurplus : '';
+
+// Show status
+var statusEl = document.getElementById('ob-surplus-status');
+if(statusEl) {
+  if(ob3.accumulatedSurplus !== undefined) {
+    statusEl.textContent = '✏️ Using manual override: ' + fmtAmt(ob3.accumulatedSurplus);
+    statusEl.style.color = 'var(--warning)';
+  } else {
+    statusEl.textContent = '✅ Using auto-calculated value: ' + fmtAmt(autoSurplus2);
+    statusEl.style.color = 'var(--success)';
+  }
+}
 
 function applyPrevClosing(prevFY) {
   var closing = calculateClosingBalance(prevFY);
@@ -3599,6 +3687,23 @@ function applyPrevClosing(prevFY) {
   if(cashEl) cashEl.value = Math.max(0,closing.cash);
   if(bankEl) bankEl.value = Math.max(0,closing.bank);
   showToast('Applied! Click Save to confirm.','success');
+}
+
+function applyAutoSurplus() {
+  var s = DB.getObj('settings');
+  var prevFYs = getFYList().filter(function(f){ return f < currentFY; });
+  var autoSurplus = 0;
+  prevFYs.forEach(function(f){
+    var closing = s.closingBalance && s.closingBalance[f];
+    if(closing && closing.surplus !== undefined){
+      autoSurplus += Number(closing.surplus || 0);
+    } else {
+      autoSurplus += calcNetProfitLoss(f);
+    }
+  });
+  document.getElementById('ob-acc-surplus').value = '';
+  document.getElementById('ob-acc-surplus-auto').value = autoSurplus;
+  document.getElementById('ob-surplus-status').textContent = 'Using auto-calculated value: ' + fmtAmt(autoSurplus);
 }
 
 function renderFYHistory() {
