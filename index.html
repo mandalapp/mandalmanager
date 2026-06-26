@@ -3381,7 +3381,13 @@ function renderBalanceSheet(fy) {
   // Reserves & Surplus = Opening + Net Profit this FY
   var prevFYs = getFYList().filter(function(f){ return f < targetFY; });
   var cumulativeSurplus = 0;
-  prevFYs.forEach(function(f){ cumulativeSurplus += calcNetProfitLoss(f); });
+  var s_bs = DB.getObj('settings');
+  var ob_bs = (s_bs.openingBalance && s_bs.openingBalance[targetFY]) || {};
+  if(ob_bs.accumulatedSurplus !== undefined) {
+    cumulativeSurplus = Number(ob_bs.accumulatedSurplus);
+  } else {
+    prevFYs.forEach(function(f){ cumulativeSurplus += calcNetProfitLoss(f); });
+  }
   var reserveTotal = cumulativeSurplus + netProfit;
 
   // Loans & Liabilities
@@ -3625,6 +3631,14 @@ function saveOpeningBalance2() {
   });
   ob.bank = bankTotal;
   ob.total = cash + bankTotal;
+
+  var accSurplusEl2 = document.getElementById('ob-acc-surplus');
+  if(accSurplusEl2 && accSurplusEl2.value.trim() !== '') {
+    ob.accumulatedSurplus = parseFloat(accSurplusEl2.value) || 0;
+  } else {
+    delete ob.accumulatedSurplus;
+  }
+
   s.openingBalance[currentFY] = ob;
   DB.set('settings',s); queueSync('settings',s);
   showToast('Opening balances saved!','success');
@@ -3708,6 +3722,11 @@ function applyAutoSurplus() {
   document.getElementById('ob-acc-surplus').value = '';
   document.getElementById('ob-acc-surplus-auto').value = autoSurplus;
   document.getElementById('ob-surplus-status').textContent = 'Using auto-calculated value: ' + fmtAmt(autoSurplus);
+  if(s.openingBalance && s.openingBalance[currentFY]) {
+    delete s.openingBalance[currentFY].accumulatedSurplus;
+    DB.set('settings', s);
+    queueSync('settings', s);
+  }
 }
 
 function renderFYHistory() {
