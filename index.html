@@ -117,6 +117,9 @@ tr:hover td{background:var(--saffron-light)}
 .flat-item.paid{border-color:var(--success);background:#E8F8F0;color:var(--success)}
 .flat-item.pending{border-color:var(--border);color:var(--text2)}
 .flat-item:hover{border-color:var(--saffron)}
+.flat-paid{border-color:var(--success);background:#E8F8F0;color:var(--success)}
+.flat-denied{border-color:var(--danger);background:#FEF0F0;color:var(--danger)}
+.flat-pending{border-color:var(--border);color:var(--text2)}
 .ledger-row{display:flex;justify-content:space-between;align-items:center;padding:9px 0;border-bottom:1px solid var(--border);font-size:13px}
 .ledger-row:last-child{border-bottom:none}
 .ledger-group-header{font-weight:700;color:var(--text);background:var(--bg);padding:7px 12px;border-radius:6px;margin-top:8px;font-size:13px}
@@ -718,6 +721,80 @@ body.offline-mode .sidebar{margin-top:38px}
 </div><!-- /app -->
 
 <!-- ========== MODALS ========== -->
+
+<!-- FLAT STATUS MODAL -->
+<div class="modal-overlay" id="modal-flat-status">
+  <div class="modal" style="max-width:420px">
+    <div class="modal-header">
+      <div class="modal-title">📍 <span id="flat-status-title">Flat 101</span></div>
+      <button class="modal-close" onclick="closeModal('modal-flat-status')">✕</button>
+    </div>
+    <div class="modal-body">
+      <!-- Current status badge -->
+      <div id="flat-current-status-bar" style="margin-bottom:14px"></div>
+
+      <!-- 3 action buttons -->
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:18px">
+        <button class="btn btn-success" id="fsm-paid-btn" onclick="setFlatStatusAction('paid')" style="flex-direction:column;gap:4px;padding:14px 8px;border-radius:10px;font-size:13px">
+          ✅<br>Paid
+        </button>
+        <button class="btn btn-danger" id="fsm-denied-btn" onclick="setFlatStatusAction('denied')" style="flex-direction:column;gap:4px;padding:14px 8px;border-radius:10px;font-size:13px">
+          ❌<br>Denied
+        </button>
+        <button class="btn btn-warning" id="fsm-pending-btn" onclick="setFlatStatusAction('pending')" style="flex-direction:column;gap:4px;padding:14px 8px;border-radius:10px;font-size:13px">
+          ⏳<br>Pending
+        </button>
+      </div>
+
+      <!-- Paid form -->
+      <div id="fsm-paid-form" style="display:none;background:var(--saffron-light);border:1px solid var(--saffron);border-radius:10px;padding:14px">
+        <div class="section-label">💰 Record Donation</div>
+        <div class="form-row">
+          <div class="form-group"><label>Donor Name</label><input type="text" id="fsm-donor-name" placeholder="Flat owner / resident name"></div>
+          <div class="form-group"><label class="mandatory">Amount (₹)</label><input type="number" id="fsm-amount" min="1" placeholder="0"></div>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label>Payment Mode</label>
+            <select id="fsm-mode" onchange="toggleFsmBankSelect(this.value)">
+              <option value="Cash">Cash</option>
+              <option value="Online/UPI">Online/UPI</option>
+              <option value="Cheque">Cheque</option>
+              <option value="Bank Transfer">Bank Transfer</option>
+            </select>
+          </div>
+          <div class="form-group"><label>Date</label><input type="date" id="fsm-date"></div>
+        </div>
+        <div class="form-group" id="fsm-bank-group" style="display:none">
+          <label>💳 Received In Bank Account</label>
+          <select id="fsm-bank-account" style="border:2px solid var(--info)"></select>
+        </div>
+        <button class="btn btn-success btn-full" onclick="saveFsmPaid()">💰 Save &amp; Generate Receipt</button>
+      </div>
+
+      <!-- Denied form -->
+      <div id="fsm-denied-form" style="display:none;background:#FEF0F0;border:1px solid var(--danger);border-radius:10px;padding:14px">
+        <div class="section-label">❌ Mark as Denied</div>
+        <div class="form-group">
+          <label>Remark (optional)</label>
+          <input type="text" id="fsm-denied-remark" placeholder="e.g. Not interested, Owner not available...">
+        </div>
+        <button class="btn btn-danger btn-full" onclick="saveFsmDenied()">❌ Confirm Denied</button>
+      </div>
+
+      <!-- Pending info -->
+      <div id="fsm-pending-form" style="display:none;background:#FEF9E7;border:1px solid var(--warning);border-radius:10px;padding:14px">
+        <div class="section-label">⏳ Reset to Pending</div>
+        <p style="font-size:13px;color:var(--text2);margin-bottom:12px">This will remove any existing paid or denied record for this flat and reset it to pending. If paid, the receipt will be voided.</p>
+        <button class="btn btn-warning btn-full" onclick="saveFsmPending()">⏳ Reset to Pending</button>
+      </div>
+
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeModal('modal-flat-status')">Close</button>
+    </div>
+  </div>
+</div>
 
 <!-- COMMITTEE MODAL -->
 <div class="modal-overlay" id="modal-committee">
@@ -2165,6 +2242,179 @@ function loadDonationArea() {
   renderCollectionNavigator(eventId); renderDirectDonorsTable(eventId);
 }
 
+function getFlatStatus(flatKey, donations) {
+  var don = donations.find(function(d){ return d.flatKey===flatKey; });
+  if(!don) return {status:'pending', don:null};
+  if(don.status==='denied') return {status:'denied', don:don};
+  return {status:'paid', don:don};
+}
+
+function flatItemHtml(key, label, displayLabel, areaId, eventId, areaName, donations) {
+  var fs = getFlatStatus(key, donations);
+  var status = fs.status;
+  var don = fs.don;
+  var cssClass = 'flat-item fi-'+areaId+' flat-'+status;
+  var title = status==='paid' ? 'Paid: '+fmtAmt(don&&don.amount) : status==='denied' ? 'Denied' : 'Click to update';
+  var icon = status==='paid' ? '<br><span style="font-size:9px">✅</span>' : status==='denied' ? '<br><span style="font-size:9px">❌</span>' : '';
+  var amt = status==='paid' ? '<br><span style="font-size:8px;color:var(--success)">'+fmtAmt(don.amount)+'</span>' : '';
+  return '<div class="'+cssClass+'" data-status="'+status+'" title="'+title+'" onclick="openFlatStatusModal(\''+key+'\',\''+areaName.replace(/'/g,"\\'")+'\',\''+label.replace(/'/g,"\\'")+'\',\''+eventId+'\')">'+displayLabel+icon+amt+'</div>';
+}
+
+var _fsmContext = {}; // stores current flat context for the status modal
+
+function openFlatStatusModal(flatKey, areaName, flatLabel, eventId) {
+  _fsmContext = {flatKey:flatKey, areaName:areaName, flatLabel:flatLabel, eventId:eventId};
+  var donations = DB.get('donations').filter(function(d){ return d.eventId===eventId; });
+  var fs = getFlatStatus(flatKey, donations);
+
+  document.getElementById('flat-status-title').textContent = areaName + ' — ' + flatLabel;
+
+  // Current status bar
+  var statusHtml = {
+    paid: '<div class="alert alert-success">✅ Currently <strong>Paid</strong> — '+fmtAmt(fs.don&&fs.don.amount)+' by '+(fs.don&&fs.don.donorName||'Unknown')+'</div>',
+    denied: '<div class="alert alert-danger">❌ Currently <strong>Denied</strong>'+(fs.don&&fs.don.deniedRemark?' — '+fs.don.deniedRemark:'')+'</div>',
+    pending: '<div class="alert alert-warning">⏳ Currently <strong>Pending</strong> — no action taken yet</div>'
+  };
+  document.getElementById('flat-current-status-bar').innerHTML = statusHtml[fs.status] || statusHtml.pending;
+
+  // Hide all forms
+  ['fsm-paid-form','fsm-denied-form','fsm-pending-form'].forEach(function(id){
+    document.getElementById(id).style.display = 'none';
+  });
+
+  // Set date default
+  var dateEl = document.getElementById('fsm-date');
+  if(dateEl) dateEl.value = new Date().toISOString().split('T')[0];
+
+  // Populate bank accounts
+  var accounts = DB.get('bankaccounts');
+  var bankSel = document.getElementById('fsm-bank-account');
+  if(bankSel) bankSel.innerHTML = accounts.map(function(b){
+    return '<option value="'+b.name+'">🏦 '+b.name+(b.bankName?' — '+b.bankName:'')+'</option>';
+  }).join('') || '<option value="Bank Account">Bank Account</option>';
+
+  // Pre-fill if already paid
+  if(fs.status === 'paid' && fs.don) {
+    document.getElementById('fsm-donor-name').value = fs.don.donorName || '';
+    document.getElementById('fsm-amount').value = fs.don.amount || '';
+    document.getElementById('fsm-mode').value = fs.don.mode || 'Cash';
+    document.getElementById('fsm-date').value = fs.don.date || new Date().toISOString().split('T')[0];
+  } else {
+    document.getElementById('fsm-donor-name').value = '';
+    document.getElementById('fsm-amount').value = '';
+    document.getElementById('fsm-mode').value = 'Cash';
+    document.getElementById('fsm-bank-group').style.display = 'none';
+  }
+
+  // Pre-fill if denied
+  if(fs.status === 'denied' && fs.don) {
+    document.getElementById('fsm-denied-remark').value = fs.don.deniedRemark || '';
+  } else {
+    document.getElementById('fsm-denied-remark').value = '';
+  }
+
+  openModal('modal-flat-status');
+}
+
+function setFlatStatusAction(action) {
+  ['fsm-paid-form','fsm-denied-form','fsm-pending-form'].forEach(function(id){
+    document.getElementById(id).style.display = 'none';
+  });
+  if(action === 'paid') document.getElementById('fsm-paid-form').style.display = 'block';
+  else if(action === 'denied') document.getElementById('fsm-denied-form').style.display = 'block';
+  else if(action === 'pending') document.getElementById('fsm-pending-form').style.display = 'block';
+}
+
+function toggleFsmBankSelect(mode) {
+  var grp = document.getElementById('fsm-bank-group');
+  if(grp) grp.style.display = (mode === 'Cash') ? 'none' : 'block';
+}
+
+async function saveFsmPaid() {
+  if(!await guardAgainstStaleWipe()) return;
+  var amt = parseFloat(document.getElementById('fsm-amount').value);
+  if(!amt || amt <= 0) { showToast('Enter valid amount','error'); return; }
+  var date = document.getElementById('fsm-date').value;
+  if(!checkDateInFY(date)) { fyDateError(date); return; }
+  var ctx = _fsmContext;
+
+  // Remove existing donation for this flat+event if any (void receipt)
+  var existing = DB.get('donations').find(function(d){ return d.flatKey===ctx.flatKey && d.eventId===ctx.eventId; });
+  if(existing) {
+    if(existing.receipt && existing.status !== 'denied') voidReceiptNumber('donation', existing.receipt, existing.fy||currentFY);
+    var linkedV = DB.get('vouchers').filter(function(v){ return v.linkedDonationId===existing.id || v.ref===existing.receipt; });
+    linkedV.forEach(function(v){ DB.delete('vouchers',v.id); queueDelete('vouchers',v.id); });
+    DB.delete('donations', existing.id); queueDelete('donations', existing.id);
+  }
+
+  var donorName = document.getElementById('fsm-donor-name').value.trim() || 'Resident';
+  var mode = document.getElementById('fsm-mode').value;
+  var bankAcct = (mode==='Cash') ? 'Cash in Hand' : (document.getElementById('fsm-bank-account').value || 'Bank Account');
+  var receipt = generateReceiptNumber('donation', {donorName:donorName, amount:amt, date:date});
+
+  var don = {
+    id:uid(), eventId:ctx.eventId, flatKey:ctx.flatKey, type:'area',
+    status:'paid', donorName:donorName, amount:amt, mode:mode,
+    bankAccount:bankAcct, date:date, receipt:receipt,
+    collectedBy:currentUser.name, fy:currentFY, createdAt:now()
+  };
+  DB.push('donations', don); queueSync('donations', don);
+  var ev = DB.get('events').find(function(e){ return e.id===ctx.eventId; });
+  autoPostDonationReceipt(don, ev);
+  closeModal('modal-flat-status');
+  showReceipt(don);
+  renderCollectionNavigator(ctx.eventId);
+  loadDashboard();
+  addAudit('Donation','Flat '+ctx.flatKey+': '+fmtAmt(amt));
+  showToast('Recorded! '+receipt,'success');
+}
+
+async function saveFsmDenied() {
+  if(!await guardAgainstStaleWipe()) return;
+  var ctx = _fsmContext;
+  var remark = document.getElementById('fsm-denied-remark').value.trim();
+
+  // Remove any existing donation record for this flat
+  var existing = DB.get('donations').find(function(d){ return d.flatKey===ctx.flatKey && d.eventId===ctx.eventId; });
+  if(existing) {
+    if(existing.receipt && existing.status !== 'denied') voidReceiptNumber('donation', existing.receipt, existing.fy||currentFY);
+    var linkedV = DB.get('vouchers').filter(function(v){ return v.linkedDonationId===existing.id || v.ref===existing.receipt; });
+    linkedV.forEach(function(v){ DB.delete('vouchers',v.id); queueDelete('vouchers',v.id); });
+    DB.delete('donations', existing.id); queueDelete('donations', existing.id);
+  }
+
+  var don = {
+    id:uid(), eventId:ctx.eventId, flatKey:ctx.flatKey, type:'area',
+    status:'denied', donorName:'', amount:0, mode:'', date:new Date().toISOString().split('T')[0],
+    deniedRemark:remark, receipt:'', collectedBy:currentUser.name, fy:currentFY, createdAt:now()
+  };
+  DB.push('donations', don); queueSync('donations', don);
+  closeModal('modal-flat-status');
+  renderCollectionNavigator(ctx.eventId);
+  loadDashboard();
+  addAudit('Donation Denied','Flat '+ctx.flatKey+(remark?' — '+remark:''));
+  showToast('Marked as Denied','success');
+}
+
+async function saveFsmPending() {
+  if(!await guardAgainstStaleWipe()) return;
+  var ctx = _fsmContext;
+
+  var existing = DB.get('donations').find(function(d){ return d.flatKey===ctx.flatKey && d.eventId===ctx.eventId; });
+  if(existing) {
+    if(existing.receipt && existing.status !== 'denied') voidReceiptNumber('donation', existing.receipt, existing.fy||currentFY);
+    var linkedV = DB.get('vouchers').filter(function(v){ return v.linkedDonationId===existing.id || v.ref===existing.receipt; });
+    linkedV.forEach(function(v){ DB.delete('vouchers',v.id); queueDelete('vouchers',v.id); });
+    DB.delete('donations', existing.id); queueDelete('donations', existing.id);
+  }
+
+  closeModal('modal-flat-status');
+  renderCollectionNavigator(ctx.eventId);
+  loadDashboard();
+  addAudit('Donation Reset','Flat '+ctx.flatKey+' reset to Pending');
+  showToast('Reset to Pending','success');
+}
+
 function renderCollectionNavigator(eventId) {
   var areas = DB.get('areas');
   var donations = DB.get('donations').filter(function(d){ return d.eventId===eventId; });
@@ -2172,8 +2422,9 @@ function renderCollectionNavigator(eventId) {
   if(!areas.length) { el.innerHTML='<div class="alert alert-warning">No collection areas. Add from Collection Area Master.</div>'; return; }
   el.innerHTML = areas.map(function(a){
     var items = a.type==='building' ? (a.flats||[]) : (a.rooms||[]);
-    var paidKeys = new Set(donations.filter(function(d){ return d.flatKey; }).map(function(d){ return d.flatKey; }));
-    var paidCount = items.filter(function(i){ return paidKeys.has(i.key); }).length;
+    var paidCount = items.filter(function(i){ return getFlatStatus(i.key,donations).status==='paid'; }).length;
+    var deniedCount = items.filter(function(i){ return getFlatStatus(i.key,donations).status==='denied'; }).length;
+    var pendingCount = items.length - paidCount - deniedCount;
     var flatGridHtml = '';
     if(a.type==='building' && a.buildingType==='wing') {
       var wings = [...new Set(items.map(function(i){ return i.wing; }))];
@@ -2181,27 +2432,20 @@ function renderCollectionNavigator(eventId) {
         var wingItems = items.filter(function(i){ return i.wing===wName; });
         return '<div style="margin-bottom:12px"><div style="font-size:12px;font-weight:700;color:var(--saffron);background:var(--saffron-light);padding:5px 10px;border-radius:6px;margin-bottom:7px;display:inline-block">🏢 Wing '+wName+'</div>' +
           '<div class="flat-grid">'+wingItems.map(function(item){
-            var paid = paidKeys.has(item.key);
-            var don = donations.find(function(d){ return d.flatKey===item.key; });
-            return '<div class="flat-item '+(paid?'paid':'pending')+' fi-'+a.id+'" data-status="'+(paid?'paid':'pending')+'" data-wing="'+wName+'" onclick="'+(paid?'showReceiptById(\''+don.id+'\')':'openFlatDonation(\''+item.key+'\',\''+a.name.replace(/'/g,"\\'")+'\''+',\''+item.label.replace(/'/g,"\\'")+'\','+'\''+eventId+'\')' )+'" title="'+(paid?'Paid: '+fmtAmt(don&&don.amount):'Click to record')+'">'+item.flat+(paid?'<br><span style="font-size:10px">✅</span>':'')+'</div>';
+            return flatItemHtml(item.key, item.label, item.flat, a.id, eventId, a.name, donations);
           }).join('')+'</div></div>';
       }).join('');
     } else {
       flatGridHtml = '<div class="flat-grid">'+items.map(function(item){
-        var paid = paidKeys.has(item.key);
-        var don = donations.find(function(d){ return d.flatKey===item.key; });
-        return '<div class="flat-item '+(paid?'paid':'pending')+' fi-'+a.id+'" data-status="'+(paid?'paid':'pending')+'" onclick="'+(paid?'showReceiptById(\''+don.id+'\')':'openFlatDonation(\''+item.key+'\',\''+a.name.replace(/'/g,"\\'")+'\',\''+item.label.replace(/'/g,"\\'")+'\',\''+eventId+'\')' )+'" title="'+(paid?'Paid: '+fmtAmt(don&&don.amount):'Click to record')+'">'+item.label.split('—').pop().trim()+(paid?'<br><span style="font-size:10px">✅</span>':'')+'</div>';
+        return flatItemHtml(item.key, item.label, item.label.split('—').pop().trim(), a.id, eventId, a.name, donations);
       }).join('')+'</div>';
     }
-    // render shop grid if area has shops
     var shopGridHtml = '';
     if(a.shops && a.shops.length) {
-      var shopPaidKeys = new Set(donations.filter(function(d){ return d.flatKey && d.flatKey.indexOf(a.id+'_S')>-1; }).map(function(d){ return d.flatKey; }));
+      var shopPaidCount = a.shops.filter(function(s){ return getFlatStatus(s.key,donations).status==='paid'; }).length;
       shopGridHtml = '<div style="margin-top:12px"><div class="section-label">🏪 Shops'+(a.shopLocation?' — '+a.shopLocation:'')+'</div>' +
         '<div class="flat-grid">'+a.shops.map(function(shop){
-          var paid = shopPaidKeys.has(shop.key);
-          var don = donations.find(function(d){ return d.flatKey===shop.key; });
-          return '<div class="flat-item '+(paid?'paid':'pending')+' fi-'+a.id+'" data-status="'+(paid?'paid':'pending')+'" onclick="'+(paid?'showReceiptById(\''+don.id+'\')':'openFlatDonation(\''+shop.key+'\',\''+a.name.replace(/'/g,"\\'")+'\',\''+shop.label.replace(/'/g,"\\'")+'\',\''+eventId+'\')')+'" title="'+(paid?'Paid: '+fmtAmt(don&&don.amount):'Click to record')+'">'+shop.label.replace('Shop ','')+(paid?'<br><span style="font-size:10px">✅</span>':'')+'</div>';
+          return flatItemHtml(shop.key, shop.label, shop.label.replace('Shop ',''), a.id, eventId, a.name, donations);
         }).join('')+'</div></div>';
     }
     return '<div class="card" style="box-shadow:none;border:1px solid var(--border);margin-bottom:14px">' +
@@ -2209,10 +2453,12 @@ function renderCollectionNavigator(eventId) {
       '<div class="collection-summary">' +
       '<div class="collection-stat"><div class="num">'+items.length+'</div><div class="lbl">Total</div></div>' +
       '<div class="collection-stat" style="background:#E8F8F0"><div class="num" style="color:var(--success)">'+paidCount+'</div><div class="lbl">Paid</div></div>' +
-      '<div class="collection-stat" style="background:#FEF0F0"><div class="num" style="color:var(--danger)">'+(items.length-paidCount)+'</div><div class="lbl">Pending</div></div></div>' +
+      '<div class="collection-stat" style="background:#FEF0F0"><div class="num" style="color:var(--danger)">'+deniedCount+'</div><div class="lbl">Denied</div></div>' +
+      '<div class="collection-stat" style="background:#FEF9E7"><div class="num" style="color:var(--warning)">'+pendingCount+'</div><div class="lbl">Pending</div></div></div>' +
       '<div style="margin-bottom:10px;display:flex;gap:6px;flex-wrap:wrap">' +
       '<button class="btn btn-sm btn-secondary" onclick="filterFlats(\''+a.id+'\',\'all\')">All</button>' +
       '<button class="btn btn-sm btn-secondary" onclick="filterFlats(\''+a.id+'\',\'paid\')">✅ Paid</button>' +
+      '<button class="btn btn-sm btn-secondary" onclick="filterFlats(\''+a.id+'\',\'denied\')">❌ Denied</button>' +
       '<button class="btn btn-sm btn-secondary" onclick="filterFlats(\''+a.id+'\',\'pending\')">⏳ Pending</button></div>' +
       '<div id="fg-'+a.id+'">'+flatGridHtml+shopGridHtml+'</div></div>';
   }).join('');
@@ -2220,7 +2466,7 @@ function renderCollectionNavigator(eventId) {
 
 function filterFlats(areaId, status) {
   document.querySelectorAll('.fi-'+areaId).forEach(function(el){
-    el.style.display = (status==='all'||el.dataset.status===status) ? '' : 'none';
+    el.style.display = (status==='all' || el.dataset.status===status) ? '' : 'none';
   });
 }
 
@@ -4320,10 +4566,17 @@ function loadDashboard() {
   document.getElementById('dash-fee-paid').textContent = feePaid;
   document.getElementById('dash-fee-total').textContent = sabhashad.length;
   var donations = DB.get('donations').filter(function(d){ return d.fy===currentFY; });
-  var totalFlats=0, paidFlats=0;
-  var paidKeys = new Set(donations.filter(function(d){ return d.flatKey; }).map(function(d){ return d.flatKey; }));
-  areas.forEach(function(a){ var items=a.type==='building'?a.flats:a.rooms; totalFlats+=(items&&items.length||0); (items||[]).forEach(function(i){ if(paidKeys.has(i.key))paidFlats++; }); });
-  document.getElementById('dash-pending').textContent = totalFlats - paidFlats;
+  var totalFlats=0, paidFlats=0, deniedFlats=0;
+  areas.forEach(function(a){
+    var items = a.type==='building' ? a.flats : a.rooms;
+    totalFlats += (items&&items.length||0);
+    (items||[]).forEach(function(i){
+      var fs = getFlatStatus(i.key, donations);
+      if(fs.status==='paid') paidFlats++;
+      else if(fs.status==='denied') deniedFlats++;
+    });
+  });
+  document.getElementById('dash-pending').textContent = totalFlats - paidFlats - deniedFlats;
   var allEvents = DB.get('events').filter(function(e){ return e.fy===currentFY; });
   var barEl = document.getElementById('bar-chart'); var labelsEl = document.getElementById('bar-labels');
   if(allEvents.length) {
