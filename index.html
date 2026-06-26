@@ -210,8 +210,8 @@ body.offline-mode .sidebar{margin-top:38px}
     <div class="form-group"><label>Password</label><input type="password" id="login-pass" placeholder="Enter password" autocapitalize="off" autocorrect="off" spellcheck="false"></div>
     <button class="btn btn-primary btn-full" onclick="if(typeof doLogin==='function')doLogin();else location.reload()">Sign In →</button>
     <p style="text-align:center;margin-top:14px;font-size:12px;color:var(--text2)">Default: admin / admin123</p>
-    <p style="text-align:center;margin-top:10px">
-      <a href="#" onclick="clearCacheFromLoginScreen();return false;" style="font-size:12px;color:var(--saffron);text-decoration:underline">🧹 Having trouble? Clear cached data on this device</a>
+    <p style="text-align:center;margin-top:10px;font-size:12px;color:var(--text2)">
+      🧹 Local cache is cleared automatically on every login. Only Supabase data is loaded.
     </p>
   </div>
 </div>
@@ -1463,6 +1463,11 @@ async function doLogin() {
     errEl.textContent = 'No Supabase connection. Enter credentials in Backup & Restore page first.';
     return;
   }
+
+  // Clear any stale localStorage data so only Supabase data is used
+  var staleKeys = ['mandal','committee','sabhashad','areas','events','donations','vouchers',
+    'vendors','investments','ledgers','meetings','audit','settings','bankaccounts','syncQueue','wipeEpochSeen'];
+  staleKeys.forEach(function(k){ localStorage.removeItem('mm_'+k); });
 
   // Show loading state
   errEl.style.display = 'block';
@@ -4275,10 +4280,10 @@ async function markFeePaid(memberId, fy, minAmt) {
   var remarks = remarksEl&&remarksEl.value||'';
   if(paidAmt < minAmt && minAmt > 0) { showToast('Amount cannot be less than minimum '+fmtAmt(minAmt),'error'); return; }
   if(!checkDateInFY(date)) { fyDateError(date); return; }
-  var receipt = generateReceiptNumber('fee', {donorName: members[i].name, amount: paidAmt, date: date});
   var members = DB.get('sabhashad');
   var i = members.findIndex(function(x){ return x.id===memberId; });
   if(i<0) return;
+  var receipt = generateReceiptNumber('fee', {donorName: members[i].name, amount: paidAmt, date: date});
   if(!members[i].fees) members[i].fees = {};
   var bankEl = document.getElementById('fee-bank-'+fy);
   var bankAcct = (mode==='Cash') ? 'Cash in Hand' : (bankEl&&bankEl.value ? bankEl.value : (DB.get('bankaccounts')[0]&&DB.get('bankaccounts')[0].name||'Bank Account'));
@@ -4654,6 +4659,7 @@ function getGasUrl() {
 
 function queueSync(sheetName, record) {
   if (!record) return;
+  // Never store data in localStorage — Supabase is the only persistent store
   var toSync = Object.assign({}, record, {_updatedAt: now()});
   supabaseUpsert(sheetName, toSync);
 }
@@ -4668,9 +4674,14 @@ async function supabaseUpsert(table, record) {
       updated_at: new Date().toISOString()
     };
     var { error } = await sb.from(table).upsert(row, { onConflict: 'id' });
-    if (error) console.warn('Supabase upsert error [' + table + ']:', error.message);
+    if (error) {
+      console.warn('Supabase upsert error [' + table + ']:', error.message);
+      showToast('⚠️ Sync error for '+table+': '+error.message,'error');
+    }
+    // No localStorage — in-memory DB is already updated by the caller before queueSync is called
   } catch(e) {
     console.warn('Supabase upsert exception:', e.message);
+    showToast('⚠️ Sync exception: '+e.message,'error');
   }
 }
 
@@ -5042,15 +5053,17 @@ function deleteItem(collection, id, callback) {
 
 function queueDelete(sheetName, id) {
   var sb = getSupabase();
-  if (!sb) return;
+  if (!sb) {
+    showToast('⚠️ No Supabase connection — deletion is local only until reconnected','warning');
+    return;
+  }
   sb.from(sheetName).delete().eq('id', id)
     .then(function(res) {
       if (res.error) {
         console.warn('Supabase delete error:', res.error.message);
-        showToast('Delete synced locally but Supabase failed: '+res.error.message,'error');
-      } else {
-        console.log('Supabase delete OK:', sheetName, id);
+        showToast('⚠️ Supabase delete failed for '+sheetName+': '+res.error.message,'error');
       }
+      // Success: no toast needed — already shown by the calling function
     });
 }
 
@@ -5173,21 +5186,27 @@ function previewManualReceipt() {
       '</div>' +
       '<div style="display:flex;align-items:flex-start;justify-content:space-between;margin-top:10px;gap:10px">' +
         '<div style="border:1px solid #1A237E;border-radius:6px;padding:8px 12px;font-size:10px;color:#333;min-width:180px">' +
-          (mandal['reg-no'] ? '<div>📋 Registration No. : '+mandal['reg-no']+'</div>' : '') +
-          (mandal['id'] ? '<div>📋 Trust Reg. No. : '+mandal['id']+'</div>' : '') +
-          '<div style="margin-top:4px;font-size:9px;color:#777">Collected by: <strong>'+((currentUser&&currentUser.name)||'Admin')+'</strong></div>' +
-        '</div>' +
-        '<div style="text-align:center;flex:1">' +
-          '<div style="font-family:cursive;font-size:16px;color:#8B0000;font-weight:700">✦ Thank You! ✦</div>' +
-          '<div style="font-size:10px;color:#555;margin-top:4px">Your support inspires us to<br>serve the society better.</div>' +
-        '</div>' +
-        '<div style="text-align:center;min-width:140px">' +
-          '<div style="font-size:11px;font-weight:700;color:#1A237E">For '+(mandal.name||'MANDAL')+'</div>' +
-          '<div style="margin:24px 0 4px;border-top:1px solid #333;width:130px;margin-left:auto;margin-right:auto"></div>' +
-          '<div style="font-size:10px;color:#555">Authorized Signatory<br>(Name &amp; Signature)</div>' +
-          '<div style="width:55px;height:55px;border:2px dashed #1A237E;border-radius:50%;margin:8px auto 0;display:flex;align-items:center;justify-content:center;font-size:9px;color:#999;text-align:center">MANDAL<br>SEAL</div>' +
-        '</div>' +
+          (mandal['reg-no'] ? '<div>📋 Reg. No.: '+mandal['reg-no']+'</div>' : '') +
+        (mandal['trust-id'] ? '<div>📋 Trust Reg. No.: '+mandal['trust-id']+'</div>' : '') +
+        '<div style="margin-top:4px;font-size:9px;color:#777">Collected by: <strong>'+fee.collectedBy+'</strong></div>' +
       '</div>' +
+
+      // Center: thank you
+      '<div style="text-align:center;flex:1">' +
+        '<div style="font-family:cursive;font-size:16px;color:#8B0000;font-weight:700">✦ Thank You! ✦</div>' +
+        '<div style="font-size:10px;color:#555;margin-top:4px">Your support inspires us to<br>serve the society better.</div>' +
+      '</div>' +
+
+      // Right: signature + seal
+      '<div style="text-align:center;min-width:140px">' +
+        '<div style="font-size:11px;font-weight:700;color:#1A237E">For '+(mandal.name||'MANDAL')+'</div>' +
+        '<div style="margin:24px 0 4px;border-top:1px solid #333;width:130px;margin-left:auto;margin-right:auto"></div>' +
+        '<div style="font-size:10px;color:#555">Authorized Signatory<br>(Name &amp; Signature)</div>' +
+        (mandal.seal
+          ? '<img src="'+mandal.seal+'" style="width:55px;height:55px;border-radius:50%;border:2px solid #1A237E;object-fit:contain;margin:8px auto 0;display:block">'
+          : '<div style="width:55px;height:55px;border:2px dashed #1A237E;border-radius:50%;margin:8px auto 0;display:flex;align-items:center;justify-content:center;font-size:9px;color:#999;text-align:center">MANDAL<br>SEAL</div>') +
+      '</div>' +
+    '</div>' +
       (mandal.email||mandal['contact-phone']||mandal.address ?
       '<div style="margin-top:12px;border-top:2px solid #C9A84C;padding-top:8px;display:flex;justify-content:space-around;font-size:10px;color:#333">' +
         (mandal.address ? '<span>📍 '+mandal.address+'</span>' : '') +
