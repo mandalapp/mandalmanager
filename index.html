@@ -970,12 +970,6 @@ body.offline-mode .sidebar{margin-top:38px}
         <option value="Indirect Income">Indirect Income</option>
       </select>
     </div>
-    <div class="form-group"><label class="mandatory">Sub-Group</label>
-      <select id="ledger-subgroup">
-        <option value="Direct Income">Direct Income</option>
-        <option value="Indirect Income">Indirect Income</option>
-      </select>
-    </div>
     <div class="form-group"><label class="mandatory">Ledger Name</label><input type="text" id="ledger-name" placeholder="e.g. Ganesh Festival Donation"></div>
     <div class="form-group"><label>Opening Balance (₹)</label><input type="number" id="ledger-opening" value="0"></div>
   </div>
@@ -3033,40 +3027,13 @@ function renderLedgersByType(type) {
 }
 
 function renderLedgers() {
-  // Render whichever tab is currently active
   var activeTab = document.querySelector('#page-accounts .tab.active');
   if(activeTab) {
     var onclick = activeTab.getAttribute('onclick') || '';
     var match = onclick.match(/renderLedgersByType\('(\w+)'\)/);
     if(match) { renderLedgersByType(match[1]); return; }
   }
-  // Default: render income tab
   renderLedgersByType('income');
-}
-    var filtered = ledgers.filter(function(l){ return l.type===type; });
-    var elId = type==='income'?'income-ledgers-list':'expense-ledgers-list';
-    // For income/expense use dedicated tab elements; others append to expense tab as fallback
-    var elId2 = type==='income'?'income-ledgers-list': type==='expense'?'expense-ledgers-list':'expense-ledgers-list';
-    var el = document.getElementById(elId2);
-    if(!el) return;
-    if(!filtered.length) return; // skip empty types silently
-    // Add section header for asset/liability/capital inside expense tab
-    if(type !== 'income' && type !== 'expense') {
-      el.innerHTML += '<div class="ledger-group-header" style="background:var(--saffron-light);color:var(--saffron);margin-top:14px">'+typeLabels[type]+' Ledgers</div>';
-    }
-    var groups = [...new Set(filtered.map(function(l){ return l.group; }))];
-    el.innerHTML = groups.map(function(g){
-      var gLedgers = filtered.filter(function(l){ return l.group===g; });
-      return '<div class="ledger-group-header">📂 '+g+'</div>' + gLedgers.map(function(l){
-        var bal = getLedgerBalance(l.name);
-        return '<div class="ledger-row"><div><span>'+l.name+'</span><div style="font-size:11px;color:var(--text2)">Balance: '+fmtAmt(Math.abs(bal.balance))+'</div></div>' +
-          '<div style="display:flex;gap:6px;align-items:center">' +
-          '<button class="btn btn-sm btn-secondary" onclick="switchToLedgerView(\''+l.name+'\')">📒</button>' +
-          '<button class="btn btn-sm btn-secondary" onclick="editLedger(\''+l.id+'\')">✏️</button>' +
-          '<button class="btn btn-sm btn-danger" onclick="deleteItem(\'ledgers\',\''+l.id+'\',renderLedgers)">🗑️</button></div></div>';
-      }).join('');
-    }).join('');
-  });
 }
 
 function editLedger(id) {
