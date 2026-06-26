@@ -392,15 +392,18 @@ body.offline-mode .sidebar{margin-top:38px}
   <div class="card">
     <div class="card-header"><div class="card-title">📒 Account Master</div>
       <div style="display:flex;gap:6px">
-        <button class="btn btn-primary btn-sm" onclick="openModal('modal-ledger');editingId=null;resetForm('modal-ledger')">+ Add Ledger</button>
+        <button class="btn btn-primary btn-sm" onclick="openAddLedgerModal()">+ Add Ledger</button>
         <button class="btn btn-secondary btn-sm" onclick="openModal('modal-vendor');editingId=null;resetForm('modal-vendor')">+ Add Vendor</button>
         <button class="btn btn-secondary btn-sm" onclick="openInvestmentModal()">+ Add Investment</button>
       </div>
     </div>
     <div class="alert alert-info">💡 Tally-style ledgers. Vendors = Sundry Creditors. Investments = FD/RD/MF ledgers.</div>
     <div class="tabs">
-      <button class="tab active" onclick="switchTab(this,'acc-income')">Income</button>
-      <button class="tab" onclick="switchTab(this,'acc-expense')">Expense</button>
+      <button class="tab active" onclick="switchTab(this,'acc-income');renderLedgersByType('income')">Income</button>
+      <button class="tab" onclick="switchTab(this,'acc-expense');renderLedgersByType('expense')">Expense</button>
+      <button class="tab" onclick="switchTab(this,'acc-assets');renderLedgersByType('asset')">Assets</button>
+      <button class="tab" onclick="switchTab(this,'acc-liabilities');renderLedgersByType('liability')">Liabilities</button>
+      <button class="tab" onclick="switchTab(this,'acc-capital');renderLedgersByType('capital')">Capital</button>
       <button class="tab" onclick="switchTab(this,'acc-creditors')">Vendors</button>
       <button class="tab" onclick="switchTab(this,'acc-investment')">Investments</button>
       <button class="tab" onclick="switchTab(this,'acc-assetbank')">Bank &amp; Cash</button>
@@ -408,6 +411,9 @@ body.offline-mode .sidebar{margin-top:38px}
     </div>
     <div class="tab-content active" id="tab-acc-income"><div id="income-ledgers-list"></div></div>
     <div class="tab-content" id="tab-acc-expense"><div id="expense-ledgers-list"></div></div>
+    <div class="tab-content" id="tab-acc-assets"><div id="asset-ledgers-list"></div></div>
+    <div class="tab-content" id="tab-acc-liabilities"><div id="liability-ledgers-list"></div></div>
+    <div class="tab-content" id="tab-acc-capital"><div id="capital-ledgers-list"></div></div>
     <div class="tab-content" id="tab-acc-creditors">
       <div class="search-bar"><input class="search-input" placeholder="Search vendor ledgers..." oninput="filterTable('creditor-table',this.value)"></div>
       <div class="table-wrap"><table><thead><tr><th>Vendor / Ledger Name</th><th>Category</th><th>Mobile</th><th>GST</th><th>Balance Payable</th><th>Actions</th></tr></thead><tbody id="creditor-table"></tbody></table></div>
@@ -1393,7 +1399,7 @@ function showPage(page) {
   else if(page==='events') { renderEvents(); populateEventSelects(); }
   else if(page==='donations') loadDonationPage();
   else if(page==='meetings') renderMeetings();
-  else if(page==='accounts') { renderLedgers(); renderCreditorLedgers(); renderInvestments(); renderAssetBankCash(); populateLedgerViewSelect(); }
+  else if(page==='accounts') { renderLedgersByType('income'); renderCreditorLedgers(); renderInvestments(); renderAssetBankCash(); populateLedgerViewSelect(); }
   else if(page==='vouchers') renderVoucherList('Receipt');
   else if(page==='financials') renderFinancials();
   else if(page==='users') renderUsers();
@@ -2875,6 +2881,21 @@ function editBankAccount(id) {
 // ============================================================
 // LEDGER MASTER
 // ============================================================
+function openAddLedgerModal(presetType) {
+  editingId = null;
+  resetForm('modal-ledger');
+  openModal('modal-ledger');
+  setTimeout(function(){
+    var typeEl = document.getElementById('ledger-type');
+    if(typeEl && presetType) {
+      typeEl.value = presetType;
+      updateLedgerSubgroups(presetType);
+    } else {
+      updateLedgerSubgroups(typeEl ? typeEl.value : 'income');
+    }
+  }, 60);
+}
+
 function updateLedgerSubgroups(type) {
   var map = {
     income:    ['Direct Income','Indirect Income'],
@@ -2902,14 +2923,126 @@ async function saveLedger() {
     fy: currentFY, createdAt: now()
   };
   if(editingId) DB.update('ledgers',editingId,ledger); else DB.push('ledgers',ledger);
-  queueSync('ledgers',ledger); closeModal('modal-ledger'); renderLedgers();
+  queueSync('ledgers',ledger); closeModal('modal-ledger');
+  renderLedgersByType(type);
   addAudit('Ledger',(editingId?'Updated':'Added')+' '+name); showToast('Ledger saved!','success');
 }
 
+function renderLedgersByType(type) {
+  var elMap = {
+    income:    'income-ledgers-list',
+    expense:   'expense-ledgers-list',
+    asset:     'asset-ledgers-list',
+    liability: 'liability-ledgers-list',
+    capital:   'capital-ledgers-list'
+  };
+  var typeLabels = {
+    income:    'Income',
+    expense:   'Expense',
+    asset:     'Asset',
+    liability: 'Liability',
+    capital:   'Capital'
+  };
+  var normalBalanceMap = {
+    income: 'credit', expense: 'debit',
+    asset: 'debit', liability: 'credit', capital: 'credit'
+  };
+
+  var el = document.getElementById(elMap[type]);
+  if(!el) return;
+
+  var ledgers = DB.get('ledgers').filter(function(l){
+    return l.fy === currentFY && l.type === type;
+  });
+
+  if(!ledgers.length) {
+    el.innerHTML = '<div class="empty-state" style="padding:30px">' +
+      '<div class="icon">📒</div>' +
+      '<h3>No ' + typeLabels[type] + ' Ledgers</h3>' +
+      '<p>Click <strong>+ Add Ledger</strong> and select <strong>' + typeLabels[type] + '</strong> as the type.</p>' +
+      '</div>';
+    return;
+  }
+
+  // Group ledgers by sub-group
+  var groups = {};
+  ledgers.forEach(function(l){
+    var g = l.group || 'General';
+    if(!groups[g]) groups[g] = [];
+    groups[g].push(l);
+  });
+
+  var html = '';
+  Object.keys(groups).forEach(function(g){
+    var gLedgers = groups[g];
+    var groupTotal = 0;
+    var nb = normalBalanceMap[type];
+
+    html += '<div class="ledger-group-header">📂 ' + g + '</div>';
+
+    gLedgers.forEach(function(l){
+      var b = getFullLedgerBalance(l.name, currentFY);
+      var displayBal = nb === 'debit' ? (b.closingDr - b.closingCr) : (b.closingCr - b.closingDr);
+      groupTotal += displayBal;
+
+      var balColor = displayBal >= 0 ? 'var(--success)' : 'var(--danger)';
+      var balLabel = nb === 'debit'
+        ? (displayBal >= 0 ? 'Dr' : 'Cr')
+        : (displayBal >= 0 ? 'Cr' : 'Dr');
+
+      html += '<div class="ledger-row">' +
+        '<div>' +
+          '<span style="font-weight:600">' + l.name + '</span>' +
+          '<div style="font-size:11px;color:var(--text2);margin-top:2px">' +
+            'Opening: ' + fmtAmt(l.opening || 0) + ' | ' +
+            'Transactions Dr: ' + fmtAmt(b.txDr) + ' Cr: ' + fmtAmt(b.txCr) +
+          '</div>' +
+        '</div>' +
+        '<div style="display:flex;align-items:center;gap:10px">' +
+          '<div style="text-align:right">' +
+            '<div style="font-weight:700;color:' + balColor + '">' + fmtAmt(Math.abs(displayBal)) + ' ' + balLabel + '</div>' +
+            '<div style="font-size:10px;color:var(--text2)">Closing Balance</div>' +
+          '</div>' +
+          '<button class="btn btn-sm btn-secondary" onclick="switchToLedgerView(\'' + l.name + '\')" title="View Ledger">📒</button>' +
+          '<button class="btn btn-sm btn-secondary" onclick="editLedger(\'' + l.id + '\')" title="Edit">✏️</button>' +
+          '<button class="btn btn-sm btn-danger" onclick="deleteItem(\'ledgers\',\'' + l.id + '\',function(){renderLedgersByType(\'' + type + '\')})" title="Delete">🗑️</button>' +
+        '</div>' +
+      '</div>';
+    });
+
+    // Group subtotal row
+    html += '<div style="display:flex;justify-content:space-between;padding:6px 10px;background:var(--saffron-light);border-radius:6px;margin:4px 0 10px;font-size:12px;font-weight:700;color:var(--saffron)">' +
+      '<span>' + g + ' Total</span>' +
+      '<span>' + fmtAmt(Math.abs(groupTotal)) + (groupTotal < 0 ? ' (Cr)' : '') + '</span>' +
+    '</div>';
+  });
+
+  // Grand total for this type
+  var grandTotal = ledgers.reduce(function(sum, l){
+    var b = getFullLedgerBalance(l.name, currentFY);
+    var nb2 = normalBalanceMap[type];
+    return sum + (nb2 === 'debit' ? (b.closingDr - b.closingCr) : (b.closingCr - b.closingDr));
+  }, 0);
+
+  html += '<div style="display:flex;justify-content:space-between;padding:10px 14px;background:var(--deep);color:white;border-radius:8px;margin-top:8px;font-weight:800">' +
+    '<span>Total ' + typeLabels[type] + '</span>' +
+    '<span>' + fmtAmt(Math.abs(grandTotal)) + '</span>' +
+  '</div>';
+
+  el.innerHTML = html;
+}
+
 function renderLedgers() {
-  var ledgers = DB.get('ledgers').filter(function(l){ return l.fy===currentFY; });
-  var typeLabels = { income:'Income', expense:'Expense', asset:'Asset', liability:'Liability', capital:'Capital' };
-  ['income','expense','asset','liability','capital'].forEach(function(type){
+  // Render whichever tab is currently active
+  var activeTab = document.querySelector('#page-accounts .tab.active');
+  if(activeTab) {
+    var onclick = activeTab.getAttribute('onclick') || '';
+    var match = onclick.match(/renderLedgersByType\('(\w+)'\)/);
+    if(match) { renderLedgersByType(match[1]); return; }
+  }
+  // Default: render income tab
+  renderLedgersByType('income');
+}
     var filtered = ledgers.filter(function(l){ return l.type===type; });
     var elId = type==='income'?'income-ledgers-list':'expense-ledgers-list';
     // For income/expense use dedicated tab elements; others append to expense tab as fallback
