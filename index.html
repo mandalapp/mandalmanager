@@ -2828,11 +2828,10 @@ function autoPostFeeReceipt(member, fy, fee) {
 }
 
 function reverseFeeReceipt(member, fy, fee) {
-  var bankLedgers = DB.get('bankaccounts').map(function(b){ return b.name; });
-  var creditLedger = (fee.mode==='Cash'||fee.mode==='Cash in Hand') ? 'Cash in Hand' : (fee.bankAccount||bankLedgers[0]||'Bank Account');
-  postVoucher({type:'Journal',date:new Date().toISOString().split('T')[0],narration:'Reversal — Membership fee '+member.name+' FY '+fy,
-    ref:fee.receipt,entries:[{ledger:'Membership Fee Income',type:'debit',amount:fee.amount},{ledger:creditLedger,type:'credit',amount:fee.amount}],
-    linkedSabhashadId:member.id,fy:currentFY,auto:true});
+  // This function is now a no-op on undo.
+  // unpayFee() directly deletes the original receipt voucher from DB + Supabase.
+  // No reversal JV is posted — deletion is cleaner and avoids ghost entries.
+  console.log('reverseFeeReceipt: skipped — direct deletion used instead.');
 }
 
 function openVoucherModal(type) {
@@ -4293,20 +4292,47 @@ async function markFeePaid(memberId, fy, minAmt) {
 }
 
 async function unpayFee(memberId, fy) {
-  if(!confirm('Undo payment for FY '+fy+'? A reversal Journal entry will be posted.')) return;
+  if(!confirm('Undo payment for FY '+fy+'? The original receipt and any reversal entries will be permanently deleted.')) return;
   if(!await guardAgainstStaleWipe()) return;
   var members = DB.get('sabhashad');
   var i = members.findIndex(function(x){ return x.id===memberId; });
-  if(i>-1 && members[i].fees&&members[i].fees[fy]) {
-    var oldFeeReceipt = members[i].fees[fy].receipt;
-    reverseFeeReceipt(members[i], fy, members[i].fees[fy]);
-    // Void the receipt number so it is never reused
-    if(oldFeeReceipt) voidReceiptNumber('fee', oldFeeReceipt, currentFY);
-    delete members[i].fees[fy];
-  }
-  DB.set('sabhashad',members); queueSync('sabhashad',members[i]);
-  addAudit('Fee Undo','Reversed '+fy); showToast('Fee reversed','success');
-  showFeeModal(memberId); renderSabhashad(); loadDashboard();
+  if(i < 0) return;
+
+  var feeRecord = members[i].fees && members[i].fees[fy];
+  var oldReceipt = feeRecord ? feeRecord.receipt : null;
+
+  // 1. Find and permanently delete all vouchers linked to this fee receipt
+  //    (the original Receipt voucher AND any reversal Journal voucher)
+  var allVouchers = DB.get('vouchers');
+  var toDelete = allVouchers.filter(function(v){
+    return (oldReceipt && (v.ref === oldReceipt || v.narration.indexOf(oldReceipt) > -1))
+      || (v.linkedSabhashadId === memberId && (v.fy === fy || v.fy === currentFY)
+          && (v.type === 'Receipt' || v.type === 'Journal')
+          && v.auto === true);
+  });
+
+  // Delete each voucher locally and from Supabase
+  toDelete.forEach(function(v){
+    DB.delete('vouchers', v.id);
+    queueDelete('vouchers', v.id);
+  });
+
+  // 2. Void the receipt number in the series so it is never reused
+  if(oldReceipt) voidReceiptNumber('fee', oldReceipt, fy);
+
+  // 3. Clear the fee record from the member
+  delete members[i].fees[fy];
+  DB.set('sabhashad', members);
+  queueSync('sabhashad', members[i]);
+
+  addAudit('Fee Undo', members[i].name + ' FY ' + fy + ' — receipt ' + (oldReceipt||'?') + ' deleted. ' + toDelete.length + ' voucher(s) removed.');
+  showToast('Fee undone — receipt and vouchers permanently deleted', 'success');
+  showFeeModal(memberId);
+  renderSabhashad();
+  renderVoucherList('Receipt');
+  renderVoucherList('Journal');
+  renderVoucherList('All');
+  loadDashboard();
 }
 
 function printFeeReceipt(memberId, fy) {
