@@ -3260,6 +3260,25 @@ function renderTrialBalance(fy) {
     });
   });
 
+  // Accumulated Surplus opening balance row (manual override or auto-calc)
+  var s_tb = DB.getObj('settings');
+  var ob_tb = (s_tb.openingBalance && s_tb.openingBalance[targetFY]) || {};
+  var prevFYs_tb = getFYList().filter(function(f){ return f < targetFY; });
+  var accSurplus_tb = 0;
+  if(ob_tb.accumulatedSurplus !== undefined) {
+    accSurplus_tb = Number(ob_tb.accumulatedSurplus);
+  } else {
+    prevFYs_tb.forEach(function(f){ accSurplus_tb += calcNetProfitLoss(f); });
+  }
+  if(accSurplus_tb !== 0) {
+    rows += '<tr style="background:var(--bg)"><td colspan="4" style="font-weight:700;font-size:12px;color:var(--saffron);padding:8px 12px;letter-spacing:.5px;text-transform:uppercase">Reserves & Surplus</td></tr>';
+    rows += '<tr><td style="padding-left:20px">Accumulated Surplus (prev FYs)</td>' +
+      '<td style="text-align:right">'+fmtAmt(accSurplus_tb)+' Cr</td>' +
+      '<td style="text-align:right;color:var(--success)">'+fmtAmt(0)+'</td>' +
+      '<td style="text-align:right;color:var(--danger)">'+fmtAmt(accSurplus_tb)+'</td></tr>';
+    totalCr += accSurplus_tb;
+  }
+
   // Suspense row if not balanced
   var diff = Math.abs(totalDr - totalCr);
   var tbBalanced = diff < 0.01;
