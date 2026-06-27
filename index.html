@@ -211,7 +211,7 @@ body.offline-mode .sidebar{margin-top:38px}
     <button class="btn btn-primary btn-full" onclick="if(typeof doLogin==='function')doLogin();else location.reload()">Sign In →</button>
     <p style="text-align:center;margin-top:14px;font-size:12px;color:var(--text2)">Default: admin / admin123</p>
     <p style="text-align:center;margin-top:10px;font-size:12px;color:var(--text2)">
-      🧹 Local cache is cleared automatically on every login. Only Supabase data is loaded.
+      ☁️ All data is read and written directly from Supabase in real time.
     </p>
   </div>
 </div>
@@ -1331,7 +1331,7 @@ function getFYList() {
   return r.sort();
 }
 
-function createNewFY() {
+async function createNewFY() {
   var fys = getFYList();
   var lastYear = parseInt(fys[fys.length - 1].split('-')[0]);
   var nextFY = (lastYear + 1) + '-' + (lastYear + 2).toString().slice(2);
@@ -1339,10 +1339,12 @@ function createNewFY() {
   var s = DB.getObj('settings');
   if(!s.extraFYs) s.extraFYs = [];
   s.extraFYs.push(nextFY);
-  DB.set('settings', s); queueSync('settings', s);
-  addAudit('FY Created', 'Added ' + nextFY + ' to FY list');
-  showToast(nextFY + ' added!', 'success');
-  showFYModal();
+  try {
+    await supabaseWrite('settings', s);
+    addAudit('FY Created', 'Added ' + nextFY + ' to FY list');
+    showToast(nextFY + ' added!', 'success');
+    showFYModal();
+  } catch(e) { showToast('❌ Save failed: '+e.message,'error'); }
 }
 
 function parseLocalDate(dateStr) {
@@ -1730,11 +1732,12 @@ async function addFeeType() {
   if(!m.feeTypes) m.feeTypes = {};
   if(!m.feeTypes[currentFY]) m.feeTypes[currentFY] = [];
   m.feeTypes[currentFY].push({id:uid(), name:name, amount:amt});
-  DB.set('mandal', m);
-  queueSync('mandal', m);
-  document.getElementById('new-fee-type-name').value = '';
-  document.getElementById('new-fee-type-amount').value = '';
-  renderFeeTypes(); showToast('Fee type added!','success');
+  try {
+    await supabaseWrite('mandal', m);
+    document.getElementById('new-fee-type-name').value = '';
+    document.getElementById('new-fee-type-amount').value = '';
+    renderFeeTypes(); showToast('Fee type added!','success');
+  } catch(e) { showToast('❌ Save failed: '+e.message,'error'); }
 }
 
 function renderFeeTypes() {
@@ -1750,7 +1753,7 @@ function renderFeeTypes() {
 function deleteFeeType(id) {
   var m = DB.getObj('mandal');
   if(m.feeTypes && m.feeTypes[currentFY]) m.feeTypes[currentFY] = m.feeTypes[currentFY].filter(function(x){ return x.id!==id; });
-  DB.set('mandal', m); queueSync('mandal', m); renderFeeTypes();
+  supabaseWrite('mandal', m).then(function(){ renderFeeTypes(); }).catch(function(e){ showToast('❌ Delete failed: '+e.message,'error'); });
 }
 
 function getFeeTypes() { var m = DB.getObj('mandal'); return (m.feeTypes||{})[currentFY]||[]; }
@@ -1809,11 +1812,12 @@ function addMandalDocuments(category) {
     if(!m.documents) m.documents = {};
     if(!m.documents[category]) m.documents[category] = [];
     m.documents[category].push.apply(m.documents[category], files);
-    DB.set('mandal', m); queueSync('mandal', m);
-    input.value = ''; renderMandalDocuments();
-    var failedCount = files.filter(function(f){ return !f.uploaded; }).length;
-    if (failedCount) showToast(failedCount+' file(s) saved locally only — Drive upload failed','error');
-    else showToast(files.length+' file(s) uploaded to Drive!','success');
+    supabaseWrite('mandal', m).then(function(){
+      input.value = ''; renderMandalDocuments();
+      var failedCount = files.filter(function(f){ return !f.uploaded; }).length;
+      if (failedCount) showToast(failedCount+' file(s) saved — Drive upload failed for some','error');
+      else showToast(files.length+' file(s) uploaded to Drive!','success');
+    }).catch(function(e){ showToast('❌ Save failed: '+e.message,'error'); });
   });
 }
 
@@ -1848,7 +1852,7 @@ function renderMandalDocuments() {
 function removeMandalDocument(category, idx) {
   var m = DB.getObj('mandal');
   if(m.documents && m.documents[category]) m.documents[category].splice(idx,1);
-  DB.set('mandal', m); queueSync('mandal', m); renderMandalDocuments();
+  supabaseWrite('mandal', m).then(function(){ renderMandalDocuments(); }).catch(function(e){ showToast('❌ Remove failed: '+e.message,'error'); });
 }
 
 function previewMandalDocument(category, idx) {
@@ -1906,7 +1910,7 @@ function bulkUpload(kind, input) {
       if(kind==='committee') {
         var member = {id:uid(),name:cols[0],mobile:cols[1]||'',role:cols[2]||'General Member',
           email:cols[3]||'',dob:cols[4]||'',address:cols[5]||'',createdAt:now()};
-        DB.push('committee',member); queueSync('committee',member);
+        DB._cacheUpsert('committee', member); supabaseWrite('committee', member).catch(function(e){ console.warn('bulk committee:', e.message); });
       } else if(kind==='sabhashad') {
         var feeTypes = getFeeTypes();
         var ft = feeTypes.find(function(f){ return f.name.toLowerCase()===((cols[3]||'').toLowerCase()); });
@@ -1914,7 +1918,7 @@ function bulkUpload(kind, input) {
         areas.forEach(function(a){ var items=a.type==='building'?a.flats:a.rooms; (items||[]).forEach(function(it){ if(it.label===cols[4]) flatLink=it.key; }); });
         var sab = {id:uid(),name:cols[0],mobile:cols[1]||'',tshirt:cols[2]||'XL',
           feeTypeId:ft?ft.id:'',flatLink:flatLink,fees:{},createdAt:now()};
-        DB.push('sabhashad',sab); queueSync('sabhashad',sab);
+        DB._cacheUpsert('sabhashad', sab); supabaseWrite('sabhashad', sab).catch(function(e){ console.warn('bulk sabhashad:', e.message); });
       }
       count++;
     }
@@ -2549,9 +2553,12 @@ async function saveFlatDonation() {
     await supabaseWrite('donations', don);
     var ev = DB.get('events').find(function(e){ return e.id===don.eventId; });
     autoPostDonationReceipt(don, ev);
-    showReceipt(don); renderDirectDonorsTable(eventId); loadDashboard();
-    document.getElementById('dd-name').value=''; document.getElementById('dd-mobile').value=''; document.getElementById('dd-amount').value='';
-    addAudit('Donation','Direct: '+name+' '+fmtAmt(amt)); showToast('Recorded! '+receipt,'success');
+    closeModal('modal-flat-donation');
+    showReceipt(don);
+    renderCollectionNavigator(currentFlatKey.eventId);
+    loadDashboard();
+    addAudit('Donation','Flat '+currentFlatKey.flatKey+': '+fmtAmt(amt));
+    showToast('Recorded! '+receipt,'success');
   } catch(e) { showToast('❌ Save failed: '+e.message,'error'); }
 }
 
@@ -2571,12 +2578,14 @@ async function addDirectDonor() {
     sabhashadId:document.getElementById('dd-sabhashad').value,amount:amt,mode:document.getElementById('dd-mode').value,
     bankAccount:getSelectedBankForDonation('dd-mode','dd-bank-account'),
     date:ddDate,receipt:receipt,collectedBy:currentUser.name,fy:currentFY,createdAt:now()};
-  DB.push('donations',don); queueSync('donations',don);
-  var ev = DB.get('events').find(function(e){ return e.id===don.eventId; });
-  autoPostDonationReceipt(don,ev);
-  showReceipt(don); renderDirectDonorsTable(eventId); loadDashboard();
-  document.getElementById('dd-name').value=''; document.getElementById('dd-mobile').value=''; document.getElementById('dd-amount').value='';
-  addAudit('Donation','Direct: '+name+' '+fmtAmt(amt)); showToast('Recorded! '+receipt,'success');
+  try {
+    await supabaseWrite('donations', don);
+    var ev = DB.get('events').find(function(e){ return e.id===don.eventId; });
+    autoPostDonationReceipt(don, ev);
+    showReceipt(don); renderDirectDonorsTable(eventId); loadDashboard();
+    document.getElementById('dd-name').value=''; document.getElementById('dd-mobile').value=''; document.getElementById('dd-amount').value='';
+    addAudit('Donation','Direct: '+name+' '+fmtAmt(amt)); showToast('Recorded! '+receipt,'success');
+  } catch(e) { showToast('❌ Save failed: '+e.message,'error'); }
 }
 
 function renderDirectDonorsTable(eventId) {
@@ -3029,14 +3038,16 @@ async function savePurchaseVoucher() {
   }
   var vendor = DB.get('vendors').find(function(v){ return v.id===vendorId; });
   var invoiceFile = document.getElementById('pu-invoice').files[0];
-  function doSave(invoiceData) {
-    var v = postVoucher({type:'Purchase',date:date,ref:bill,narration:desc||'Purchase from '+vendor.name,
+
+  async function doSave(invoiceData) {
+    var pv = await postVoucher({type:'Purchase',date:date,ref:bill,narration:desc||'Purchase from '+vendor.name,
       entries:[{ledger:ledgerName,type:'debit',amount:amount},{ledger:vendor.name,type:'credit',amount:amount}],
       linkedVendorId:vendorId,linkedEventId:eventId,fy:currentFY});
-    if(v && invoiceData) {
-      var vouchers = DB.get('vouchers');
-      var idx = vouchers.findIndex(function(x){ return x.id===v.id; });
-      if(idx>-1){ vouchers[idx].invoiceFile = invoiceData; DB.set('vouchers', vouchers); }
+    if(!pv) return;
+    if(invoiceData) {
+      // attach invoice to the saved voucher in Supabase
+      pv.invoiceFile = invoiceData;
+      await supabaseWrite('vouchers', pv);
     }
     document.getElementById('pu-invoice').value = '';
     document.getElementById('pu-invoice-preview').style.display = 'none';
@@ -3044,6 +3055,7 @@ async function savePurchaseVoucher() {
     closeModal('modal-voucher-purchase'); renderVoucherList('Purchase'); loadDashboard();
     addAudit('Purchase Voucher',fmtAmt(amount)+' from '+vendor.name); showToast('Purchase voucher saved!','success');
   }
+
   if(invoiceFile) {
     var r = new FileReader();
     r.onload = function(e){
@@ -3136,7 +3148,7 @@ function viewVoucher(id) {
   openModal('modal-voucher-view');
 }
 
-function deleteVoucher(id){
+async function deleteVoucher(id){
   if(!isSuperAdmin(currentUser)){
     showToast('Only Super Admin can delete vouchers','error');
     return;
@@ -4157,7 +4169,7 @@ function saveOpeningBalance() {
   addAudit('Opening Balance','FY '+currentFY+': Cash '+fmtAmt(cash)+', Bank Total '+fmtAmt(bankTotal));
 }
   
-function saveOpeningBalance2() {
+async function saveOpeningBalance2() {
   var cash = parseFloat(document.getElementById('ob-cash2').value)||0;
   var s = DB.getObj('settings');
   if(!s.openingBalance) s.openingBalance = {};
@@ -4270,8 +4282,7 @@ function applyAutoSurplus() {
   document.getElementById('ob-surplus-status').textContent = 'Using auto-calculated value: ' + fmtAmt(autoSurplus);
   if(s.openingBalance && s.openingBalance[currentFY]) {
     delete s.openingBalance[currentFY].accumulatedSurplus;
-    DB.set('settings', s);
-    queueSync('settings', s);
+    supabaseWrite('settings', s).catch(function(e){ console.warn('applyAutoSurplus save:', e.message); });
   }
 }
 
@@ -4293,16 +4304,19 @@ function renderFYHistory() {
   }).join('');
 }
 
-function resetAllFees() {
+async function resetAllFees() {
   if(!confirm('Reset ALL Sabhashad member fees for FY '+currentFY+' to UNPAID?')) return;
   var members = DB.get('sabhashad');
   members.forEach(function(m){ if(!m.fees)m.fees={}; delete m.fees[currentFY]; });
-  members.forEach(function(m){ queueSync('sabhashad', m); });
-  DB.set('sabhashad',members); renderFYOverview(); renderSabhashad();
-  addAudit('Fee Reset','All fees reset for FY '+currentFY); showToast('All fees reset','success');
+  DB.set('sabhashad', members);
+  try {
+    for(var _ri=0; _ri<members.length; _ri++) await supabaseWrite('sabhashad', members[_ri]);
+    renderFYOverview(); renderSabhashad();
+    addAudit('Fee Reset','All fees reset for FY '+currentFY); showToast('All fees reset','success');
+  } catch(e) { showToast('❌ Reset failed: '+e.message,'error'); }
 }
 
-function startNewFY() {
+async function startNewFY() {
   if(!isSuperAdmin(currentUser)) { showToast('Only Super Admin','error'); return; }
   var fys = getFYList(); var idx = fys.indexOf(currentFY);
   if(idx >= fys.length-1) { showToast('No next FY available','error'); return; }
@@ -4321,11 +4335,13 @@ function startNewFY() {
       if(!b.openingBalances) b.openingBalances = {};
       b.openingBalances[nextFY] = bal;
     });
-    if(bankAccts.length) DB.set('bankaccounts', bankAccts);
     s.openingBalance[nextFY] = newOB;
-    DB.set('settings',s); queueSync('settings',s);
-    addAudit('New FY','Started '+nextFY+'. Closing FY '+currentFY+': Total '+fmtAmt(closing.total));
-    selectFY(nextFY); showToast('✅ FY '+nextFY+' started!','success');
+    try {
+      for(var _bai=0; _bai<bankAccts.length; _bai++) await supabaseWrite('bankaccounts', bankAccts[_bai]);
+      await supabaseWrite('settings', s);
+      addAudit('New FY','Started '+nextFY+'. Closing FY '+currentFY+': Total '+fmtAmt(closing.total));
+      selectFY(nextFY); showToast('✅ FY '+nextFY+' started!','success');
+    } catch(e) { showToast('❌ FY start failed: '+e.message,'error'); }
   }
 }
 
@@ -4656,7 +4672,13 @@ function editUser(id) {
   }, 60);
 }
 
-function toggleUserStatus(id, status) { DB.update('users',id,{status:status==='active'?'inactive':'active'}); renderUsers(); showToast('Status updated'); }
+function toggleUserStatus(id, status) {
+  var users = DB.get('users');
+  var user = users.find(function(u){ return u.id===id; });
+  if(!user) return;
+  user.status = status==='active' ? 'inactive' : 'active';
+  supabaseWrite('users', user).then(function(){ renderUsers(); showToast('Status updated','success'); }).catch(function(e){ showToast('❌ Update failed: '+e.message,'error'); });
+}
 
 // ============================================================
 // AUDIT
@@ -5046,11 +5068,10 @@ async function importBackup() {
         var k=tables[i];
         if(!data[k]) continue;
         if(k==='mandal'||k==='settings'){
-          if(data[k] && typeof data[k]==='object') { DB.set(k,data[k]); await supabaseUpsert(k,data[k]); }
+          if(data[k] && typeof data[k]==='object') { await supabaseWrite(k, data[k]); }
         } else {
           var rows = Array.isArray(data[k]) ? data[k] : [];
-          DB.set(k,rows);
-          for(var j=0;j<rows.length;j++) await supabaseUpsert(k,rows[j]);
+          for(var j=0;j<rows.length;j++) await supabaseWrite(k, rows[j]);
         }
       }
       addAudit('Restore','Data restored from backup');
@@ -5110,9 +5131,9 @@ async function wipeAllData() {
   var sb2 = getSupabase();
   if(sb2) {
     var seededLedgers = DB.get('ledgers');
-    for(var si=0; si<seededLedgers.length; si++) await supabaseUpsert('ledgers', seededLedgers[si]);
+    for(var si=0; si<seededLedgers.length; si++) await supabaseWrite('ledgers', seededLedgers[si]);
     var seededBank = DB.get('bankaccounts');
-    for(var bi=0; bi<seededBank.length; bi++) await supabaseUpsert('bankaccounts', seededBank[bi]);
+    for(var bi=0; bi<seededBank.length; bi++) await supabaseWrite('bankaccounts', seededBank[bi]);
   }
 
   addAudit('WIPE ALL DATA', 'Super Admin wiped all mandal data (local + Supabase) and started fresh');
@@ -5197,7 +5218,7 @@ function filterTable(tableId, val) {
   });
 }
 
-function deleteDonationCascade(id, callback) {
+async function deleteDonationCascade(id, callback) {
   if(!confirm('Delete this donation? Linked voucher entries will also be removed from Vouchers, FY Reports, and Dashboard everywhere.')) return;
   var don = DB.get('donations').find(function(x){ return x.id===id; });
   if(!don) return;
@@ -5399,7 +5420,7 @@ async function saveManualReceipt() {
     debitLedger = bankEl && bankEl.value ? bankEl.value : (DB.get('bankaccounts')[0]&&DB.get('bankaccounts')[0].name||'Bank Account');
   }
   var receiptNo = customReceiptNo || ('RCP-'+currentFY+'-'+String(DB.get('vouchers').filter(function(v){ return v.type==='Receipt'&&v.fy===currentFY; }).length+1).padStart(4,'0'));
-  var v = postVoucher({
+  var pv = await postVoucher({
     type:'Receipt', date:date, ref:receiptNo,
     narration:narration||(fromName+' — '+creditLedger),
     entries:[
@@ -5408,12 +5429,16 @@ async function saveManualReceipt() {
     ],
     linkedEventId:eventId, fy:currentFY, auto:false
   });
-  if(!v) return;
+  if(!pv) return;
   // store as donation record too for dashboard
   var don = {id:uid(),eventId:eventId,type:'manual',donorName:fromName,mobile:mobile,amount:amount,
     mode:mode,bankAccount:debitLedger,date:date,receipt:receiptNo,
     collectedBy:(currentUser&&currentUser.name)||'Admin',fy:currentFY,createdAt:now()};
-  DB.push('donations',don); queueSync('donations',don);
+  try {
+    await supabaseWrite('donations', don);
+  } catch(e) {
+    showToast('❌ Receipt save failed: '+e.message,'error'); return;
+  }
   closeModal('modal-manual-receipt');
   renderVoucherList('Receipt');
   loadDashboard();
@@ -5536,15 +5561,14 @@ function previewMandalLogo(input) {
           m2.logoDriveLink = uploaded.driveLink;
         }
         DB.set('mandal', m2);
-        queueSync('mandal', m2);
+        supabaseWrite('mandal', m2).catch(function(e){ console.warn('logo sync:', e.message); });
         showToast('✅ Logo uploaded and synced!','success');
       })
       .catch(function(err){
         var m2 = DB.getObj('mandal');
         m2.logo = e.target.result;
-        DB.set('mandal', m2);
-        queueSync('mandal', m2);
-        showToast('Logo saved locally — Supabase upload failed','error');
+        supabaseWrite('mandal', m2).catch(function(e){ console.warn('logo sync fallback:', e.message); });
+        showToast('Logo saved — Supabase upload failed','error');
       });
   };
   r.readAsDataURL(input.files[0]);
@@ -5581,8 +5605,7 @@ function saveReceiptSeriesConfig(type, fy, config) {
   if (!s.receiptSeries) s.receiptSeries = {};
   if (!s.receiptSeries[fy]) s.receiptSeries[fy] = {};
   s.receiptSeries[fy][type] = config;
-  DB.set('settings', s);
-  queueSync('settings', s);
+  supabaseWrite('settings', s).catch(function(e){ console.warn('receipt series save:', e.message); });
 }
 
 /**
@@ -5658,8 +5681,7 @@ async function generateReceiptNumber(type, meta) {
   });
   cfg.nextNum = Math.max((cfg.nextNum || 1), num + 1);
   s.receiptSeries[fy][type] = cfg;
-  DB.set('settings', s);
-  queueSync('settings', s);
+  supabaseWrite('settings', s).catch(function(e){ console.warn('receipt counter save:', e.message); });
 
   return receiptStr;
 }
@@ -5716,8 +5738,7 @@ function voidReceiptNumber(type, receiptStr, fy) {
   }
 
   s.receiptSeries[fy][type] = cfg;
-  DB.set('settings', s);
-  queueSync('settings', s);
+  supabaseWrite('settings', s).catch(function(e){ console.warn('void receipt save:', e.message); });
 }
 
 /**
@@ -5861,9 +5882,7 @@ function previewMandalSeal(input) {
     document.getElementById('mandal-seal-preview').innerHTML = '<img src="'+e.target.result+'" style="max-width:140px;border-radius:8px">';
     var m = DB.getObj('mandal');
     m.seal = e.target.result;
-    DB.set('mandal', m);
-    queueSync('mandal', m);
-    showToast('Seal saved!','success');
+    supabaseWrite('mandal', m).then(function(){ showToast('Seal saved!','success'); }).catch(function(e){ showToast('❌ Seal save failed: '+e.message,'error'); });
   };
   r.readAsDataURL(input.files[0]);
 }
