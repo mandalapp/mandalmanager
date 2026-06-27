@@ -3823,7 +3823,8 @@ function renderTrialBalance(fy) {
     });
   });
 
-  // Accumulated Surplus
+  // Accumulated Surplus (prev FYs) — always add to TB as a Credit opening balance entry
+  // This represents retained earnings brought forward and MUST appear in TB to balance it.
   var s_tb = DB.getObj('settings');
   var ob_tb = (s_tb.openingBalance && s_tb.openingBalance[targetFY]) || {};
   var prevFYs_tb = getFYList().filter(function(f){ return f < targetFY; });
@@ -3833,11 +3834,23 @@ function renderTrialBalance(fy) {
   } else {
     prevFYs_tb.forEach(function(f){ accSurplus_tb += calcNetProfitLoss(f); });
   }
+
   if(accSurplus_tb !== 0) {
-    // Check not already in allLedgers to avoid double-counting
-    var alreadyHas = allLedgers.find(function(l){ return l.name === 'Accumulated Surplus (prev FYs)' || (l.name === 'Reserves & Surplus' && l.group === 'Reserves & Surplus'); });
-    if(!alreadyHas) {
-      rows += '<tr style="background:var(--bg)"><td colspan="5" style="font-weight:700;font-size:12px;color:var(--saffron);padding:8px 12px;letter-spacing:.5px;text-transform:uppercase">Reserves & Surplus</td></tr>';
+    // Check if a user-defined ledger named exactly 'Accumulated Surplus (prev FYs)' exists
+    // to avoid double-counting ONLY that specific ledger name.
+    // A generic 'Reserves & Surplus' ledger does NOT represent this — never skip because of it.
+    var alreadyHasAccSurplus = allLedgers.find(function(l){
+      return l.name === 'Accumulated Surplus (prev FYs)';
+    });
+
+    if(!alreadyHasAccSurplus) {
+      // Check if we already rendered a Reserves & Surplus group header above
+      var hasReserveGroup = allLedgers.find(function(l){
+        return l.group === 'Reserves & Surplus';
+      });
+      if(!hasReserveGroup) {
+        rows += '<tr style="background:var(--bg)"><td colspan="5" style="font-weight:700;font-size:12px;color:var(--saffron);padding:8px 12px;letter-spacing:.5px;text-transform:uppercase">Reserves &amp; Surplus</td></tr>';
+      }
       rows += '<tr>' +
         '<td style="padding-left:20px">Accumulated Surplus (prev FYs)</td>' +
         '<td style="text-align:right"><span style="color:var(--danger)">'+fmtAmt(accSurplus_tb)+'</span></td>' +
