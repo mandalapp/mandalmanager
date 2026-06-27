@@ -261,7 +261,8 @@ body.offline-mode .sidebar{margin-top:38px}
         <button class="hamburger" onclick="toggleSidebar()">☰</button>
         <h1 id="page-title">Dashboard</h1>
       </div>
-      <div class="topbar-actions">
+      <<div class="topbar-actions">
+        <button class="btn btn-secondary btn-sm" onclick="manualRefreshData()" id="refresh-btn" title="Refresh latest data from server">🔄 Refresh</button>
         <div class="fy-selector" onclick="showFYModal()">📅 <span id="fy-display">FY 2026-27</span> ▾</div>
       </div>
     </div>
@@ -1474,6 +1475,44 @@ function populateFYSelects() {
   // Term/FY selection removed — committee members now persist across all years
 }
   
+async function restoreSession() {
+  try {
+    var saved = sessionStorage.getItem('mm_session_user');
+    if (!saved) return false;
+    var sessionData = JSON.parse(saved);
+    if (!sessionData || !sessionData.id) return false;
+    var sb = getSupabase();
+    if (!sb) return false;
+    // Pull fresh data silently
+    await pullFromSupabase();
+    // Re-verify user still exists and is active in Supabase
+    var user = DB.get('users').find(function(x) {
+      return x.id === sessionData.id && x.username === sessionData.username && x.status === 'active';
+    });
+    if (!user) { sessionStorage.removeItem('mm_session_user'); return false; }
+    currentUser = user;
+    document.getElementById('login-screen').style.display = 'none';
+    document.getElementById('app').style.display = 'block';
+    document.getElementById('user-avatar').textContent = user.name[0].toUpperCase();
+    document.getElementById('user-display-name').textContent = user.name;
+    document.getElementById('user-display-role').textContent = roleLabelsForUser(user).join(', ');
+    var s = DB.getObj('settings');
+    if (s && s.currentFY) { currentFY = s.currentFY; }
+    updateFYDisplay();
+    applySidebarPermissions();
+    loadMandal();
+    loadDashboard();
+    showPage('dashboard');
+    startLivePolling();
+    resetAutoLogoutTimer();
+    return true;
+  } catch(e) {
+    console.warn('Session restore failed:', e.message);
+    try { sessionStorage.removeItem('mm_session_user'); } catch(ex) {}
+    return false;
+  }
+}
+
 async function doLogin() {
   var u = document.getElementById('login-user').value.trim().toLowerCase();
   var p = document.getElementById('login-pass').value.trim();
@@ -1531,6 +1570,10 @@ async function doLogin() {
   var user = DB.get('users').find(function(x){ return x.username===u && x.password===p && x.status==='active'; });
   if(!user) { errEl.style.display='block'; errEl.textContent='Invalid username or password.'; return; }
   currentUser = user;
+  // Persist session so page refresh doesn't log out
+  try {
+    sessionStorage.setItem('mm_session_user', JSON.stringify({ id: user.id, username: user.username }));
+  } catch(e) {}
   document.getElementById('login-screen').style.display = 'none';
   document.getElementById('app').style.display = 'block';
   document.getElementById('user-avatar').textContent = user.name[0].toUpperCase();
@@ -1550,12 +1593,15 @@ async function doLogin() {
   });
   addAudit('Login', 'User logged in');
   startLivePolling();
+  resetAutoLogoutTimer();
 }
 
 function doLogout() {
   addAudit('Logout','User logged out');
   stopLivePolling();
+  clearAutoLogoutTimer();
   currentUser = null;
+  try { sessionStorage.removeItem('mm_session_user'); } catch(e) {}
   document.getElementById('app').style.display = 'none';
   document.getElementById('login-screen').style.display = 'flex';
 }
@@ -5964,6 +6010,50 @@ async function testSupabaseConnection() {
 }
 
 // ============================================================
+// AUTO-LOGOUT & REFRESH
+// ============================================================
+var _autoLogoutTimer = null;
+var AUTO_LOGOUT_MS = 10 * 60 * 1000; // 10 minutes
+
+function resetAutoLogoutTimer() {
+  clearAutoLogoutTimer();
+  if (!currentUser) return;
+  _autoLogoutTimer = setTimeout(function() {
+    if (!currentUser) return;
+    showToast('⏰ Session expired due to inactivity. Please log in again.', 'warning');
+    setTimeout(function() { doLogout(); }, 2000);
+  }, AUTO_LOGOUT_MS);
+}
+
+function clearAutoLogoutTimer() {
+  if (_autoLogoutTimer) { clearTimeout(_autoLogoutTimer); _autoLogoutTimer = null; }
+}
+
+// Reset timer on any user interaction
+(function() {
+  var events = ['mousemove', 'mousedown', 'keydown', 'touchstart', 'scroll', 'click'];
+  events.forEach(function(evt) {
+    document.addEventListener(evt, function() {
+      if (currentUser) resetAutoLogoutTimer();
+    }, { passive: true });
+  });
+})();
+
+async function manualRefreshData() {
+  var btn = document.getElementById('refresh-btn');
+  if (btn) { btn.textContent = '⏳ Refreshing...'; btn.disabled = true; }
+  try {
+    await pullFromSupabase();
+    refreshCurrentPageView();
+    showToast('✅ Data refreshed successfully', 'success');
+  } catch(e) {
+    showToast('❌ Refresh failed: ' + e.message, 'error');
+  } finally {
+    if (btn) { btn.textContent = '🔄 Refresh'; btn.disabled = false; }
+  }
+}
+
+// ============================================================
 // START
 // ============================================================
 try {
@@ -5978,8 +6068,14 @@ try {
 }
 
 document.addEventListener('DOMContentLoaded', function(){
-  var lu = document.getElementById('login-user'); if(lu) lu.focus();
   updateOfflineBanner();
+  // Attempt to restore previous session before showing login
+  restoreSession().then(function(restored) {
+    if (!restored) {
+      var lu = document.getElementById('login-user');
+      if (lu) lu.focus();
+    }
+  });
 });
 </script>
 </body>
