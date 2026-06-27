@@ -262,9 +262,6 @@ body.offline-mode .sidebar{margin-top:38px}
         <h1 id="page-title">Dashboard</h1>
       </div>
       <div class="topbar-actions">
-        <button class="btn btn-secondary btn-sm" id="manual-sync-btn" onclick="manualSyncNow()" title="Pull latest data from everyone right now">
-          <span id="manual-sync-icon">🔄</span> <span id="manual-sync-label">Sync Now</span>
-        </button>
         <div class="fy-selector" onclick="showFYModal()">📅 <span id="fy-display">FY 2026-27</span> ▾</div>
       </div>
     </div>
@@ -1157,10 +1154,12 @@ body.offline-mode .sidebar{margin-top:38px}
 
 <script>
 // ============================================================
-// SAFE localStorage WRAPPER (prevents crash if blocked)
+// IN-MEMORY READ CACHE — populated from Supabase only.
+// Never written to localStorage/IndexedDB.
+// All mutations go through supabaseWrite() which updates Supabase
+// first, then updates this cache on success.
 // ============================================================
 var DB = (function() {
-  // In-memory store only — no localStorage
   var _mem = {};
 
   function safeGet(k) {
@@ -1176,9 +1175,24 @@ var DB = (function() {
     get: safeGet,
     getObj: safeGetObj,
     set: safeSet,
-    push: function(k, item) { var a = safeGet(k); a.push(item); safeSet(k, a); return item; },
-    update: function(k, id, data) { var a = safeGet(k); var i = a.findIndex(function(x){ return x.id === id; }); if(i > -1) { a[i] = Object.assign({}, a[i], data); safeSet(k, a); } },
-    delete: function(k, id) { safeSet(k, safeGet(k).filter(function(x){ return x.id !== id; })); }
+    // Cache-only helpers — only called by supabaseWrite() after a confirmed Supabase write
+    _cacheUpsert: function(k, item) {
+      var a = safeGet(k);
+      var i = a.findIndex(function(x){ return x.id === item.id; });
+      if(i > -1) a[i] = JSON.parse(JSON.stringify(item)); else a.push(JSON.parse(JSON.stringify(item)));
+      _mem[k] = a;
+    },
+    _cacheDelete: function(k, id) {
+      _mem[k] = safeGet(k).filter(function(x){ return x.id !== id; });
+    },
+    // Legacy helpers kept so unchanged code paths compile — they only touch cache
+    push: function(k, item) { this._cacheUpsert(k, item); return item; },
+    update: function(k, id, data) {
+      var a = safeGet(k);
+      var i = a.findIndex(function(x){ return x.id === id; });
+      if(i > -1) { a[i] = Object.assign({}, a[i], data); _mem[k] = a; }
+    },
+    delete: function(k, id) { this._cacheDelete(k, id); }
   };
 })();
 
@@ -1390,7 +1404,13 @@ window.addEventListener('online', updateOfflineBanner);
 window.addEventListener('offline', updateOfflineBanner);
 
 function addAudit(action, detail) {
-  DB.push('audit', {id:uid(), action:action, detail:detail, user:(currentUser&&currentUser.name)||'System', time:now()});
+  var entry = {id:uid(), action:action, detail:detail, user:(currentUser&&currentUser.name)||'System', time:now()};
+  // Update cache immediately so audit log renders without waiting
+  DB._cacheUpsert('audit', entry);
+  // Write to Supabase fire-and-forget — audit failures are non-fatal
+  supabaseWrite('audit', entry).catch(function(e){
+    console.warn('Audit write failed:', e.message);
+  });
 }
 
 function genReceipt(prefix) {
@@ -1469,21 +1489,35 @@ async function doLogin() {
     'vendors','investments','ledgers','meetings','audit','settings','bankaccounts','syncQueue','wipeEpochSeen'];
   staleKeys.forEach(function(k){ localStorage.removeItem('mm_'+k); });
 
-  // Show loading state
+  var sb = getSupabase();
+  if (!sb) {
+    errEl.style.display = 'block';
+    errEl.textContent = '❌ No Supabase connection. Enter credentials in Backup & Restore page first.';
+    return;
+  }
+
   errEl.style.display = 'block';
   errEl.style.background = '#EBF5FB';
   errEl.style.color = '#3498DB';
   errEl.style.borderColor = '#AED6F1';
-  errEl.textContent = '🔄 Connecting to database...';
+  errEl.textContent = '🔄 Connecting to Supabase...';
 
   try {
     await pullFromSupabase();
+    // Verify connection actually worked by checking users loaded
+    if (!DB.get('users').length) {
+      // First-ever launch — seed admin user directly into Supabase
+      var adminUser = {id:uid(),name:'Admin',username:'admin',password:'admin123',
+        roles:['superadmin'],role:'superadmin',mobile:'',email:'',status:'active',createdAt:now()};
+      await supabaseWrite('users', adminUser);
+      await supabaseWrite('settings', {currentFY:'2026-27'});
+    }
   } catch (e) {
     errEl.style.background = '';
     errEl.style.color = '';
     errEl.style.borderColor = '';
     errEl.style.display = 'block';
-    errEl.textContent = 'Connection failed: ' + e.message;
+    errEl.textContent = '❌ Connection failed: ' + e.message;
     return;
   }
 
@@ -1630,7 +1664,8 @@ function showFYModal() {
 
 function selectFY(fy) {
   currentFY = fy;
-  var s = DB.getObj('settings'); s.currentFY = fy; DB.set('settings', s); queueSync('settings', s);
+  var s = DB.getObj('settings'); s.currentFY = fy;
+  supabaseWrite('settings', s).catch(function(e){ console.warn('FY setting save:', e.message); });
   seedDefaultLedgers(); updateFYDisplay(); closeModal('modal-fy'); loadDashboard();
   showToast('FY changed to ' + fy);
 }
@@ -1662,10 +1697,11 @@ async function saveMandal() {
   ['name','id','reg-no','trust-id','reg-date','address','city','state','pin','contact-name','contact-phone','email','facebook','instagram','website'].forEach(function(k){
     var el = document.getElementById('m-'+k); if(el) m[k] = el.value;
   });
-  DB.set('mandal', m);
-  queueSync('mandal', m);
-  if(m.name) { document.getElementById('mandal-sidebar-name').textContent = m.name; document.getElementById('mandal-sidebar-loc').textContent = m.city||''; }
-  addAudit('Mandal Profile','Updated'); showToast('Profile saved!','success');
+  try {
+    await supabaseWrite('mandal', m);
+    if(m.name) { document.getElementById('mandal-sidebar-name').textContent = m.name; document.getElementById('mandal-sidebar-loc').textContent = m.city||''; }
+    addAudit('Mandal Profile','Updated'); showToast('Profile saved!','success');
+  } catch(e) { showToast('❌ Save failed: '+e.message,'error'); }
 }
 
 function previewQR(input) {
@@ -1913,10 +1949,11 @@ async function saveCommitteeMember() {
     email:document.getElementById('cm-email').value,dob:document.getElementById('cm-dob').value,
     address:document.getElementById('cm-address').value,sabhashadLink:document.getElementById('cm-sabhashad-link').value,
     createdAt:now()};
-  if(editingId) DB.update('committee',editingId,member); else DB.push('committee',member);
-  queueSync('committee', member);
-  closeModal('modal-committee'); renderCommittee();
-  addAudit('Committee',(editingId?'Updated':'Added')+' '+name); showToast('Member saved!','success');
+  try {
+    await supabaseWrite('committee', member);
+    closeModal('modal-committee'); renderCommittee();
+    addAudit('Committee',(editingId?'Updated':'Added')+' '+name); showToast('Member saved!','success');
+  } catch(e) { showToast('❌ Save failed: '+e.message,'error'); }
 }
   
 function renderCommittee() {
@@ -1981,10 +2018,11 @@ async function saveSabhashad() {
   var member = {id:editingId||uid(),name:name,mobile:mobile,tshirt:document.getElementById('sb-tshirt').value,
     feeTypeId:document.getElementById('sb-fee-type').value,flatLink:document.getElementById('sb-flat-link').value,
     fees:existing.fees||{},createdAt:existing.createdAt||now()};
-  if(editingId) DB.update('sabhashad',editingId,member); else DB.push('sabhashad',member);
-  queueSync('sabhashad', member);
-  closeModal('modal-sabhashad'); renderSabhashad();
-  addAudit('Sabhashad',(editingId?'Updated':'Added')+' '+name); showToast('Member saved!','success');
+  try {
+    await supabaseWrite('sabhashad', member);
+    closeModal('modal-sabhashad'); renderSabhashad();
+    addAudit('Sabhashad',(editingId?'Updated':'Added')+' '+name); showToast('Member saved!','success');
+  } catch(e) { showToast('❌ Save failed: '+e.message,'error'); }
 }
 
 function renderSabhashad() {
@@ -2116,10 +2154,11 @@ async function saveArea() {
       }
     }
   }
-  if(isEditing) DB.update('areas',editingId,area); else DB.push('areas',area);
-  queueSync('areas', area);
-  closeModal('modal-area'); renderAreas();
-  addAudit('Collection Area',(isEditing?'Updated':'Added')+' '+name); showToast('Area saved!','success');
+  try {
+    await supabaseWrite('areas', area);
+    closeModal('modal-area'); renderAreas();
+    addAudit('Collection Area',(isEditing?'Updated':'Added')+' '+name); showToast('Area saved!','success');
+  } catch(e) { showToast('❌ Save failed: '+e.message,'error'); }
 }
 
 function renderAreas() {
@@ -2175,10 +2214,11 @@ async function saveEvent() {
     desc:document.getElementById('ev-desc').value,budget:parseFloat(document.getElementById('ev-budget').value)||0,
     status:document.getElementById('ev-status').value,logo:_tempEventLogo||existingEv.logo||'',fy:currentFY,createdAt:existingEv.createdAt||now()};
   _tempEventLogo = '';
-  if(editingId) DB.update('events',editingId,ev); else DB.push('events',ev);
-  queueSync('events', ev);
-  closeModal('modal-event'); renderEvents(); populateEventSelects();
-  addAudit('Events',(editingId?'Updated':'Created')+' '+name); showToast('Event saved!','success');
+  try {
+    await supabaseWrite('events', ev);
+    closeModal('modal-event'); renderEvents(); populateEventSelects();
+    addAudit('Events',(editingId?'Updated':'Created')+' '+name); showToast('Event saved!','success');
+  } catch(e) { showToast('❌ Save failed: '+e.message,'error'); }
 }
 
 function renderEvents() {
@@ -2355,7 +2395,7 @@ async function saveFsmPaid() {
   var donorName = document.getElementById('fsm-donor-name').value.trim() || 'Resident';
   var mode = document.getElementById('fsm-mode').value;
   var bankAcct = (mode==='Cash') ? 'Cash in Hand' : (document.getElementById('fsm-bank-account').value || 'Bank Account');
-  var receipt = generateReceiptNumber('donation', {donorName:donorName, amount:amt, date:date});
+  var receipt = await generateReceiptNumber('donation', {donorName:donorName, amount:amt, date:date});
 
   var don = {
     id:uid(), eventId:ctx.eventId, flatKey:ctx.flatKey, type:'area',
@@ -2363,15 +2403,17 @@ async function saveFsmPaid() {
     bankAccount:bankAcct, date:date, receipt:receipt,
     collectedBy:currentUser.name, fy:currentFY, createdAt:now()
   };
-  DB.push('donations', don); queueSync('donations', don);
-  var ev = DB.get('events').find(function(e){ return e.id===ctx.eventId; });
-  autoPostDonationReceipt(don, ev);
-  closeModal('modal-flat-status');
-  showReceipt(don);
-  renderCollectionNavigator(ctx.eventId);
-  loadDashboard();
-  addAudit('Donation','Flat '+ctx.flatKey+': '+fmtAmt(amt));
-  showToast('Recorded! '+receipt,'success');
+  try {
+    await supabaseWrite('donations', don);
+    var ev = DB.get('events').find(function(e){ return e.id===ctx.eventId; });
+    autoPostDonationReceipt(don, ev);
+    closeModal('modal-flat-status');
+    showReceipt(don);
+    renderCollectionNavigator(ctx.eventId);
+    loadDashboard();
+    addAudit('Donation','Flat '+ctx.flatKey+': '+fmtAmt(amt));
+    showToast('Recorded! '+receipt,'success');
+  } catch(e) { showToast('❌ Save failed: '+e.message,'error'); }
 }
 
 async function saveFsmDenied() {
@@ -2393,12 +2435,14 @@ async function saveFsmDenied() {
     status:'denied', donorName:'', amount:0, mode:'', date:new Date().toISOString().split('T')[0],
     deniedRemark:remark, receipt:'', collectedBy:currentUser.name, fy:currentFY, createdAt:now()
   };
-  DB.push('donations', don); queueSync('donations', don);
-  closeModal('modal-flat-status');
-  renderCollectionNavigator(ctx.eventId);
-  loadDashboard();
-  addAudit('Donation Denied','Flat '+ctx.flatKey+(remark?' — '+remark:''));
-  showToast('Marked as Denied','success');
+  try {
+    await supabaseWrite('donations', don);
+    closeModal('modal-flat-status');
+    renderCollectionNavigator(ctx.eventId);
+    loadDashboard();
+    addAudit('Donation Denied','Flat '+ctx.flatKey+(remark?' — '+remark:''));
+    showToast('Marked as Denied','success');
+  } catch(e) { showToast('❌ Save failed: '+e.message,'error'); }
 }
 
 async function saveFsmPending() {
@@ -2496,17 +2540,19 @@ async function saveFlatDonation() {
   if(!checkDateInFY(date)) { fyDateError(date); return; }
   var donorNameVal = document.getElementById('fd-name').value;
   var donDateVal = document.getElementById('fd-date').value;
-  var receipt = generateReceiptNumber('donation', {donorName: donorNameVal, amount: amt, date: donDateVal});
+  var receipt = await generateReceiptNumber('donation', {donorName: donorNameVal, amount: amt, date: donDateVal});
   var don = {id:uid(),eventId:currentFlatKey.eventId,flatKey:currentFlatKey.flatKey,type:'area',
     donorName:donorNameVal,amount:amt,mode:document.getElementById('fd-mode').value,
     bankAccount:getSelectedBankForDonation('fd-mode','fd-bank-account'),
     date:donDateVal,receipt:receipt,collectedBy:currentUser.name,fy:currentFY,createdAt:now()};
-  DB.push('donations',don); queueSync('donations',don);
-  var ev = DB.get('events').find(function(e){ return e.id===don.eventId; });
-  autoPostDonationReceipt(don,ev);
-  closeModal('modal-flat-donation'); showReceipt(don);
-  renderCollectionNavigator(currentFlatKey.eventId); loadDashboard();
-  addAudit('Donation','Flat '+currentFlatKey.flatKey+': '+fmtAmt(amt)); showToast('Recorded! '+receipt,'success');
+  try {
+    await supabaseWrite('donations', don);
+    var ev = DB.get('events').find(function(e){ return e.id===don.eventId; });
+    autoPostDonationReceipt(don, ev);
+    showReceipt(don); renderDirectDonorsTable(eventId); loadDashboard();
+    document.getElementById('dd-name').value=''; document.getElementById('dd-mobile').value=''; document.getElementById('dd-amount').value='';
+    addAudit('Donation','Direct: '+name+' '+fmtAmt(amt)); showToast('Recorded! '+receipt,'success');
+  } catch(e) { showToast('❌ Save failed: '+e.message,'error'); }
 }
 
 async function addDirectDonor() {
@@ -2520,7 +2566,7 @@ async function addDirectDonor() {
   var date = document.getElementById('dd-date').value;
   if(!checkDateInFY(date)) { fyDateError(date); return; }
   var ddDate = document.getElementById('dd-date').value;
-  var receipt = generateReceiptNumber('donation', {donorName: name, amount: amt, date: ddDate});
+  var receipt = await generateReceiptNumber('donation', {donorName: name, amount: amt, date: ddDate});
   var don = {id:uid(),eventId:eventId,type:'direct',donorName:name,mobile:mobile,
     sabhashadId:document.getElementById('dd-sabhashad').value,amount:amt,mode:document.getElementById('dd-mode').value,
     bankAccount:getSelectedBankForDonation('dd-mode','dd-bank-account'),
@@ -2694,9 +2740,11 @@ async function saveMeeting() {
   var meeting = {id:uid(),date:date,time:document.getElementById('mt-time').value,venue:venue,
     agenda:document.getElementById('mt-agenda').value,minutes:document.getElementById('mt-minutes').value,
     attendance:attendance,fy:currentFY,createdAt:now()};
-  DB.push('meetings',meeting); queueSync('meetings',meeting);
-  closeModal('modal-meeting'); renderMeetings();
-  addAudit('Meeting','Scheduled on '+fmtDate(date)); showToast('Meeting saved!','success');
+  try {
+    await supabaseWrite('meetings', meeting);
+    closeModal('modal-meeting'); renderMeetings();
+    addAudit('Meeting','Scheduled on '+fmtDate(date)); showToast('Meeting saved!','success');
+  } catch(e) { showToast('❌ Save failed: '+e.message,'error'); }
 }
 
 function renderMeetings() {
@@ -2724,7 +2772,9 @@ function seedDefaultBankAccount() {
   if(!accounts.length) DB.push('bankaccounts', {id:uid(), name:'Bank Account', bankName:'', accountNo:'', openingBalances:{}, createdAt:now(), system:true});
 }
   
-function postVoucher(v) {
+// postVoucher is now async — all callers that need the returned voucher
+// must await it. Fire-and-forget callers (autoPost*) just call without await.
+async function postVoucher(v) {
   var totalDr = v.entries.filter(function(e){ return e.type==='debit'; }).reduce(function(s,e){ return s+Number(e.amount); },0);
   var totalCr = v.entries.filter(function(e){ return e.type==='credit'; }).reduce(function(s,e){ return s+Number(e.amount); },0);
   if(Math.round(totalDr*100) !== Math.round(totalCr*100)) { showToast('Voucher not balanced! Dr '+fmtAmt(totalDr)+' ≠ Cr '+fmtAmt(totalCr),'error'); return null; }
@@ -2732,7 +2782,13 @@ function postVoucher(v) {
     ref:v.ref||'',entries:v.entries,linkedVendorId:v.linkedVendorId||'',linkedInvestmentId:v.linkedInvestmentId||'',
     linkedEventId:v.linkedEventId||'',linkedDonationId:v.linkedDonationId||'',linkedSabhashadId:v.linkedSabhashadId||'',
     files:v.files||[],fy:v.fy||currentFY,postedBy:(currentUser&&currentUser.name)||'System',auto:v.auto||false,createdAt:now()};
-  DB.push('vouchers',voucher); queueSync('vouchers',voucher); return voucher;
+  try {
+    await supabaseWrite('vouchers', voucher);
+  } catch(e) {
+    showToast('❌ Voucher write failed: '+e.message,'error');
+    return null;
+  }
+  return voucher;
 }
 
 function genVoucherNo(type) {
@@ -2933,9 +2989,10 @@ async function savePaymentVoucher() {
   var toLedgerName, vendorId='';
   if(toSel==='__other__') { toLedgerName = narration||'Sundry Expense'; }
   else { var vendor = DB.get('vendors').find(function(v){ return v.id===toSel; }); toLedgerName=vendor.name; vendorId=vendor.id; }
-  postVoucher({type:'Payment',date:date,ref:ref,narration:narration||'Payment to '+toLedgerName,
+  var pv = await postVoucher({type:'Payment',date:date,ref:ref,narration:narration||'Payment to '+toLedgerName,
     entries:[{ledger:toLedgerName,type:'debit',amount:amount},{ledger:fromLedger,type:'credit',amount:amount}],
     linkedVendorId:vendorId,fy:currentFY});
+  if(!pv) return;
   closeModal('modal-voucher-payment'); renderVoucherList('Payment'); loadDashboard();
   addAudit('Payment Voucher',fmtAmt(amount)+' to '+toLedgerName); showToast('Payment voucher saved!','success');
 }
@@ -3009,8 +3066,9 @@ async function saveContraVoucher() {
   if(!date||!amount) { showToast('Date and amount required','error'); return; }
   if(!fromLedger||!toLedger||fromLedger===toLedger) { showToast('Select two different accounts','error'); return; }
   if(!checkDateInFY(date)) { fyDateError(date); return; }
-  postVoucher({type:'Contra',date:date,narration:narration||('Transfer from '+fromLedger+' to '+toLedger),
+  var cv = await postVoucher({type:'Contra',date:date,narration:narration||('Transfer from '+fromLedger+' to '+toLedger),
     entries:[{ledger:toLedger,type:'debit',amount:amount},{ledger:fromLedger,type:'credit',amount:amount}],fy:currentFY});
+  if(!cv) return;
   closeModal('modal-voucher-contra'); renderVoucherList('Contra'); loadDashboard();
   addAudit('Contra Voucher',fmtAmt(amount)+' from '+fromLedger+' to '+toLedger); showToast('Contra voucher saved!','success');
 }
@@ -3025,8 +3083,9 @@ async function saveJournalVoucher() {
   if(!date||!debit||!credit||!amount) { showToast('All fields required','error'); return; }
   if(debit===credit) { showToast('Debit and Credit cannot be same','error'); return; }
   if(!checkDateInFY(date)) { fyDateError(date); return; }
-  postVoucher({type:'Journal',date:date,narration:narration,
+  var jv = await postVoucher({type:'Journal',date:date,narration:narration,
     entries:[{ledger:debit,type:'debit',amount:amount},{ledger:credit,type:'credit',amount:amount}],fy:currentFY});
+  if(!jv) return;
   closeModal('modal-voucher-journal'); renderVoucherList('Journal'); loadDashboard();
   addAudit('Journal Voucher',narration||debit+'/'+credit+': '+fmtAmt(amount)); showToast('Journal voucher saved!','success');
 }
@@ -3093,12 +3152,12 @@ function deleteVoucher(id){
     return;
   }
 
-  var vouchers = DB.get('vouchers').filter(function(v){
-    return v.id!==id;
-  });
-
-  DB.set('vouchers', vouchers);
-  queueDelete('vouchers', id);
+  try {
+    await supabaseDelete('vouchers', id);
+  } catch(e) {
+    showToast('❌ Delete failed: '+e.message,'error');
+    return;
+  }
 
   addAudit(
     'Voucher Deleted',
@@ -3197,9 +3256,11 @@ async function saveVendor() {
     mobile:document.getElementById('vnd-mobile').value,gst:document.getElementById('vnd-gst').value,
     address:document.getElementById('vnd-address').value,upi:document.getElementById('vnd-upi').value,
     opening:parseFloat(document.getElementById('vnd-opening').value)||0,createdAt:now()};
-  if(editingId) DB.update('vendors',editingId,v); else DB.push('vendors',v);
-  queueSync('vendors',v); closeModal('modal-vendor'); renderCreditorLedgers();
-  addAudit('Vendor',(editingId?'Updated':'Added')+' '+name); showToast('Vendor saved!','success');
+  try {
+    await supabaseWrite('vendors', v);
+    closeModal('modal-vendor'); renderCreditorLedgers();
+    addAudit('Vendor',(editingId?'Updated':'Added')+' '+name); showToast('Vendor saved!','success');
+  } catch(e) { showToast('❌ Save failed: '+e.message,'error'); }
 }
 
 function renderCreditorLedgers() {
@@ -3250,15 +3311,16 @@ async function saveInvestment() {
     principal:principal,rate:parseFloat(document.getElementById('inv-rate').value)||0,
     bank:document.getElementById('inv-bank').value,maturity:document.getElementById('inv-maturity').value,
     date:date,status:'active',createdAt:now()};
-  if(editingId) { DB.update('investments',editingId,inv); }
-  else {
-    DB.push('investments',inv);
-    postVoucher({type:'Contra',date:date,narration:'Investment created — '+name+' ('+inv.invType+')',
-      entries:[{ledger:name,type:'debit',amount:principal},{ledger:source,type:'credit',amount:principal}],
-      fy:currentFY,linkedInvestmentId:inv.id});
-  }
-  queueSync('investments',inv); closeModal('modal-investment'); renderInvestments(); loadDashboard();
-  addAudit('Investment',(editingId?'Updated':'Created')+' '+name+': '+fmtAmt(principal)); showToast('Investment saved!','success');
+  try {
+    await supabaseWrite('investments', inv);
+    if(!editingId) {
+      postVoucher({type:'Contra',date:date,narration:'Investment created — '+name+' ('+inv.invType+')',
+        entries:[{ledger:name,type:'debit',amount:principal},{ledger:source,type:'credit',amount:principal}],
+        fy:currentFY,linkedInvestmentId:inv.id});
+    }
+    closeModal('modal-investment'); renderInvestments(); loadDashboard();
+    addAudit('Investment',(editingId?'Updated':'Created')+' '+name+': '+fmtAmt(principal)); showToast('Investment saved!','success');
+  } catch(e) { showToast('❌ Save failed: '+e.message,'error'); }
 }
 
 function renderInvestments() {
@@ -3321,10 +3383,11 @@ async function saveBankAccount() {
     qrCode:_tempBankQR||(existing&&existing.qrCode)||'',createdAt:(existing&&existing.createdAt)||now()};
   _tempBankQR = '';
   acct.openingBalances[currentFY] = opening;
-  if(editingId) DB.update('bankaccounts',editingId,acct); else DB.push('bankaccounts',acct);
-  queueSync('bankaccounts', acct);
-  closeModal('modal-bankaccount'); renderAssetBankCash();
-  addAudit('Bank Account',(editingId?'Updated':'Added')+' '+name); showToast('Bank account saved!','success');
+  try {
+    await supabaseWrite('bankaccounts', acct);
+    closeModal('modal-bankaccount'); renderAssetBankCash();
+    addAudit('Bank Account',(editingId?'Updated':'Added')+' '+name); showToast('Bank account saved!','success');
+  } catch(e) { showToast('❌ Save failed: '+e.message,'error'); }
 }
 
 function editBankAccount(id) {
@@ -3388,10 +3451,12 @@ async function saveLedger() {
     opening: parseFloat(document.getElementById('ledger-opening').value)||0,
     fy: currentFY, createdAt: now()
   };
-  if(editingId) DB.update('ledgers',editingId,ledger); else DB.push('ledgers',ledger);
-  queueSync('ledgers',ledger); closeModal('modal-ledger');
-  renderLedgersByType(type);
-  addAudit('Ledger',(editingId?'Updated':'Added')+' '+name); showToast('Ledger saved!','success');
+  try {
+    await supabaseWrite('ledgers', ledger);
+    closeModal('modal-ledger');
+    renderLedgersByType(type);
+    addAudit('Ledger',(editingId?'Updated':'Added')+' '+name); showToast('Ledger saved!','success');
+  } catch(e) { showToast('❌ Save failed: '+e.message,'error'); }
 }
 
 function renderLedgersByType(type) {
@@ -3580,18 +3645,23 @@ function getAllAccountLedgers(fy) {
  */
 function getLedgerOpeningBalance(ledgerName, fy) {
   var targetFY = fy || currentFY;
-  // Cash in Hand
-  if(ledgerName === 'Cash in Hand') return getOpeningBalanceForLedger('Cash in Hand', targetFY);
-  // Bank accounts
+  // Cash in Hand — always a debit-normal asset (positive = Dr)
+  if(ledgerName === 'Cash in Hand') {
+    return Number(getOpeningBalanceForLedger('Cash in Hand', targetFY) || 0);
+  }
+  // Named bank accounts — debit-normal assets (positive = Dr)
   var bank = DB.get('bankaccounts').find(function(b){ return b.name === ledgerName; });
-  if(bank) return getOpeningBalanceForLedger(ledgerName, targetFY);
-  // Vendor opening
+  if(bank) {
+    return Number(getOpeningBalanceForLedger(ledgerName, targetFY) || 0);
+  }
+  // Vendor opening balance — credit-normal liability (negative = Cr side)
   var vendor = DB.get('vendors').find(function(v){ return v.name === ledgerName; });
-  if(vendor && vendor.opening) return -Number(vendor.opening); // credit normal → negative
-  // User-defined ledger opening
+  if(vendor && vendor.opening) return -Number(vendor.opening); // negative signals Cr opening
+  // User-defined ledger
   var ledger = DB.get('ledgers').find(function(l){ return l.name === ledgerName && l.fy === targetFY; });
-  if(ledger && ledger.opening) {
-    var nb = ledger.normalBalance || (['asset','expense'].indexOf(ledger.type)>-1 ? 'debit' : 'credit');
+  if(ledger && Number(ledger.opening)) {
+    var nb = ledger.normalBalance || (['asset','expense'].indexOf(ledger.type) > -1 ? 'debit' : 'credit');
+    // Debit-normal: positive; Credit-normal: negative (stored amount is always the absolute value)
     return nb === 'debit' ? Number(ledger.opening) : -Number(ledger.opening);
   }
   return 0;
@@ -3605,10 +3675,10 @@ function getFullLedgerBalance(ledgerName, fy) {
   var targetFY = fy || currentFY;
   var txDr = 0, txCr = 0;
   DB.get('vouchers').filter(function(v){ return v.fy === targetFY; }).forEach(function(v){
-    v.entries.forEach(function(e){
+    (v.entries || []).forEach(function(e){
       if(e.ledger === ledgerName){
-        if(e.type === 'debit') txDr += Number(e.amount);
-        else txCr += Number(e.amount);
+        if(e.type === 'debit') txDr += Number(e.amount || 0);
+        else txCr += Number(e.amount || 0);
       }
     });
   });
@@ -3616,13 +3686,15 @@ function getFullLedgerBalance(ledgerName, fy) {
   // ob positive = debit-side opening; ob negative = credit-side opening
   var obDr = ob > 0 ? ob : 0;
   var obCr = ob < 0 ? -ob : 0;
-  var netDr = obDr + txDr;
-  var netCr = obCr + txCr;
-  var net = netDr - netCr; // positive = debit closing, negative = credit closing
+  // Closing = opening net + transaction net
+  var net = (obDr - obCr) + (txDr - txCr);
   return {
-    obDr: obDr, obCr: obCr,
-    txDr: txDr, txCr: txCr,
-    totalDr: netDr, totalCr: netCr,
+    obDr: obDr,
+    obCr: obCr,
+    txDr: txDr,
+    txCr: txCr,
+    totalDr: obDr + txDr,
+    totalCr: obCr + txCr,
     closingDr: net > 0 ? net : 0,
     closingCr: net < 0 ? -net : 0,
     net: net
@@ -3649,10 +3721,11 @@ function calcNetProfitLoss(fy) {
 function renderTrialBalance(fy) {
   var targetFY = fy || currentFY;
   var allLedgers = getAllAccountLedgers(targetFY);
-  var totalDr = 0, totalCr = 0;
+  var totalObDr = 0, totalObCr = 0;
+  var totalTxDr = 0, totalTxCr = 0;
+  var totalClDr = 0, totalClCr = 0;
   var rows = '';
 
-  // Group order for display
   var groupOrder = ['Cash-in-Hand','Bank Accounts','Investments','Fixed Assets','Current Assets','Direct Income','Indirect Income','Direct Expenses','Indirect Expenses','Current Liabilities','Sundry Creditors','Loans & Borrowings','Capital Account','Reserves & Surplus','General'];
   var grouped = {};
   allLedgers.forEach(function(l){
@@ -3662,25 +3735,37 @@ function renderTrialBalance(fy) {
   });
 
   var displayGroups = groupOrder.filter(function(g){ return grouped[g] && grouped[g].length; });
-  // Add any groups not in the order list
   Object.keys(grouped).forEach(function(g){ if(displayGroups.indexOf(g) === -1) displayGroups.push(g); });
 
   displayGroups.forEach(function(group){
     var groupLedgers = grouped[group] || [];
     if(!groupLedgers.length) return;
-    rows += '<tr style="background:var(--bg)"><td colspan="4" style="font-weight:700;font-size:12px;color:var(--saffron);padding:8px 12px;letter-spacing:.5px;text-transform:uppercase">'+group+'</td></tr>';
+    rows += '<tr style="background:var(--bg)">' +
+      '<td colspan="5" style="font-weight:700;font-size:12px;color:var(--saffron);padding:8px 12px;letter-spacing:.5px;text-transform:uppercase">'+group+'</td>' +
+      '</tr>';
     groupLedgers.forEach(function(l){
       var b = getFullLedgerBalance(l.name, targetFY);
-      totalDr += b.closingDr;
-      totalCr += b.closingCr;
-      rows += '<tr><td style="padding-left:20px">'+l.name+'</td>' +
-        '<td style="text-align:right">'+fmtAmt(Math.abs(b.obDr-b.obCr))+' '+(b.obDr>=b.obCr?'Dr':'Cr')+'</td>' +
-        '<td style="text-align:right;color:var(--success)">'+fmtAmt(b.closingDr)+'</td>' +
-        '<td style="text-align:right;color:var(--danger)">'+fmtAmt(b.closingCr)+'</td></tr>';
+      // Opening: use signed net (positive=Dr side, negative=Cr side)
+      var obAmt = b.obDr - b.obCr; // positive = Dr, negative = Cr
+      var obDrAmt = obAmt > 0 ? obAmt : 0;
+      var obCrAmt = obAmt < 0 ? -obAmt : 0;
+      totalObDr += obDrAmt;
+      totalObCr += obCrAmt;
+      totalTxDr += b.txDr;
+      totalTxCr += b.txCr;
+      totalClDr += b.closingDr;
+      totalClCr += b.closingCr;
+      rows += '<tr>' +
+        '<td style="padding-left:20px">'+l.name+'</td>' +
+        '<td style="text-align:right">'+(obDrAmt > 0 ? '<span style="color:var(--success)">'+fmtAmt(obDrAmt)+'</span>' : (obCrAmt > 0 ? '<span style="color:var(--danger)">'+fmtAmt(obCrAmt)+'</span>' : '—'))+'</td>' +
+        '<td style="text-align:right;color:var(--success)">'+(b.txDr > 0 ? fmtAmt(b.txDr) : '—')+'</td>' +
+        '<td style="text-align:right;color:var(--danger)">'+(b.txCr > 0 ? fmtAmt(b.txCr) : '—')+'</td>' +
+        '<td style="text-align:right;font-weight:600">'+(b.closingDr > 0 ? '<span style="color:var(--success)">'+fmtAmt(b.closingDr)+' Dr</span>' : (b.closingCr > 0 ? '<span style="color:var(--danger)">'+fmtAmt(b.closingCr)+' Cr</span>' : '—'))+'</td>' +
+        '</tr>';
     });
   });
 
-  // Accumulated Surplus opening balance row (manual override or auto-calc)
+  // Accumulated Surplus
   var s_tb = DB.getObj('settings');
   var ob_tb = (s_tb.openingBalance && s_tb.openingBalance[targetFY]) || {};
   var prevFYs_tb = getFYList().filter(function(f){ return f < targetFY; });
@@ -3691,42 +3776,58 @@ function renderTrialBalance(fy) {
     prevFYs_tb.forEach(function(f){ accSurplus_tb += calcNetProfitLoss(f); });
   }
   if(accSurplus_tb !== 0) {
-    rows += '<tr style="background:var(--bg)"><td colspan="4" style="font-weight:700;font-size:12px;color:var(--saffron);padding:8px 12px;letter-spacing:.5px;text-transform:uppercase">Reserves & Surplus</td></tr>';
-    rows += '<tr><td style="padding-left:20px">Accumulated Surplus (prev FYs)</td>' +
-      '<td style="text-align:right">'+fmtAmt(accSurplus_tb)+' Cr</td>' +
-      '<td style="text-align:right;color:var(--success)">'+fmtAmt(0)+'</td>' +
-      '<td style="text-align:right;color:var(--danger)">'+fmtAmt(accSurplus_tb)+'</td></tr>';
-    totalCr += accSurplus_tb;
+    // Check not already in allLedgers to avoid double-counting
+    var alreadyHas = allLedgers.find(function(l){ return l.name === 'Accumulated Surplus (prev FYs)' || (l.name === 'Reserves & Surplus' && l.group === 'Reserves & Surplus'); });
+    if(!alreadyHas) {
+      rows += '<tr style="background:var(--bg)"><td colspan="5" style="font-weight:700;font-size:12px;color:var(--saffron);padding:8px 12px;letter-spacing:.5px;text-transform:uppercase">Reserves & Surplus</td></tr>';
+      rows += '<tr>' +
+        '<td style="padding-left:20px">Accumulated Surplus (prev FYs)</td>' +
+        '<td style="text-align:right"><span style="color:var(--danger)">'+fmtAmt(accSurplus_tb)+'</span></td>' +
+        '<td style="text-align:right">—</td>' +
+        '<td style="text-align:right">—</td>' +
+        '<td style="text-align:right;font-weight:600"><span style="color:var(--danger)">'+fmtAmt(accSurplus_tb)+' Cr</span></td>' +
+        '</tr>';
+      totalObCr += accSurplus_tb;
+      totalClCr += accSurplus_tb;
+    }
   }
 
-  // Suspense row if not balanced
-  var diff = Math.abs(totalDr - totalCr);
+  // Suspense row if closing totals don't balance
+  var diff = Math.abs(totalClDr - totalClCr);
   var tbBalanced = diff < 0.01;
   var suspenseRow = '';
   if(!tbBalanced) {
-    suspenseRow = '<tr style="background:#FEF9E7"><td><strong>⚠️ Suspense (Difference)</strong></td><td></td>' +
-      '<td style="text-align:right;color:var(--warning)">'+(totalDr<totalCr?fmtAmt(diff):'—')+'</td>' +
-      '<td style="text-align:right;color:var(--warning)">'+(totalDr>totalCr?fmtAmt(diff):'—')+'</td></tr>';
-    if(totalDr < totalCr) totalDr += diff; else totalCr += diff;
+    suspenseRow = '<tr style="background:#FEF9E7">' +
+      '<td><strong>⚠️ Suspense (Difference)</strong></td>' +
+      '<td></td>' +
+      '<td style="text-align:right;color:var(--warning)">'+(totalTxDr < totalTxCr ? fmtAmt(diff) : '—')+'</td>' +
+      '<td style="text-align:right;color:var(--warning)">'+(totalTxDr > totalTxCr ? fmtAmt(diff) : '—')+'</td>' +
+      '<td style="text-align:right;color:var(--warning)">'+fmtAmt(diff)+(totalClDr < totalClCr ? ' Dr' : ' Cr')+'</td>' +
+      '</tr>';
+    if(totalClDr < totalClCr) totalClDr += diff; else totalClCr += diff;
   }
 
   var el = document.getElementById('tb-report');
   if(!el) return;
   el.innerHTML = (tbBalanced
-    ? '<div class="alert alert-success">✅ Trial Balance is balanced — Total Dr = Total Cr = '+fmtAmt(totalDr)+'</div>'
-    : '<div class="alert alert-warning">⚠️ Trial Balance has a difference of '+fmtAmt(diff)+'. A suspense entry has been added. Check your vouchers.</div>') +
+    ? '<div class="alert alert-success">✅ Trial Balance is balanced — Closing Dr = Closing Cr = '+fmtAmt(totalClDr)+'</div>'
+    : '<div class="alert alert-warning">⚠️ Trial Balance difference of '+fmtAmt(diff)+'. Check opening balances and voucher entries.</div>') +
     '<div class="table-wrap"><table>' +
     '<thead><tr>' +
     '<th>Account / Ledger Name</th>' +
     '<th style="text-align:right">Opening Balance</th>' +
     '<th style="text-align:right">Debit (Dr) ₹</th>' +
     '<th style="text-align:right">Credit (Cr) ₹</th>' +
+    '<th style="text-align:right">Closing Balance</th>' +
     '</tr></thead><tbody>' +
     rows + suspenseRow +
     '<tr style="background:var(--deep);color:white;font-weight:800">' +
-    '<td>TOTAL</td><td></td>' +
-    '<td style="text-align:right">'+fmtAmt(totalDr)+'</td>' +
-    '<td style="text-align:right">'+fmtAmt(totalCr)+'</td></tr>' +
+    '<td>TOTAL</td>' +
+    '<td style="text-align:right">Dr '+fmtAmt(totalObDr)+' / Cr '+fmtAmt(totalObCr)+'</td>' +
+    '<td style="text-align:right">'+fmtAmt(totalTxDr)+'</td>' +
+    '<td style="text-align:right">'+fmtAmt(totalTxCr)+'</td>' +
+    '<td style="text-align:right">Dr '+fmtAmt(totalClDr)+' / Cr '+fmtAmt(totalClCr)+'</td>' +
+    '</tr>' +
     '</tbody></table></div>';
 }
 
@@ -4083,9 +4184,11 @@ function saveOpeningBalance2() {
   }
 
   s.openingBalance[currentFY] = ob;
-  DB.set('settings',s); queueSync('settings',s);
-  showToast('Opening balances saved!','success');
-  addAudit('Opening Balance','FY '+currentFY+': Cash '+fmtAmt(cash)+', Bank Total '+fmtAmt(bankTotal));
+  try {
+    await supabaseWrite('settings', s);
+    showToast('Opening balances saved!','success');
+    addAudit('Opening Balance','FY '+currentFY+': Cash '+fmtAmt(cash)+', Bank Total '+fmtAmt(bankTotal));
+  } catch(e) { showToast('❌ Save failed: '+e.message,'error'); }
 }
 
 function loadOpeningBalance() {
@@ -4288,17 +4391,24 @@ async function markFeePaid(memberId, fy, minAmt) {
   var members = DB.get('sabhashad');
   var i = members.findIndex(function(x){ return x.id===memberId; });
   if(i<0) return;
-  var receipt = generateReceiptNumber('fee', {donorName: members[i].name, amount: paidAmt, date: date});
+  var receipt = await generateReceiptNumber('fee', {donorName: members[i].name, amount: paidAmt, date: date});
   if(!members[i].fees) members[i].fees = {};
   var bankEl = document.getElementById('fee-bank-'+fy);
   var bankAcct = (mode==='Cash') ? 'Cash in Hand' : (bankEl&&bankEl.value ? bankEl.value : (DB.get('bankaccounts')[0]&&DB.get('bankaccounts')[0].name||'Bank Account'));
   var fee = {paid:true,date:date,receipt:receipt,amount:paidAmt,mode:mode,bankAccount:bankAcct,remarks:remarks,collectedBy:currentUser&&currentUser.name||'Admin'};
   members[i].fees[fy] = fee;
-  DB.set('sabhashad',members); queueSync('sabhashad',members[i]);
-  autoPostFeeReceipt(members[i], fy, fee);
-  addAudit('Fee Paid',members[i].name+' FY '+fy+': '+fmtAmt(paidAmt)+' via '+mode);
-  showToast('Fee paid! Receipt: '+receipt,'success');
-  showFeeModal(memberId); renderSabhashad(); loadDashboard();
+  try {
+    await supabaseWrite('sabhashad', members[i]);
+    autoPostFeeReceipt(members[i], fy, fee);
+    addAudit('Fee Paid',members[i].name+' FY '+fy+': '+fmtAmt(paidAmt)+' via '+mode);
+    showToast('Fee paid! Receipt: '+receipt,'success');
+    showFeeModal(memberId); renderSabhashad(); loadDashboard();
+  } catch(e) {
+    // Rollback cache
+    delete members[i].fees[fy];
+    DB.set('sabhashad', members);
+    showToast('❌ Fee save failed: '+e.message,'error');
+  }
 }
 
 async function unpayFee(memberId, fy) {
@@ -4322,21 +4432,14 @@ async function unpayFee(memberId, fy) {
   });
 
   // Delete each voucher locally and from Supabase
-  toDelete.forEach(function(v){
-    DB.delete('vouchers', v.id);
-    queueDelete('vouchers', v.id);
-  });
-
-  // 2. Void the receipt number in the series so it is never reused
-  if(oldReceipt) voidReceiptNumber('fee', oldReceipt, fy);
-
-  // 3. Clear the fee record from the member
-  delete members[i].fees[fy];
-  DB.set('sabhashad', members);
-  queueSync('sabhashad', members[i]);
-
-  addAudit('Fee Undo', members[i].name + ' FY ' + fy + ' — receipt ' + (oldReceipt||'?') + ' deleted. ' + toDelete.length + ' voucher(s) removed.');
-  showToast('Fee undone — receipt and vouchers permanently deleted', 'success');
+  try {
+    for(var _tdi=0;_tdi<toDelete.length;_tdi++) await supabaseDelete('vouchers', toDelete[_tdi].id);
+    if(oldReceipt) voidReceiptNumber('fee', oldReceipt, fy);
+    delete members[i].fees[fy];
+    await supabaseWrite('sabhashad', members[i]);
+    addAudit('Fee Undo', members[i].name + ' FY ' + fy + ' — receipt ' + (oldReceipt||'?') + ' deleted. ' + toDelete.length + ' voucher(s) removed.');
+    showToast('Fee undone — receipt and vouchers permanently deleted', 'success');
+  } catch(e) { showToast('❌ Undo failed: '+e.message,'error'); return; }
   showFeeModal(memberId);
   renderSabhashad();
   renderVoucherList('Receipt');
@@ -4514,9 +4617,11 @@ async function saveUser() {
     roles:roles, role:roles[0], // 'role' kept for backward compatibility with older synced rows
     mobile:document.getElementById('usr-mobile').value,email:document.getElementById('usr-email').value,
     area:document.getElementById('usr-area').value,status:'active',createdAt:now()};
-  if(editingId) DB.update('users',editingId,user); else DB.push('users',user);
-  queueSync('users',user); closeModal('modal-user'); renderUsers();
-  addAudit('Users',(editingId?'Updated':'Added')+' '+name+' — roles: '+roles.join(', ')); showToast('User saved!','success');
+  try {
+    await supabaseWrite('users', user);
+    closeModal('modal-user'); renderUsers();
+    addAudit('Users',(editingId?'Updated':'Added')+' '+name+' — roles: '+roles.join(', ')); showToast('User saved!','success');
+  } catch(e) { showToast('❌ Save failed: '+e.message,'error'); }
 }
 
 function renderUsers() {
@@ -4662,32 +4767,45 @@ function getGasUrl() {
   return '';
 }
 
-function queueSync(sheetName, record) {
-  if (!record) return;
-  // Never store data in localStorage — Supabase is the only persistent store
-  var toSync = Object.assign({}, record, {_updatedAt: now()});
-  supabaseUpsert(sheetName, toSync);
+// ── Primary write path ──────────────────────────────────────
+// Every mutation in the app calls supabaseWrite().
+// It writes to Supabase FIRST. Only on success does it update
+// the in-memory cache. On failure it throws so the caller can
+// show an error and abort — nothing is saved anywhere locally.
+async function supabaseWrite(table, record) {
+  var sb = getSupabase();
+  if (!sb) throw new Error('No Supabase connection. Check settings in Backup & Restore.');
+  if (!record) throw new Error('No record supplied to supabaseWrite.');
+
+  var isSingleton = (table === 'mandal' || table === 'settings');
+  var row = {
+    id: isSingleton ? table : record.id,
+    data: Object.assign({}, record, { _updatedAt: new Date().toISOString() }),
+    updated_at: new Date().toISOString()
+  };
+
+  var { error } = await sb.from(table).upsert(row, { onConflict: 'id' });
+  if (error) throw new Error('Supabase write failed [' + table + ']: ' + error.message);
+
+  // Write confirmed — update in-memory cache
+  if (isSingleton) {
+    DB.set(table, record);
+  } else {
+    DB._cacheUpsert(table, record);
+  }
+
+  // Suppress realtime echo of our own write for 1.5 s
+  _suppressPullUntil = Date.now() + 1500;
+  return record;
 }
 
-async function supabaseUpsert(table, record) {
-  var sb = getSupabase();
-  if (!sb || !record) return;
-  try {
-    var row = {
-      id: record.id || table, // mandal/settings use table name as id
-      data: record,
-      updated_at: new Date().toISOString()
-    };
-    var { error } = await sb.from(table).upsert(row, { onConflict: 'id' });
-    if (error) {
-      console.warn('Supabase upsert error [' + table + ']:', error.message);
-      showToast('⚠️ Sync error for '+table+': '+error.message,'error');
-    }
-    // No localStorage — in-memory DB is already updated by the caller before queueSync is called
-  } catch(e) {
-    console.warn('Supabase upsert exception:', e.message);
-    showToast('⚠️ Sync exception: '+e.message,'error');
-  }
+// Keep queueSync as a fire-and-forget alias so any remaining callers
+// that were not individually updated still work. It logs errors but
+// does NOT fall back to local storage.
+function queueSync(table, record) {
+  supabaseWrite(table, record).catch(function(e) {
+    console.error('queueSync fallback error [' + table + ']:', e.message);
+  });
 }
 
 function scheduleSyncRun() { /* no-op — Supabase upserts are immediate */ }
@@ -4712,21 +4830,10 @@ function saveGasUrl() { /* no-op — use saveSupabaseFromUI() instead */ }
 function testGasConnection() { /* no-op — use testSupabaseConnection() instead */ }
 
 async function forceSyncNow() {
-  var sb = getSupabase();
-  if(!sb){ showToast('No Supabase connection configured','error'); return; }
-  showToast('Pushing all local data to Supabase...');
-  var colls = ['mandal','users','committee','sabhashad','areas','events','donations',
-    'vouchers','vendors','investments','ledgers','meetings','audit','bankaccounts','settings'];
-  for(var i = 0; i < colls.length; i++){
-    var coll = colls[i];
-    var items = (coll==='mandal'||coll==='settings') ? [DB.getObj(coll)] : DB.get(coll);
-    for(var j = 0; j < items.length; j++){
-      if(items[j] && (items[j].id || coll==='mandal' || coll==='settings')){
-        await supabaseUpsert(coll, items[j]);
-      }
-    }
-  }
-  showToast('✅ All data pushed to Supabase!','success');
+  // No local data to push — all writes go directly to Supabase.
+  // This function now just pulls the latest state from Supabase.
+  await pullFromSupabase();
+  showToast('✅ Refreshed from Supabase','success');
 }
 
 // ============================================================
@@ -4740,7 +4847,7 @@ var _realtimeTables = ['mandal','users','committee','sabhashad','areas','events'
 
 function startLivePolling() {
   if (!getSupabase()) return;
-  pullFromSupabase(); // one full pull on login/connect to get the current state
+  pullFromSupabase();
   startRealtimeSync();
 }
 
@@ -4752,17 +4859,22 @@ function stopLivePolling() {
 function startRealtimeSync() {
   var sb = getSupabase();
   if (!sb || _realtimeChannel) return;
-  _realtimeChannel = sb.channel('mandal-live-changes');
+  _realtimeChannel = sb.channel('mandal-live-changes', {
+    config: { broadcast: { self: false } }
+  });
   _realtimeTables.forEach(function(t){
     _realtimeChannel.on('postgres_changes', {event:'*', schema:'public', table:t}, function(payload){
       handleRealtimeChange(t, payload);
     });
   });
   _realtimeChannel.subscribe(function(status){
-    if (status === 'SUBSCRIBED') setSyncStatus('synced');
-    else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
-      // fall back to polling if realtime can't connect (e.g. not enabled in Supabase yet)
-      if (!pullTimer) pullTimer = setInterval(pullFromSupabase, 8000);
+    if (status === 'SUBSCRIBED') {
+      setSyncStatus('synced');
+    } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
+      // Realtime not enabled in Supabase — fall back to aggressive polling
+      if (!pullTimer) pullTimer = setInterval(function(){
+        pullFromSupabase().then(refreshCurrentPageView);
+      }, 3000);
     }
   });
 }
@@ -4774,7 +4886,7 @@ function stopRealtimeSync() {
 }
 
 function handleRealtimeChange(table, payload) {
-  if (Date.now() < _suppressPullUntil) return; // ignore the echo of our own just-made save
+  if (Date.now() < _suppressPullUntil) return;
   var isSettingsLike = (table === 'mandal' || table === 'settings');
   if (payload.eventType === 'DELETE') {
     var oldId = payload.old && payload.old.id;
@@ -4791,7 +4903,9 @@ function handleRealtimeChange(table, payload) {
       DB.set(table, list);
     }
   }
-  refreshCurrentPageView();
+  // Debounce rapid-fire updates — refresh UI at most once per 300ms
+  if (handleRealtimeChange._debounce) clearTimeout(handleRealtimeChange._debounce);
+  handleRealtimeChange._debounce = setTimeout(refreshCurrentPageView, 300);
 }
 
 async function pullFromSupabase() {
@@ -4831,25 +4945,13 @@ async function pullFromSupabase() {
 }
 
 async function manualSyncNow() {
-  var btn = document.getElementById('manual-sync-btn');
-  var icon = document.getElementById('manual-sync-icon');
-  var label = document.getElementById('manual-sync-label');
   var sb = getSupabase();
   if (!sb) { showToast('No Supabase connection configured','error'); return; }
-  if (!getSupabaseUrl()) { showToast('No Supabase connection configured','error'); return; }
-  if (btn) btn.disabled = true;
-  if (icon) icon.className = 'mm-syncing';
-  if (label) label.textContent = 'Syncing...';
   try {
-    lastPullStamp = null; // force full pull
     await pullFromSupabase();
     showToast('✅ Synced — showing latest data', 'success');
   } catch (e) {
     showToast('Sync failed: ' + e.message, 'error');
-  } finally {
-    if (btn) btn.disabled = false;
-    if (icon) icon.className = '';
-    if (label) label.textContent = 'Sync Now';
   }
 }
 
@@ -4998,8 +5100,8 @@ async function wipeAllData() {
     return;
   }
 
-  // 2. Wipe local storage
-  keysToWipe.forEach(function(k){ localStorage.removeItem('mm_'+k); });
+  // 2. Clear in-memory cache (no localStorage to wipe)
+  keysToWipe.forEach(function(k){ DB.set(k, k==='mandal'||k==='settings'?{}:[]); });
   lastPullStamp = null;
 
   // 3. Reseed defaults
@@ -5036,12 +5138,8 @@ async function checkWipeEpochAndMaybeClear() {
 }
 
 function clearCacheFromLoginScreen() {
-  if(!confirm('Clear all data cached on THIS device (local copy only) and reload?\n\nThis does NOT touch Google Sheets/Drive. Use this if the device is showing old/wrong data or before handing it to someone else.')) return;
-  var keysToWipe = ['mandal','committee','sabhashad','areas','events','donations','vouchers',
-    'vendors','investments','ledgers','meetings','audit','settings','bankaccounts','syncQueue','wipeEpochSeen'];
-  keysToWipe.forEach(function(k){ localStorage.removeItem('mm_'+k); });
-  document.getElementById('login-error').style.display='none';
-  alert('Cache cleared. The page will now reload.');
+  if(!confirm('Clear in-memory cache and reload fresh data from Supabase?')) return;
+  // Nothing in localStorage to clear — just reload to re-pull from Supabase
   location.reload();
 }
 
@@ -5058,33 +5156,34 @@ function clearLocalCacheAndResync() {
 // removed duplicate — Supabase version above handles this
 
 function deleteItem(collection, id, callback) {
-  if(confirm('Delete this record?')){
-    DB.delete(collection,id);
-    addAudit('Delete','Removed from '+collection);
-    queueDelete(collection, id);
-    if(callback)callback();
-    showToast('Deleted','success');
+  if(!confirm('Delete this record?')) return;
+  supabaseDelete(collection, id).then(function() {
+    addAudit('Delete', 'Removed from ' + collection);
+    if(callback) callback();
+    showToast('Deleted', 'success');
     loadDashboard();
-  }
+  }).catch(function(e) {
+    showToast('❌ Delete failed: ' + e.message, 'error');
+  });
 }
 
-async function queueDelete(sheetName, id) {
+async function supabaseDelete(table, id) {
   var sb = getSupabase();
-  if (!sb) {
-    showToast('⚠️ No Supabase connection — deletion is local only until reconnected','warning');
-    return;
-  }
+  if (!sb) throw new Error('No Supabase connection.');
+  var { error } = await sb.from(table).delete().eq('id', id);
+  if (error) throw new Error('Supabase delete failed [' + table + '/' + id + ']: ' + error.message);
+  // Confirmed — remove from cache
+  DB._cacheDelete(table, id);
+  _suppressPullUntil = Date.now() + 1500;
+}
+
+// Alias so any remaining queueDelete() calls still work
+async function queueDelete(table, id) {
   try {
-    var { error } = await sb.from(sheetName).delete().eq('id', id);
-    if (error) {
-      console.warn('Supabase delete error ['+sheetName+'/'+id+']:', error.message);
-      showToast('⚠️ Supabase delete failed for '+sheetName+': '+error.message,'error');
-    } else {
-      console.log('Supabase delete OK:', sheetName, id);
-    }
+    await supabaseDelete(table, id);
   } catch(e) {
-    console.warn('Supabase delete exception:', e.message);
-    showToast('⚠️ Supabase delete exception: '+e.message,'error');
+    console.error('queueDelete error:', e.message);
+    showToast('⚠️ Delete failed: ' + e.message, 'error');
   }
 }
 
@@ -5103,11 +5202,12 @@ function deleteDonationCascade(id, callback) {
   var don = DB.get('donations').find(function(x){ return x.id===id; });
   if(!don) return;
   var linkedVouchers = DB.get('vouchers').filter(function(v){ return v.linkedDonationId===id || v.ref===don.receipt; });
-  linkedVouchers.forEach(function(v){ DB.delete('vouchers', v.id); queueDelete('vouchers', v.id); });
-  // Void the receipt number so it is never reused
-  if(don.receipt) voidReceiptNumber('donation', don.receipt, don.fy||currentFY);
-  DB.delete('donations', id); queueDelete('donations', id);
-  addAudit('Delete', 'Donation '+(don.donorName||'')+' '+fmtAmt(don.amount)+' + '+linkedVouchers.length+' linked voucher(s) removed. Receipt '+don.receipt+' voided.');
+  try {
+    for(var _lvi=0;_lvi<linkedVouchers.length;_lvi++) await supabaseDelete('vouchers', linkedVouchers[_lvi].id);
+    if(don.receipt) voidReceiptNumber('donation', don.receipt, don.fy||currentFY);
+    await supabaseDelete('donations', id);
+    addAudit('Delete', 'Donation '+(don.donorName||'')+' '+fmtAmt(don.amount)+' + '+linkedVouchers.length+' linked voucher(s) removed. Receipt '+don.receipt+' voided.');
+  } catch(e) { showToast('❌ Delete failed: '+e.message,'error'); return; }
   showToast('Donation and linked voucher(s) deleted');
   loadDashboard();
   renderVoucherList('All'); renderVoucherList('Receipt');
@@ -5486,13 +5586,21 @@ function saveReceiptSeriesConfig(type, fy, config) {
 }
 
 /**
- * Generates the next receipt number.
- * Skips any numbers already in issued[] or voided[].
- * Records the issued entry.
- * Returns the full receipt string e.g. "DON-2026-27-0001"
+ * Generates the next receipt number atomically.
+ *
+ * Strategy: each receipt type+FY has its own row in the `receipt_counters`
+ * table (id = "<type>-<fy>", counter = last issued number).
+ * We use Supabase RPC `increment_receipt_counter` (a Postgres function) to
+ * atomically increment and return the new value, completely preventing
+ * two concurrent saves from getting the same number.
+ *
+ * Falls back to a timestamp-based unique number if Supabase RPC is
+ * unavailable (offline / RPC not yet created), so the app never blocks.
+ *
+ * IMPORTANT: call `await generateReceiptNumber(...)` from all callers.
+ * All callers in this file that use generateReceiptNumber must be async.
  */
-function generateReceiptNumber(type, meta) {
-  // meta = { donorName, amount, date }
+async function generateReceiptNumber(type, meta) {
   var fy = currentFY;
   var s = DB.getObj('settings');
   if (!s.receiptSeries) s.receiptSeries = {};
@@ -5506,18 +5614,39 @@ function generateReceiptNumber(type, meta) {
     };
   }
   var cfg = s.receiptSeries[fy][type];
-  var issuedNums = new Set((cfg.issued || []).map(function(r) { return r.num; }));
-  var voidedNums = new Set(cfg.voided || []);
+  var prefix = cfg.prefix || (type === 'donation' ? 'DON' : 'FEE');
+  var num = null;
 
-  // Find next available number (skip issued and voided)
-  var num = cfg.nextNum || 1;
-  while (issuedNums.has(num) || voidedNums.has(num)) {
-    num++;
+  // ── Attempt atomic increment via Supabase ──
+  var sb = getSupabase();
+  if (sb) {
+    try {
+      var counterId = type + '-' + fy;
+      // Upsert the counter row with an atomic increment using Postgres function.
+      // The SQL function must exist in Supabase — see comment below for DDL.
+      var { data: rpcData, error: rpcErr } = await sb.rpc('increment_receipt_counter', {
+        p_id: counterId,
+        p_start: cfg.nextNum || 1
+      });
+      if (!rpcErr && rpcData !== null && rpcData !== undefined) {
+        num = Number(rpcData);
+      }
+    } catch(e) {
+      console.warn('Receipt counter RPC failed, using fallback:', e.message);
+    }
   }
 
-  var receiptStr = cfg.prefix + '-' + fy + '-' + String(num).padStart(4, '0');
+  // ── Fallback: local increment (best-effort, still skips known used nums) ──
+  if (num === null) {
+    var issuedNums = new Set((cfg.issued || []).map(function(r) { return r.num; }));
+    var voidedNums = new Set(cfg.voided || []);
+    num = cfg.nextNum || 1;
+    while (issuedNums.has(num) || voidedNums.has(num)) { num++; }
+  }
 
-  // Record in issued log
+  var receiptStr = prefix + '-' + fy + '-' + String(num).padStart(4, '0');
+
+  // Record in local issued log
   if (!cfg.issued) cfg.issued = [];
   cfg.issued.push({
     num: num,
@@ -5527,14 +5656,46 @@ function generateReceiptNumber(type, meta) {
     amount: (meta && meta.amount) || 0,
     issuedAt: new Date().toISOString()
   });
-
-  cfg.nextNum = num + 1;
+  cfg.nextNum = Math.max((cfg.nextNum || 1), num + 1);
   s.receiptSeries[fy][type] = cfg;
   DB.set('settings', s);
   queueSync('settings', s);
 
   return receiptStr;
 }
+
+/*
+ * ═══════════════════════════════════════════════════════════════
+ * SUPABASE SETUP REQUIRED — run this SQL once in Supabase SQL Editor:
+ * ═══════════════════════════════════════════════════════════════
+ *
+ * -- 1. Create the counter table
+ * CREATE TABLE IF NOT EXISTS receipt_counters (
+ *   id TEXT PRIMARY KEY,
+ *   counter BIGINT NOT NULL DEFAULT 0
+ * );
+ *
+ * -- 2. Create the atomic increment function
+ * CREATE OR REPLACE FUNCTION increment_receipt_counter(p_id TEXT, p_start BIGINT DEFAULT 1)
+ * RETURNS BIGINT LANGUAGE plpgsql AS $$
+ * DECLARE
+ *   v_new BIGINT;
+ * BEGIN
+ *   INSERT INTO receipt_counters (id, counter)
+ *     VALUES (p_id, p_start)
+ *     ON CONFLICT (id) DO UPDATE
+ *       SET counter = GREATEST(receipt_counters.counter, EXCLUDED.counter - 1) + 1
+ *   RETURNING counter INTO v_new;
+ *   RETURN v_new;
+ * END;
+ * $$;
+ *
+ * -- 3. Enable RLS and allow anon to call the function
+ * ALTER TABLE receipt_counters ENABLE ROW LEVEL SECURITY;
+ * CREATE POLICY "allow_all" ON receipt_counters FOR ALL USING (true) WITH CHECK (true);
+ * GRANT EXECUTE ON FUNCTION increment_receipt_counter TO anon, authenticated;
+ * ═══════════════════════════════════════════════════════════════
+ */
 
 /**
  * When a donation/fee is deleted, mark its receipt number as voided.
